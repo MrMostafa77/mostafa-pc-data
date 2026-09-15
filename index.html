@@ -1,0 +1,187 @@
+<!doctype html>
+<!DOCTYPE html>
+
+<html dir="ltr" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Game Archive — Game Library</title>
+
+
+
+
+<link href="css/style.css" rel="stylesheet"/><style>.report-year-games{display:grid;gap:6px;margin-top:12px}.report-year-game{padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.06)}.report-year-game.empty{opacity:.6}</style></head>
+<body><div hidden="" id="boot-error">Unable to load project data. Run the website through a local server (not file://).</div>
+<div aria-hidden="true" id="dynamic-bg"></div>
+<div aria-label="التاريخ والساعة" aria-live="polite" id="global-datetime">
+<div aria-hidden="true" class="clock-hud">
+<div class="clock-date"><span class="clock-weekday" id="global-weekday"></span><span class="clock-daymonth" id="global-daymonth"></span></div>
+<div class="clock-ring"><span class="clock-inner"></span><span class="dt-time" id="global-time"></span></div>
+</div>
+</div>
+<div class="wrap">
+<div class="wrap">
+<header class="hero">
+<div class="hero-top">
+<div>
+<h1 class="hero-title">Mostafa's PC Data</h1>
+<div class="hero-sub">My Games Catalog And Dates Played</div>
+</div>
+</div>
+<div class="hero-actions">
+<button class="ui-btn" id="lang-toggle" type="button">English</button>
+<button class="ui-btn" id="theme-toggle" type="button">☀️ / 🌙 <span>Site Options</span></button>
+</div>
+<div class="hero-stats" id="hero-stats"></div>
+</header></div>
+<nav class="tabnav" id="tabnav">
+<button class="tabnav-btn active" data-tab="dashboard-section" type="button"><span aria-hidden="true" class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11.5 12 4l9 7.5v7a1 1 0 0 1-1 1h-5v-5h-6v5H4a1 1 0 0 1-1-1v-7Z"/><path d="M9 19.5h6"/></svg></span><span class="tab-label">Home</span></button>
+<button class="tabnav-btn" data-tab="drives-section" type="button"><span aria-hidden="true" class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h5"/><circle cx="17" cy="16" r="1"/></svg></span><span class="tab-label">Drives</span></button>
+<button class="tabnav-btn" data-tab="library-section" type="button"><span aria-hidden="true" class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 9h10a5 5 0 0 1 4.6 6.9l-1.1 2.6a2 2 0 0 1-3.5.4L15 16H9l-2 2.9a2 2 0 0 1-3.5-.4l-1.1-2.6A5 5 0 0 1 7 9Z"/><path d="M8 12v4M6 14h4"/><circle cx="16.5" cy="13" r=".8"/><circle cx="18.5" cy="15" r=".8"/></svg></span><span class="tab-label">Library</span></button>
+<button class="tabnav-btn" data-tab="sizes-section" type="button"><span aria-hidden="true" class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h5M8 17h3"/><path d="M17 15v3M15.5 16.5h3"/></svg></span><span class="tab-label">الأحجام / Sizes</span></button>
+<button class="tabnav-btn" data-tab="dates-section" type="button"><span aria-hidden="true" class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01M16 17h.01"/></svg></span><span class="tab-label">Game Dates</span></button>
+<button class="tabnav-btn" data-tab="reports-section" type="button"><span aria-hidden="true" class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5h16v14H4Z"/><path d="M8 16v-4M12 16V8M16 16v-7"/></svg></span><span class="tab-label">Reports</span></button>
+</nav>
+<section class="section tab-page active" id="dashboard-section">
+<div class="section-head">
+<span class="tab">Home</span>
+<h2>Collection Overview</h2>
+</div>
+
+</section>
+<section class="section tab-page" id="reports-section">
+<div class="section-head">
+<span class="tab">Reports</span>
+<h2>Reports & Game Statistics</h2>
+<span class="note">جميع التقارير في مكان واحد، ويتم تحديثها مباشرة من بيانات Library وتواريخ اللعب.</span>
+</div>
+<div class="panel report-panel">
+<div class="report-toolbar">
+<div><h3 style="margin:0;border:0;padding:0;">Dynamic Reports</h3><div class="report-help">اختر التقرير الذي تريد عرضه وسيتم تحديثه مباشرة من بيانات Library.</div></div>
+<select class="sort-select" id="report-select">
+<option value="overview">Collection Summary</option><option value="ramadan">Ramadan Games</option><option value="epic-nostalgic">Epic & Nostalgic</option><option value="year-summary">Year Summary</option><option value="played-summary">Played Summary Year</option><option value="series-completion">Series Completion Rate</option><option value="last30">Last 30 Played Games</option><option value="genres">Genres</option><option value="hardware">Screen & Resolution</option><option value="dates">Play Activity Year</option>
+</select>
+</div><div id="dynamic-report"></div>
+
+</div>
+<div class="dash-grid">
+<div class="panel">
+<h3>Genres الأكثر تكرارًا</h3>
+<div id="chart-genre"></div>
+</div>
+<div class="panel">
+<h3>Playing State</h3>
+<div id="chart-state"></div>
+</div>
+<div class="panel">
+<h3>Final Rating</h3>
+<div id="chart-verdict"></div>
+</div>
+</div>
+<div class="dash-grid" style="margin-top:16px; grid-template-columns:2fr 1fr;">
+<div class="panel">
+<h3>Games by Release Decade</h3>
+<div class="decade-chart" id="chart-decade"></div>
+</div>
+<div class="panel">
+<h3>Perspective</h3>
+<div id="chart-persp"></div>
+</div>
+</div>
+<div class="dash-grid" style="margin-top:16px; grid-template-columns:1fr;">
+<div class="panel">
+<h3>أكثر Series تكرارًا <span class="note" id="series-note" style="font-size:11px; color:var(--muted); font-weight:400;"></span></h3>
+<div id="chart-series"></div>
+</div>
+</div>
+</section>
+</section>
+t-persp"></div>
+</div>
+</div>
+<div class="dash-grid" style="margin-top:16px; grid-template-columns:1fr;">
+<div class="panel">
+<h3>أكثر Series تكرارًا <span class="note" id="series-note" style="font-size:11px; color:var(--muted); font-weight:400;"></span></h3>
+<div id="chart-series"></div>
+</div>
+</div>
+</section>
+<section class="section tab-page" id="drives-section">
+<div class="section-head">
+<span class="tab">Drives</span>
+<h2>توزيع المساحة</h2>
+<span class="note">أدخل السعة الكلية لكل هارد لمعرفة المساحة المتبقية (تُحفظ في متصفحك)</span>
+</div>
+<div class="drives-grid" id="drives-grid"></div>
+</section>
+<section class="section tab-page" id="library-section">
+<div class="section-head">
+<span class="tab">Library</span>
+<h2>البحث والتصفح</h2>
+</div>
+<div class="search-box">
+<input autocomplete="off" class="search-input" id="search-name-input" placeholder="Search by game name..." type="text"/><input autocomplete="off" class="search-input" id="search-series-input" placeholder="Search by series..." type="text"/>
+<div class="search-sugg" id="search-sugg"></div>
+</div>
+<div class="lib-layout">
+<aside class="filters" id="filters"></aside>
+<div>
+<div class="toolbar">
+<div class="result-count" id="result-count"></div>
+<select class="sort-select" id="sort-select">
+<option value="name-asc">الاسم (أ-ي)</option>
+<option value="year-desc">سنة الإصدار (الأحدث أولاً)</option>
+<option value="year-asc">سنة الإصدار (الأقدم أولاً)</option>
+<option value="size-desc">الحجم (الأكبر أولاً)</option>
+<option value="size-asc">الحجم (الأصغر أولاً)</option>
+<option value="added-desc">المضاف حديثًا (الأحدث أولاً)</option>
+</select>
+<button class="action-btn" id="library-add-game-btn" title="إضافة لعبة" type="button">＋ 🎮</button>
+<select class="page-select" id="page-size-select">
+<option value="20">20 / صفحة</option>
+<option selected="" value="40">40 / صفحة</option>
+<option value="999999">عرض الكل</option>
+</select>
+</div>
+<div class="results-list" id="results-list"></div>
+<div class="pager" id="pager"></div>
+</div>
+</div>
+</section>
+<section class="section tab-page" id="sizes-section">
+<div class="section-head">
+<span class="tab">الأحجام / Sizes</span>
+<h2>أحجام الألعاب</h2>
+<span class="note">عرض حجم كل لعبة حسب الهارد الموجود عليه</span>
+</div>
+<div class="panel">
+<div class="dt-toolbar">
+<input autocomplete="off" class="search-input" id="sizes-search-input" placeholder="ابحث باسم اللعبة أو الهارد..." type="text"/>
+<select class="sort-select" id="sizes-drive-filter"><option value="">كل Drives</option></select>
+</div>
+<div id="sizes-wrap"></div>
+</div>
+</section>
+<section class="section tab-page" id="dates-section">
+<div class="section-head">
+<span class="tab">التواريخ</span>
+<h2>Game Dates ومدة اللعب</h2>
+<span class="note">كل الألعاب التي بدأت لعبها، مع حساب عدد الأيام ونوع الشاشة والدقة (قابلة للتعديل هنا)</span>
+</div>
+<div id="dates-wrap"></div>
+</section>
+<div id="library-add-game-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:1000;padding:30px;overflow:auto"><div style="max-width:1100px;margin:0 auto;background:var(--panel);border:1px solid var(--line-strong);border-radius:12px;padding:20px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">إضافة لعبة جديدة</h2><button class="icon-btn" id="close-library-add" type="button">✕</button></div><div id="library-add-game-wrap"></div></div></div>
+<footer>أُنشئ من ملف الإكسل الخاص بك — <span id="footer-count">638</span> لعبة مؤرشفة · يمكنك إضافة ألعاب جديدة من داخل Library</footer>
+</div>
+
+
+
+
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="js/cloud-sync.js"></script>
+
+</body>
+</html>
