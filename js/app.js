@@ -356,18 +356,26 @@
   function genreValueCounts(){ const m={}; Object.entries(genreDisplay).forEach(([k,v])=>{ m[k]=v.count; }); return m; }
   function seriesValueCounts(){ const m={}; Object.entries(seriesDisplay).forEach(([k,v])=>{ m[k]=v.count; }); return m; }
 
+  function filterGroupIcon(title){
+    const icons={
+      'النوع':'🎮','السلسلة':'◈','الهارد':'▣','Playing State':'▶','التقييم':'★','المنظور':'◉','الدعم العربي':'文','سنة الإصدار':'⌁','الحجم (GB)':'▰'
+    };
+    return `<span class="filter-group-icon" aria-hidden="true">${icons[title]||'◆'}</span>`;
+  }
+
   function buildChipGroup(title, valueCounts, activeSet, labelMap){
     const ratingOrder = ['Bad','Not-Bad','Good','Very-Good','Great','NOSTALGIC','Epic'];
     const isRating = title === 'التقييم';
     const rows = isRating
       ? ratingOrder.filter(v => Object.prototype.hasOwnProperty.call(valueCounts, v)).map(v => [v, valueCounts[v]])
       : Object.entries(valueCounts).sort((a,b)=>b[1]-a[1]);
-    return `<details class="f-group ${isRating?'rating-filter-group':''}" open><summary>${title} <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">(${rows.length})</span></summary>
+    const groupClass = 'filter-group-' + String(title).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    return `<details class="f-group ${groupClass} ${isRating?'rating-filter-group':''}"><summary><span class="filter-group-title">${filterGroupIcon(title)}<span>${title}</span></span><span class="filter-group-count">(${rows.length})</span></summary>
       <div class="chip-list ${isRating?'rating-chip-list':''}">
         ${rows.map(([val,count],idx)=>{
           const label = labelMap && labelMap[val] ? labelMap[val] : val;
           const stars = isRating ? '★'.repeat(idx+1) : '';
-          return `<button type="button" class="chip ${activeSet.has(val)?'active':''} ${isRating?'rating-chip rating-'+String(val).toLowerCase().replace(/\s+/g,'-'):''}" data-group="${title}" data-val="${esc(val)}">${isRating?`<span class="rating-stars" aria-hidden="true">${stars}</span><span class="rating-label">${esc(label)}</span>`: `${esc(label)} <span class="n">${count}</span>`}</button>`;
+          return `<button type="button" class="chip ${activeSet.has(val)?'active':''} ${isRating?'rating-chip rating-'+String(val).toLowerCase().replace(/\s+/g,'-'):''}" data-group="${title}" data-val="${esc(val)}"><span class="chip-main">${isRating?`<span class="rating-stars" aria-hidden="true">${stars}</span>`:`<span class="chip-mark" aria-hidden="true">◆</span>`}<span class="chip-label">${esc(label)}</span></span><span class="n">${count}</span></button>`;
         }).join('')}
       </div>
     </details>`;
@@ -387,28 +395,32 @@
   function renderFilters(){
     recomputeYearRange();
     const html = `
-      ${buildChipGroup('النوع', genreValueCounts(), state.genres, genreLabelMap())}
+      <div class="filter-panel-tools" role="toolbar" aria-label="التحكم في الفلاتر">
+        <button type="button" class="filter-panel-action" id="collapse-all-filters" title="طي الكل">⌃ <span>طي الكل</span></button>
+        <button type="button" class="filter-panel-action" id="expand-all-filters" title="فرد الكل">⌄ <span>فرد الكل</span></button>
+      </div>
       ${buildChipGroup('السلسلة', seriesValueCounts(), state.series, seriesLabelMapFn())}
-      ${buildChipGroup('الهارد', valueCounts('hdd'), state.hdds)}
       ${buildChipGroup('Playing State', valueCounts('playingState'), state.states, STATE_LABEL)}
-      ${buildChipGroup('التقييم', valueCounts('verdict'), state.verdicts, VERDICT_LABEL)}
-      ${buildChipGroup('المنظور', valueCounts('perspective'), state.persp, PERSP_LABEL)}
-      ${buildChipGroup('الدعم العربي', valueCounts('arabic'), state.arabic, ARABIC_LABEL)}
-      <details class="f-group" open><summary>سنة الإصدار</summary>
+      <details class="f-group"><summary><span class="filter-group-title"><span class="filter-group-icon" aria-hidden="true">⌁</span><span>سنة الإصدار</span></span><span class="filter-group-count"></span></summary>
         <div class="range-row">
           <input type="number" id="year-min" placeholder="${YEAR_MIN}" value="${state.yearMin??''}">
           <span style="color:var(--muted)">—</span>
           <input type="number" id="year-max" placeholder="${YEAR_MAX}" value="${state.yearMax??''}">
         </div>
       </details>
-      <details class="f-group" open><summary>الحجم (GB)</summary>
+      ${buildChipGroup('الهارد', valueCounts('hdd'), state.hdds)}
+      ${buildChipGroup('التقييم', valueCounts('verdict'), state.verdicts, VERDICT_LABEL)}
+      ${buildChipGroup('الدعم العربي', valueCounts('arabic'), state.arabic, ARABIC_LABEL)}
+      ${buildChipGroup('النوع', genreValueCounts(), state.genres, genreLabelMap())}
+      ${buildChipGroup('المنظور', valueCounts('perspective'), state.persp, PERSP_LABEL)}
+      <details class="f-group"><summary><span class="filter-group-title"><span class="filter-group-icon" aria-hidden="true">▰</span><span>الحجم (GB)</span></span><span class="filter-group-count"></span></summary>
         <div class="range-row">
           <input type="number" id="size-min" placeholder="0" value="${state.sizeMin??''}">
           <span style="color:var(--muted)">—</span>
           <input type="number" id="size-max" placeholder="max" value="${state.sizeMax??''}">
         </div>
       </details>
-      <div class="f-group" style="border-bottom:none;">
+      <div class="f-group filter-goty-group" style="border-bottom:none;">
         <label class="toggle-row"><input type="checkbox" id="goty-toggle" ${state.gotyOnly?'checked':''}> عرض اختياراتي المفضّلة فقط (GOTY)</label>
       </div>
       <button type="button" class="clear-btn" id="clear-filters">مسح كل الفلاتر</button>
@@ -420,12 +432,16 @@
         const group = chip.getAttribute('data-group');
         const val = chip.getAttribute('data-val');
         const setMap = {'النوع':state.genres,'السلسلة':state.series,'الهارد':state.hdds,'Playing State':state.states,'التقييم':state.verdicts,'المنظور':state.persp,'الدعم العربي':state.arabic};
-        const s = setMap[group];
-        if(s.has(val)) s.delete(val); else s.add(val);
+        const set = setMap[group];
+        if(!set) return;
+        if(set.has(val)) set.delete(val); else set.add(val);
         state.page = 1;
         renderFilters(); renderResults();
       });
     });
+    const filterGroups = () => Array.from(document.querySelectorAll('#library-section aside#filters.filters details.f-group'));
+    document.getElementById('collapse-all-filters').addEventListener('click', ()=>filterGroups().forEach(el=>el.open=false));
+    document.getElementById('expand-all-filters').addEventListener('click', ()=>filterGroups().forEach(el=>el.open=true));
     document.getElementById('year-min').addEventListener('input', e=>{ state.yearMin = e.target.value?parseInt(e.target.value):null; state.page=1; renderResults(); });
     document.getElementById('year-max').addEventListener('input', e=>{ state.yearMax = e.target.value?parseInt(e.target.value):null; state.page=1; renderResults(); });
     document.getElementById('size-min').addEventListener('input', e=>{ state.sizeMin = e.target.value?parseFloat(e.target.value):null; state.page=1; renderResults(); });
@@ -434,7 +450,7 @@
     document.getElementById('clear-filters').addEventListener('click', ()=>{
       state.genres.clear(); state.hdds.clear(); state.states.clear(); state.verdicts.clear(); state.persp.clear(); state.arabic.clear(); state.series.clear();
       state.gotyOnly=false; state.yearMin=null; state.yearMax=null; state.sizeMin=null; state.sizeMax=null; state.search=''; state.searchName=''; state.searchSeries='';
-      document.getElementById('search-input').value='';
+      const sn=document.getElementById('search-name-input'); if(sn) sn.value=''; const ss=document.getElementById('search-series-input'); if(ss) ss.value='';
       state.page=1;
       renderFilters(); renderResults();
     });
@@ -480,6 +496,30 @@
   /* ================= LIBRARY SEARCH ================= */
   function initLibrarySearch(){
     const nameInput=document.getElementById('search-name-input');
+    const filterToggle=document.getElementById('library-filter-toggle');
+    const filterPanel=document.getElementById('filters');
+    const closeLibraryFilters=()=>{
+      if(!filterPanel) return;
+      filterPanel.classList.remove('library-filters-open');
+      if(filterToggle){ filterToggle.classList.remove('active'); filterToggle.setAttribute('aria-expanded','false'); filterToggle.setAttribute('aria-label','فتح الفلاتر'); }
+    };
+    if(filterToggle && filterPanel && filterToggle.dataset.bound!=='1'){
+      filterToggle.dataset.bound='1';
+      filterToggle.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const open=!filterPanel.classList.contains('library-filters-open');
+        filterPanel.classList.toggle('library-filters-open',open);
+        filterToggle.classList.toggle('active',open);
+        filterToggle.setAttribute('aria-expanded',String(open));
+        filterToggle.setAttribute('aria-label',open?'إغلاق الفلاتر':'فتح الفلاتر');
+      });
+      document.addEventListener('click',(e)=>{
+        if(!filterPanel.classList.contains('library-filters-open')) return;
+        if(filterPanel.contains(e.target) || filterToggle.contains(e.target)) return;
+        closeLibraryFilters();
+      });
+      document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeLibraryFilters(); });
+    }
     const seriesInput=document.getElementById('search-series-input');
     if(!nameInput || !seriesInput || nameInput.dataset.bound==='1') return;
     nameInput.dataset.bound='1';
@@ -542,6 +582,20 @@
     if(!rows.length)return null;
     return rows.reduce((max,r)=>{const d=r.end||r.start||'';return d>max?d:max;},'')||null;
   }
+  function daysSinceLastPlayed(dateValue){
+    if(!dateValue) return null;
+    let d = new Date(dateValue);
+    if(isNaN(d.getTime())){
+      const m = String(dateValue).trim().match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+      if(m) d = new Date(Number(m[3]), Number(m[2])-1, Number(m[1]));
+    }
+    if(isNaN(d.getTime())) return null;
+    const played = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diff = Math.floor((today - played) / 86400000);
+    return diff >= 0 ? diff + 1 : 0;
+  }
   const EDIT_GAME_FIELDS=[
     ['name','اسم اللعبة','text'],['series','السلسلة','select'],['genre','النوع','select'],['hdd','الهارد','select'],
     ['developer','الشركة المطوّرة','select'],['mainChar','الشخصية Home','select'],['playingState','Playing State','select'],
@@ -572,6 +626,31 @@
     if(save) save.disabled=!editing;
     if(cancel) cancel.disabled=!editing;
   }
+  function snapshotGameEditRow(row){
+    const snapshot={};
+    row.querySelectorAll('[data-edit-field]').forEach(el=>{ snapshot[el.dataset.editField]=el.value; });
+    row.dataset.editSnapshot=JSON.stringify(snapshot);
+  }
+  function restoreGameEditRow(row){
+    try{
+      const snapshot=JSON.parse(row.dataset.editSnapshot||'{}');
+      row.querySelectorAll('[data-edit-field]').forEach(el=>{
+        const key=el.dataset.editField;
+        if(Object.prototype.hasOwnProperty.call(snapshot,key)) el.value=snapshot[key];
+      });
+    }catch(e){}
+  }
+  function showLibrarySaveSuccess(){
+    const host=document.getElementById('library-section')||document.getElementById('results-list');
+    if(!host)return;
+    host.querySelectorAll('.library-save-success').forEach(x=>x.remove());
+    const ok=document.createElement('div');
+    ok.className='library-save-success';
+    ok.textContent='تم حفظ التغيرات بنجاح';
+    const target=document.getElementById('results-list');
+    if(target) target.prepend(ok); else host.prepend(ok);
+    setTimeout(()=>ok.remove(),2500);
+  }
   function saveGameEdits(id,row){
     const g=GAMES.find(x=>Number(x.id)===Number(id)); if(!g)return;
     const changed={};
@@ -584,6 +663,7 @@
       if(!overrides[id])overrides[id]={}; Object.assign(overrides[id],changed); saveJSON(OVERRIDES_KEY,overrides);
     }
     rebuildGamesArray(); rebuildNormalizedMaps(); renderHeroStats(); renderDashboard(); renderFilters(); renderResults();
+    showLibrarySaveSuccess();
   }
   function deleteGameCompletely(id){
     const g=GAMES.find(x=>Number(x.id)===Number(id)); if(!g)return;
@@ -605,8 +685,20 @@
   }
   function getGamePlayCount(gid,name){return getGamePlayRecords(gid,name).length;}
   function getPlayCountBefore(gid,name,currentRecord){
+    // Number of plays before the current record (used for New/Old status).
     const key=playDateKey(currentRecord);
     return getGamePlayRecords(gid,name).filter(r=>r!==currentRecord && playDateKey(r)<key).length;
+  }
+  function getPlayOrdinal(gid,name,currentRecord){
+    // Display the play occurrence as 1, 2, 3... instead of starting at 0.
+    // Records are ordered chronologically; the current record is always included.
+    const records=getGamePlayRecords(gid,name).slice().sort((a,b)=>{
+      const d=playDateKey(a).localeCompare(playDateKey(b));
+      if(d!==0) return d;
+      return String(a.rid||'').localeCompare(String(b.rid||''),undefined,{numeric:true,sensitivity:'base'});
+    });
+    const idx=records.indexOf(currentRecord);
+    return idx>=0 ? idx+1 : getPlayCountBefore(gid,name,currentRecord)+1;
   }
 
   function isNewLibraryGame(g){
@@ -648,7 +740,7 @@
               <div><span class="dk">${tr('المنظور')}</span><span class="dv">${esc(PERSP_LABEL[g.perspective]||g.perspective||'—')}</span></div>
               <div><span class="dk">${tr('نوع النسخة')}</span><span class="dv">${esc(g.versionType||'—')}</span></div>
               <div><span class="dk">${tr('تاريخ الإصدار')}</span><span class="dv">${esc(g.releaseDate||'—')}</span></div>
-              <div><span class="dk">${tr('آخر تاريخ لعب')}</span><span class="dv">${esc(last||'—')}</span></div>
+              <div class="last-played-detail"><span class="dk">${tr('آخر تاريخ لعب')}</span><span class="dv last-played-value">${esc(last||'—')}${last&&daysSinceLastPlayed(last)!=null?`<span class="last-played-days" title="${esc(tr('عدد الأيام منذ آخر لعب'))}">${fmt(daysSinceLastPlayed(last))} ${esc(tr('يوم'))}</span>`:''}</span></div>
               <div><span class="dk">${tr('مدة اللعب (أيام)')}</span><span class="dv">${(()=>{const d=computeDays(g.startDate,g.endDate);return d!=null?fmt(d):'—';})()}</span></div>
               <div><span class="dk">${tr('الدقة')}</span><span class="dv">${esc(g.resolution||'—')}</span></div>
               <div><span class="dk">${tr('الدعم العربي')}</span><span class="dv">${esc(ARABIC_LABEL[g.arabic]||g.arabic||'—')}</span></div>
@@ -667,12 +759,13 @@
         </div>`;
       }).join('');
       container.querySelectorAll('.g-row').forEach(row=>row.addEventListener('click',e=>{if(e.target.closest('.cover-upload-label,.cover-remove,.library-card-actions,.game-edit-panel,.game-name-link'))return;const id=Number(row.dataset.id);state.expandedId=state.expandedId===id?null:id;row.classList.toggle('open');}));
-      container.querySelectorAll('.edit-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');row.classList.add('open');setGameEditMode(row,true);row.querySelector('[data-edit-field]')?.focus();}));
+      container.querySelectorAll('.edit-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');row.classList.add('open');snapshotGameEditRow(row);setGameEditMode(row,true);row.querySelector('[data-edit-field]')?.focus();}));
       container.querySelectorAll('.save-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');if(!row.classList.contains('editing')){setGameEditMode(row,true);return;}saveGameEdits(Number(row.dataset.id),row);}));
       container.querySelectorAll('.delete-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();deleteGameCompletely(Number(btn.closest('.g-row').dataset.id));}));
-      container.querySelectorAll('.cancel-edit').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');setGameEditMode(row,false);renderResults();}));
+      container.querySelectorAll('.cancel-edit').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');restoreGameEditRow(row);setGameEditMode(row,false);renderResults();}));
       container.querySelectorAll('.save-edit').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');saveGameEdits(Number(row.dataset.id),row);}));
       container.querySelectorAll('[data-edit-field]').forEach(el=>{el.addEventListener('click',e=>{if(el.readOnly||el.disabled){e.preventDefault();e.stopPropagation();}});});
+      container.querySelectorAll('.g-row.editing').forEach(row=>{ if(!row.dataset.editSnapshot) snapshotGameEditRow(row); });
       container.querySelectorAll('.cover-upload').forEach(inp=>inp.addEventListener('change',e=>{const id=Number(inp.dataset.id),file=inp.files?.[0];if(!file)return;const r=new FileReader();r.onload=()=>compressCover(r.result,data=>{if(!data)return;coverOverrides[id]=data;saveJSON(COVER_OVERRIDES_KEY,coverOverrides);const g=GAMES.find(x=>x.id===id);if(g)g.cover=data;renderResults();startDynamicBackground();});r.readAsDataURL(file);}));
       container.querySelectorAll('.cover-remove').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const id=Number(btn.dataset.id);delete coverOverrides[id];saveJSON(COVER_OVERRIDES_KEY,coverOverrides);const g=GAMES.find(x=>x.id===id);if(g)delete g.cover;renderResults();startDynamicBackground();}));
       scheduleOnlineCovers(pageItems);
@@ -715,6 +808,19 @@
         state.page=1;
         renderResults();
       });
+    }
+    if(document.documentElement.dataset.libraryEditEscBound!=='1'){
+      document.documentElement.dataset.libraryEditEscBound='1';
+      document.addEventListener('keydown',(e)=>{
+        if(e.key!=='Escape') return;
+        const row=document.querySelector('#results-list .g-row.editing');
+        if(!row) return;
+        e.preventDefault();
+        e.stopPropagation();
+        restoreGameEditRow(row);
+        setGameEditMode(row,false);
+        renderResults();
+      },true);
     }
     if(pageEl && pageEl.dataset.bound!=='1'){
       pageEl.dataset.bound='1';
@@ -1054,7 +1160,7 @@
     const sorted=filtered.slice().sort((a,b)=>key==='days'?((Number(a.days)||0)-(Number(b.days)||0))*dir:String(a[key==='name'?'name':key]||'').localeCompare(String(b[key==='name'?'name':key]||''),undefined,{numeric:true,sensitivity:'base'})*dir);
     const total=sorted.reduce((n,r)=>n+(Number(r.days)||computeDays(r.start,r.end)||0),0),avg=sorted.length?total/sorted.length:0;
     const arrow=k=>`dt-sort ${key===k?(dir===1?'asc':'desc'):''}`;
-    wrap.innerHTML=`<div class="dt-toolbar dates-filters"><input type="text" class="search-input dt-filter" id="dates-search-input" placeholder="Game name..." value="${esc(datesSearch)}" autocomplete="off"><select id="dates-year-filter" class="search-input dt-filter dt-year-filter" aria-label="Start Year Filter"><option value="">All Years</option>${yearOptions.map(y=>`<option value="${y}" ${datesYearFilter===y?'selected':''}>${y}</option>`).join('')}</select><select id="dates-screen-filter" class="search-input dt-filter" aria-label="Screen Filter"><option value="">All Screens</option>${screenOptions.map(v=>`<option value="${esc(v)}" ${datesScreenFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><select id="dates-status-filter" class="search-input dt-filter" aria-label="Game Status Filter"><option value="">All Statuses</option>${statusOptions.map(v=>`<option value="${esc(v)}" ${datesStatusFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><button type="button" class="plus-btn dt-add-game-btn dt-add-icon-btn" id="date-add-btn" title="Add Game" aria-label="Add Game">➕</button></div><div class="dt-stats"><div class="dt-stat"><div class="num">${fmt(sorted.length)}</div><div class="lbl">سجلات اللعب</div></div><div class="dt-stat"><div class="num">${fmt(total)}</div><div class="lbl">إجمالي أيام اللعب</div></div><div class="dt-stat"><div class="num">${fmt(avg,1)}</div><div class="lbl">متوسط الأيام</div></div></div><div class="dt-table-wrap"><table class="dt-table"><thead><tr><th class="${arrow('name')}" data-dsort="name">Game</th><th class="${arrow('start')}" data-dsort="start">Start Date</th><th class="${arrow('end')}" data-dsort="end">End Date</th><th class="${arrow('days')}" data-dsort="days">Days</th><th>Previous Plays</th><th>Play History</th><th class="${arrow('playingState')}" data-dsort="playingState">Playing State</th><th class="${arrow('screen')}" data-dsort="screen">Screen</th><th class="${arrow('gpu')}" data-dsort="gpu">GPU</th><th class="${arrow('resolution')}" data-dsort="resolution">Resolution</th><th>Edit</th><th>Save</th><th>Delete</th></tr></thead><tbody>${sorted.map(r=>`<tr data-rid="${esc(r.rid)}"><td class="dt-name">${gameNameLink(r.name)}</td><td><input class="dt-date" data-field="start" data-editable-lock="1" type="date" value="${esc(r.start||'')}" disabled></td><td>${endDateControl(r.end,r.rid)}</td><td class="dt-days">${r.days!=null?fmt(r.days):'—'}</td><td class="dt-history-count">${fmt(getPlayCountBefore(r.gameId,r.name,r))}</td><td class="dt-history-status ${getPlayCountBefore(r.gameId,r.name,r)===0?'play-status-new':'play-status-old'}">${getPlayCountBefore(r.gameId,r.name,r)===0?'New':'Old'}</td><td class="dt-game-status">${esc(r.playingState||r.status||'—')}</td><td>${makeOptionControl('screen',r.screenType||'','screen',r.rid,true)}</td><td>${makeOptionControl('gpu',r.gpu||'','gpu',r.rid,true)}</td><td>${makeOptionControl('resolution',r.resolution||'','resolution',r.rid,true)}</td><td><button type="button" class="icon-action dt-edit-btn" title="تعديل السجل">✏️</button></td><td><button type="button" class="plus-btn dt-save" title="حفظ السجل" disabled>💾</button></td><td><button type="button" class="dt-delete" title="حذف السجل">🗑️</button></td></tr>`).join('')}</tbody></table></div>`;
+    wrap.innerHTML=`<div class="dt-toolbar dates-filters"><input type="text" class="search-input dt-filter" id="dates-search-input" placeholder="Game name..." value="${esc(datesSearch)}" autocomplete="off"><select id="dates-year-filter" class="search-input dt-filter dt-year-filter" aria-label="Start Year Filter"><option value="">All Years</option>${yearOptions.map(y=>`<option value="${y}" ${datesYearFilter===y?'selected':''}>${y}</option>`).join('')}</select><select id="dates-screen-filter" class="search-input dt-filter" aria-label="Screen Filter"><option value="">All Screens</option>${screenOptions.map(v=>`<option value="${esc(v)}" ${datesScreenFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><select id="dates-status-filter" class="search-input dt-filter" aria-label="Game Status Filter"><option value="">All Statuses</option>${statusOptions.map(v=>`<option value="${esc(v)}" ${datesStatusFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><button type="button" class="plus-btn dt-add-game-btn dt-add-icon-btn" id="date-add-btn" title="Add Game" aria-label="Add Game">➕</button></div><div class="dt-stats"><div class="dt-stat"><div class="num">${fmt(sorted.length)}</div><div class="lbl">سجلات اللعب</div></div><div class="dt-stat"><div class="num">${fmt(total)}</div><div class="lbl">إجمالي أيام اللعب</div></div><div class="dt-stat"><div class="num">${fmt(avg,1)}</div><div class="lbl">متوسط الأيام</div></div></div><div class="dt-table-wrap"><table class="dt-table"><thead><tr><th class="${arrow('name')}" data-dsort="name">Game</th><th class="${arrow('start')}" data-dsort="start">Start Date</th><th class="${arrow('end')}" data-dsort="end">End Date</th><th class="${arrow('days')}" data-dsort="days">Days</th><th>Previous Plays</th><th>Play History</th><th class="${arrow('playingState')}" data-dsort="playingState">Playing State</th><th class="${arrow('screen')}" data-dsort="screen">Screen</th><th class="${arrow('gpu')}" data-dsort="gpu">GPU</th><th class="${arrow('resolution')}" data-dsort="resolution">Resolution</th><th>Edit</th><th>Save</th><th>Delete</th></tr></thead><tbody>${sorted.map(r=>`<tr data-rid="${esc(r.rid)}"><td class="dt-name">${gameNameLink(r.name)}</td><td><input class="dt-date" data-field="start" data-editable-lock="1" type="date" value="${esc(r.start||'')}" disabled></td><td>${endDateControl(r.end,r.rid)}</td><td class="dt-days">${r.days!=null?fmt(r.days):'—'}</td><td class="dt-history-count">${fmt(getPlayOrdinal(r.gameId,r.name,r))}</td><td class="dt-history-status ${getPlayCountBefore(r.gameId,r.name,r)===0?'play-status-new':'play-status-old'}">${getPlayCountBefore(r.gameId,r.name,r)===0?'New':'Old'}</td><td class="dt-game-status">${esc(r.playingState||r.status||'—')}</td><td>${makeOptionControl('screen',r.screenType||'','screen',r.rid,true)}</td><td>${makeOptionControl('gpu',r.gpu||'','gpu',r.rid,true)}</td><td>${makeOptionControl('resolution',r.resolution||'','resolution',r.rid,true)}</td><td><button type="button" class="icon-action dt-edit-btn" title="تعديل السجل">✏️</button></td><td><button type="button" class="plus-btn dt-save" title="حفظ السجل" disabled>💾</button></td><td><button type="button" class="dt-delete" title="حذف السجل">🗑️</button></td></tr>`).join('')}</tbody></table></div>`;
     const inp=document.getElementById('dates-search-input');
     if(inp){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);inp.addEventListener('input',e=>{datesSearch=e.target.value;renderDatesTab();});inp.addEventListener('keydown',e=>{if(e.key===' ')e.stopPropagation();});}
     const yearFilter=document.getElementById('dates-year-filter');
@@ -1064,12 +1170,15 @@
     const statusFilter=document.getElementById('dates-status-filter');
     if(statusFilter)statusFilter.addEventListener('change',e=>{datesStatusFilter=e.target.value;renderDatesTab();});
     wrap.querySelectorAll('[data-dsort]').forEach(th=>th.addEventListener('click',()=>{const k=th.dataset.dsort;if(state.dateSortKey===k)state.dateSortDir*=-1;else{state.dateSortKey=k;state.dateSortDir=1;}renderDatesTab();}));
-    wrap.querySelectorAll('.dt-edit-btn').forEach(btn=>btn.addEventListener('click',()=>{const row=btn.closest('tr');if(!row)return;row.classList.add('dt-row-editing');row.querySelectorAll('[data-editable-lock]').forEach(el=>{el.disabled=false;el.readOnly=false;el.classList.add('is-editing');});row.querySelectorAll('.dt-option-add').forEach(el=>el.disabled=false);row.querySelectorAll('.dt-postponed-btn').forEach(el=>el.disabled=false);const save=row.querySelector('.dt-save');if(save)save.disabled=false;row.querySelector('[data-field="start"]')?.focus();}));
+    wrap.querySelectorAll('.dt-edit-btn').forEach(btn=>btn.addEventListener('click',()=>{const row=btn.closest('tr');if(!row)return;const endDateEl=row.querySelector('[data-field="endDate"]');const endHidden=row.querySelector('[data-field="end"]');const screenEl=row.querySelector('[data-field="screen"]');const gpuEl=row.querySelector('[data-field="gpu"]');const resEl=row.querySelector('[data-field="resolution"]');const startEl=row.querySelector('[data-field="start"]');const daysEl=row.querySelector('.dt-days');row.__dtEditSnapshot={start:startEl?.value||'',endDate:endDateEl?.value||'',end:endHidden?.value||'',screen:screenEl?.value||'',gpu:gpuEl?.value||'',resolution:resEl?.value||'',days:daysEl?.textContent||'—'};row.classList.add('dt-row-editing');row.querySelectorAll('[data-editable-lock]').forEach(el=>{el.disabled=false;el.readOnly=false;el.classList.add('is-editing');});row.querySelectorAll('.dt-option-add').forEach(el=>el.disabled=false);row.querySelectorAll('.dt-postponed-btn').forEach(el=>el.disabled=false);const save=row.querySelector('.dt-save');if(save)save.disabled=false;startEl?.focus();}));
+
+    // Game Dates: Esc cancels the active row edit, restores the exact pre-edit values, and exits edit mode.
+    wrap.addEventListener('keydown',e=>{if(e.key!=='Escape')return;const active=document.activeElement;const row=active?.closest?.('tr.dt-row-editing')||wrap.querySelector('tr.dt-row-editing');if(!row||!row.__dtEditSnapshot)return;e.preventDefault();e.stopPropagation();const snap=row.__dtEditSnapshot;const set=(sel,val)=>{const el=row.querySelector(sel);if(el)el.value=val;};set('[data-field="start"]',snap.start);set('[data-field="endDate"]',snap.endDate);set('[data-field="end"]',snap.end);set('[data-field="screen"]',snap.screen);set('[data-field="gpu"]',snap.gpu);set('[data-field="resolution"]',snap.resolution);const daysEl=row.querySelector('.dt-days');if(daysEl)daysEl.textContent=snap.days;row.querySelectorAll('[data-editable-lock]').forEach(el=>{el.disabled=true;el.readOnly=true;el.classList.remove('is-editing');});row.querySelectorAll('.dt-option-add,.dt-postponed-btn').forEach(el=>el.disabled=true);const save=row.querySelector('.dt-save');if(save)save.disabled=true;row.classList.remove('dt-row-editing');delete row.__dtEditSnapshot;active?.blur?.();});
     
     wrap.querySelectorAll('.dt-save').forEach(btn=>btn.addEventListener('click',()=>{const row=btn.closest('tr'),r=dateRecords.find(x=>x.rid===row.dataset.rid);if(!r||btn.disabled)return;r.start=row.querySelector('[data-field="start"]')?.value||null;r.end=(row.querySelector('[data-field="end"]')?.value==='Postponed'?'Postponed':(row.querySelector('[data-field="endDate"]')?.value||null));r.screenType=row.querySelector('[data-field="screen"]')?.value||null;['gpu','resolution'].forEach(f=>r[f]=row.querySelector(`[data-field="${f}"]`)?.value||null);const gameForState=GAMES.find(x=>Number(x.id)===Number(r.gameId));r.playingState=derivePlayingState(r.start,r.end,r.playingState||r.status||gameForState?.playingState);r.status=r.playingState;r.days=computeDays(r.start,r.end);saveDateRecords();syncGameDate(r);rebuildNormalizedMaps();renderDatesTab();renderHeroStats();renderDashboard();renderResults();}));
     wrap.querySelectorAll('.dt-end-date-input').forEach(inp=>inp.addEventListener('click',()=>{const row=inp.closest('tr');const pop=row?.querySelector('.dt-end-popover');if(pop&&!inp.disabled)pop.hidden=!pop.hidden;}));
     wrap.querySelectorAll('.dt-native-picker').forEach(inp=>inp.addEventListener('change',()=>{const row=inp.closest('tr');const visible=row?.querySelector('.dt-end-date-input');const hidden=row?.querySelector('[data-field="end"]');if(visible){visible.value=inp.value;}if(hidden)hidden.value='';const pop=row?.querySelector('.dt-end-popover');if(pop)pop.hidden=true;}));
-    wrap.querySelectorAll('.dt-postponed-btn').forEach(btn=>btn.addEventListener('click',()=>{const row=btn.closest('tr');const visible=row?.querySelector('.dt-end-date-input');const picker=row?.querySelector('.dt-native-picker');const hidden=row?.querySelector('[data-field="end"]');if(hidden)hidden.value='Postponed';if(visible)visible.value='Postponed';if(picker)picker.value='';const pop=row?.querySelector('.dt-end-popover');if(pop)pop.hidden=true;btn.classList.add('selected');}));
+    wrap.querySelectorAll('.dt-postponed-btn').forEach(btn=>btn.addEventListener('click',()=>{const row=btn.closest('tr');const visible=row?.querySelector('.dt-end-date-input');const picker=row?.querySelector('.dt-native-picker');const hidden=row?.querySelector('[data-field="end"]');if(hidden)hidden.value='Postponed';if(visible)visible.value='Postponed';if(picker)picker.value='';const pop=row?.querySelector('.dt-end-popover');if(pop)pop.hidden=true;btn.classList.add('selected');const state=row?.querySelector('.dt-game-status');if(state)state.textContent='Not-Completed';const days=row?.querySelector('.dt-days');if(days)days.textContent='—';}));
     wrap.querySelectorAll('.dt-delete').forEach(btn=>btn.addEventListener('click',()=>{const row=btn.closest('tr'),r=dateRecords.find(x=>x.rid===row.dataset.rid);if(!r)return;if(!confirm(tr(`حذف سجل "${r.name}" بالكامل؟`)))return;dateRecords=dateRecords.filter(x=>x.rid!==r.rid);saveDateRecords();const g=GAMES.find(x=>Number(x.id)===Number(r.gameId));if(g){g.startDate=null;g.endDate=null;g.days=null;}renderDatesTab();renderHeroStats();renderDashboard();renderResults();}));
     document.getElementById('date-add-btn').addEventListener('click',openDateAddForm);
   }
@@ -1085,8 +1194,8 @@
           <div id="new-date-game-results" class="dt-game-results"></div>
           <input id="new-date-game-id" type="hidden" value="">
         </div>
-        <div class="dt-labeled-field"><label for="new-date-start">${formText('تاريخ البداية','Start Date')}</label><input id="new-date-start" class="dt-start-date-gold" type="date" aria-label="Start Date"></div><div class="dt-labeled-field"><label for="new-date-end">${formText('تاريخ النهاية','End Date')}</label><div class="dt-end-wrap"><input id="new-date-end" class="dt-start-date-gold" type="text" list="new-date-end-options" aria-label="End Date"><datalist id="new-date-end-options"><option value="Postponed"></option></datalist></div></div>
-        <div class="dt-labeled-field"><label>${formText('الشاشة','Screen')}</label><div id="new-date-screen-wrap"></div></div>
+        <div class="dt-labeled-field"><label for="new-date-start">${formText('تاريخ البداية','Start Date')}</label><input id="new-date-start" class="dt-start-date-gold" type="date" aria-label="Start Date"></div>
+        <div class="dt-labeled-field"><label for="new-date-end">${formText('تاريخ الانتهاء','End Date')}</label><input id="new-date-end" class="dt-start-date-gold" type="date" aria-label="End Date"></div>
         <div class="dt-labeled-field"><label>${formText('الشاشة','Screen')}</label><div id="new-date-screen-wrap"></div></div>
         <div class="dt-labeled-field"><label>${formText('كارت الشاشة','Graphics Card')}</label><div id="new-date-gpu-wrap"></div></div>
         <div class="dt-labeled-field"><label>${formText('الريزولوشن','Resolution')}</label><div id="new-date-res-wrap"></div></div>
@@ -1097,7 +1206,6 @@
     wrap.prepend(box);
 
     // New-record controls are active immediately: choose Device, Screen, GPU and Resolution from lists.
-    document.getElementById('new-date-screen-wrap').innerHTML=makeOptionControl('screen','','new-screen','new',false);
     document.getElementById('new-date-screen-wrap').innerHTML=makeOptionControl('screen','','new-screen','new',false);
     document.getElementById('new-date-gpu-wrap').innerHTML=makeOptionControl('gpu','','new-gpu','new',false);
     document.getElementById('new-date-res-wrap').innerHTML=makeOptionControl('resolution','','new-res','new',false);
@@ -1140,11 +1248,13 @@
         const first=results.querySelector('.dt-game-result');
         if(first){first.click();e.preventDefault();}
       } else if(e.key==='Escape'){
-        results.classList.remove('is-open');
+        search.value=''; hidden.value=''; search.classList.remove('selected'); results.classList.remove('is-open'); results.innerHTML='';
       }
     });
 
     document.getElementById('new-date-cancel').addEventListener('click',()=>box.remove());
+    box.addEventListener('keydown',e=>{ if(e.key==='Escape'){ e.preventDefault(); box.remove(); } });
+    box.tabIndex=0; box.focus();
     document.getElementById('new-date-save').addEventListener('click',()=>{
       const gid=Number(hidden.value);
       if(!gid){alert(tr('اختر لعبة من Library أولًا.'));return;}
@@ -1153,20 +1263,24 @@
         start:document.getElementById('new-date-start').value||null,
         end:document.getElementById('new-date-end').value||null,days:null,
         screenType:document.querySelector('[data-field="new-screen"]')?.value.trim()||'',
-        screenType:document.querySelector('[data-field="new-screen"]')?.value.trim()||'',
         gpu:document.querySelector('[data-field="new-gpu"]')?.value.trim()||'',
         resolution:document.querySelector('[data-field="new-res"]')?.value.trim()||'',
-        playingState:derivePlayingState(document.getElementById('new-date-start').value||null,(document.getElementById('new-date-end-status').value==='Postponed'?'Postponed':document.getElementById('new-date-end').value||null),g.playingState),
-        status:derivePlayingState(document.getElementById('new-date-start').value||null,(document.getElementById('new-date-end-status').value==='Postponed'?'Postponed':document.getElementById('new-date-end').value||null),g.playingState)};
+        playingState:derivePlayingState(document.getElementById('new-date-start').value||null,document.getElementById('new-date-end').value||null,g.playingState),
+        status:derivePlayingState(document.getElementById('new-date-start').value||null,document.getElementById('new-date-end').value||null,g.playingState)};
       r.days=computeDays(r.start,r.end);
-      dateRecords.push(r);saveDateRecords();syncGameDate(r);renderDatesTab();renderHeroStats();renderDashboard();renderResults();
+      dateRecords.push(r);saveDateRecords();syncGameDate(r);box.remove();renderDatesTab();renderHeroStats();renderDashboard();renderResults();const ok=document.createElement('div');ok.className='dt-save-success';ok.textContent='تم الحفظ بنجاح';document.getElementById('dates-wrap')?.prepend(ok);setTimeout(()=>ok.remove(),2500);
     });
     search.focus();
   }
 
   /* ================= SIZES TAB ================= */
-  function kbFromGB(gb){return Number.isFinite(Number(gb)) ? Math.round(Number(gb)*1024*1024) : 0;}
-  function gbFromKB(kb){const n=Number(kb);return Number.isFinite(n)&&n>=0 ? n/(1024*1024) : 0;}
+  function bytesFromGB(gb){return Number.isFinite(Number(gb)) ? Math.round(Number(gb)*1024*1024*1024) : 0;}
+  function parseBytes(value){
+    const n=Number(String(value??'').replace(/,/g,'').replace(/\s/g,''));
+    return Number.isFinite(n)&&n>=0 ? Math.round(n) : 0;
+  }
+  function fmtBytes(value){return parseBytes(value).toLocaleString('en-US');}
+  function gbFromBytes(bytes){const n=parseBytes(bytes);return Number.isFinite(n)&&n>=0 ? n/(1024*1024*1024) : 0;}
   function sizeValueGB(g){return sizeOverrides[g.id]!=null ? Number(sizeOverrides[g.id]) : (g.sizeGB!=null?Number(g.sizeGB):0);}
   function renderSizesTab(){
     const wrap=document.getElementById('sizes-wrap'); if(!wrap)return;
@@ -1187,13 +1301,13 @@
     const iconEdit='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17.25V20h2.75L18.81 7.94l-2.75-2.75L4 17.25Zm15.71-10.46c.39-.39.39-1.03 0-1.42l-1.08-1.08a1.003 1.003 0 0 0-1.42 0l-1.07 1.07 2.75 2.75 1.07-1.07Z"/></svg>';
     const iconSave='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4Zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6ZM6 5h8v4H6V5Z"/></svg>';
     const iconDelete='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12ZM8 9h8v10H8V9Zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5Z"/></svg>';
-    wrap.innerHTML=`<div class="result-count" style="margin-bottom:10px">${fmt(rows.length)} لعبة</div><div class="dt-table-wrap"><table class="dt-table sizes-table"><thead><tr><th>اللعبة</th><th>الهارد</th><th>الحجم (KB)</th><th>الحجم (GB)</th><th>إجراءات</th></tr></thead><tbody>${rows.map(g=>{
-      const gb=sizeValueGB(g), kb=kbFromGB(gb);
+    wrap.innerHTML=`<div class="result-count" style="margin-bottom:10px">${fmt(rows.length)} لعبة</div><div class="dt-table-wrap"><table class="dt-table sizes-table"><thead><tr><th>اللعبة</th><th>الهارد</th><th>الحجم (Byte)</th><th>الحجم (GB)</th><th>إجراءات</th></tr></thead><tbody>${rows.map(g=>{
+      const gb=sizeValueGB(g), bytes=bytesFromGB(gb);
       return `<tr data-size-id="${esc(g.id)}">
         <td class="dt-name">${gameNameLink(g.name)}</td>
         <td>${esc(g.hdd||'—')}</td>
-        <td><input class="size-kb-input" type="number" min="0" step="1" data-size-kb data-editable-lock="1" value="${kb}" readonly></td>
-        <td><input class="size-gb-output" type="number" step="0.01" data-size-gb value="${gb.toFixed(2)}" readonly></td>
+        <td><input class="size-kb-input" type="text" inputmode="numeric" autocomplete="off" data-size-bytes data-editable-lock="1" value="${fmtBytes(bytes)}" readonly></td>
+        <td class="size-gb-cell"><input class="size-gb-output" type="text" data-size-gb value="${gb.toFixed(2)} GB" readonly></td>
         <td><div class="size-actions">
           <button type="button" class="icon-action size-edit" title="تعديل بيانات الحجم" aria-label="تعديل بيانات الحجم">${iconEdit}</button>
           <button type="button" class="icon-action size-save" title="حفظ الحجم" aria-label="حفظ الحجم" disabled>${iconSave}</button>
@@ -1204,24 +1318,56 @@
     wrap.querySelectorAll('.size-kb-input').forEach(inp=>{
       inp.addEventListener('input',()=>{
         const row=inp.closest('tr'), out=row?.querySelector('[data-size-gb]');
-        if(out) out.value=gbFromKB(inp.value).toFixed(2);
+        if(out) out.value=gbFromBytes(inp.value).toFixed(2)+' GB';
+        inp.value=inp.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',');
       });
     });
     wrap.querySelectorAll('.size-edit').forEach(btn=>btn.addEventListener('click',()=>{
       const row=btn.closest('tr'); if(!row)return;
+      const inp=row.querySelector('[data-size-bytes]');
+      const out=row.querySelector('[data-size-gb]');
+      // Keep a snapshot so Esc can restore exactly what was shown before editing.
+      row.dataset.sizeOriginalKb=inp?.value ?? '';
+      row.dataset.sizeOriginalGb=out?.value ?? '';
       row.classList.add('size-row-editing');
-      const inp=row.querySelector('[data-size-kb]'); if(inp){inp.readOnly=false;inp.classList.add('is-editing');inp.focus();}
+      if(inp){inp.readOnly=false;inp.classList.add('is-editing');inp.focus();}
       const save=row.querySelector('.size-save'); if(save)save.disabled=false;
     }));
+
+    // Esc while editing a Sizes row cancels the edit and restores the previous values.
+    wrap.addEventListener('keydown',e=>{
+      if(e.key!=='Escape')return;
+      const active=document.activeElement;
+      const row=active?.closest?.('.sizes-table tr.size-row-editing') || wrap.querySelector('.sizes-table tr.size-row-editing');
+      if(!row)return;
+      const inp=row.querySelector('[data-size-bytes]');
+      const out=row.querySelector('[data-size-gb]');
+      if(inp && Object.prototype.hasOwnProperty.call(row.dataset,'sizeOriginalKb')){
+        inp.value=fmtBytes(row.dataset.sizeOriginalKb);
+      }
+      if(out && Object.prototype.hasOwnProperty.call(row.dataset,'sizeOriginalGb')){
+        out.value=row.dataset.sizeOriginalGb;
+      }
+      if(inp){inp.readOnly=true;inp.classList.remove('is-editing');}
+      const save=row.querySelector('.size-save'); if(save)save.disabled=true;
+      row.classList.remove('size-row-editing');
+      delete row.dataset.sizeOriginalKb;
+      delete row.dataset.sizeOriginalGb;
+      e.preventDefault();
+      e.stopPropagation();
+    });
     wrap.querySelectorAll('.size-save').forEach(btn=>btn.addEventListener('click',()=>{
-      const row=btn.closest('tr'); const id=Number(row?.dataset.sizeId); const inp=row?.querySelector('[data-size-kb]');
+      const row=btn.closest('tr'); const id=Number(row?.dataset.sizeId); const inp=row?.querySelector('[data-size-bytes]');
       if(!id||!inp||btn.disabled)return;
-      const gb=gbFromKB(inp.value);
+      const gb=gbFromBytes(inp.value);
       sizeOverrides[id]=gb;
       sizeDeleted.delete(id);
       saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides);
       saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]);
       const g=GAMES.find(x=>Number(x.id)===id); if(g) g.sizeGB=gb;
+      row.classList.remove('size-row-editing');
+      delete row.dataset.sizeOriginalKb;
+      delete row.dataset.sizeOriginalGb;
       renderSizesTab(); renderHeroStats(); renderDashboard(); renderResults();
     }));
     wrap.querySelectorAll('.size-delete').forEach(btn=>btn.addEventListener('click',()=>{
@@ -1243,7 +1389,7 @@
   /* ================= REQUESTED UPGRADES ================= */
   const PLAY_LOGS = window.GameVaultData.playLogs || [];
   state.dateSortKey='start'; state.dateSortDir=1;
-  let lang = localStorage.getItem('gameVault_lang_v1') || 'ar';
+  let lang = localStorage.getItem('gameVault_lang_v1') || 'en';
   const I18N = {
     'أرشيف الألعاب':"Mostafa's Pc Data",'سجل شخصي':'Personal Record','فهرسة كاملة لمقتنياتك عبر Drives، مع بحث وفرز وتحليل للمجموعة':'Complete catalog of your games across drives, with search, sorting and analytics',
     'Home':'Home','Drives':'Drives','Library':'Library','Game Dates':'Game Dates','إضافة لعبة':'Add Game',
@@ -1438,7 +1584,7 @@
     "ابحث باسم اللعبة أو الهارد...":"Search by game or drive...",
     "أحجام الألعاب":"Game Sizes",
     "بيانات الأحجام محمّلة تلقائيًا من صفحة Sizes في ملف Excel، ويمكن تعديلها من هنا.":"Game size data is loaded automatically from the Sizes sheet in the Excel file and can be edited here.",
-    "الحجم (KB)":"Size (KB)",
+    "الحجم (Byte)":"Size (Byte)",
     "الحجم (GB)":"Size (GB)",
     "أدخل السعة الكلية":"Enter total capacity",
     "القيمة الجديدة":"New Value",
@@ -1548,7 +1694,35 @@
     "نوع الإصدار (Remaster/Remake)":"Edition Type (Remaster/Remake)",
     "سمات مميزة":"Featured Attributes",
     "إضافة اللعبة للمكتبة":"Add Game to Library",
-    "GOTY":"GOTY"  };
+    "GOTY":"GOTY",
+    "غير محدد":"Not Specified",
+    "مثال: SSD-01":"Example: SSD-01",
+    "تعديل السعة":"Edit Capacity",
+    "حفظ السعة":"Save Capacity",
+    "اكتب اسم الهارد والسعة أولاً.":"Enter the drive name and capacity first.",
+    "التقييم":"Rating",
+    "سنة الإصدار":"Release Year",
+    "التحكم في الفلاتر":"Filter Controls",
+    "طي الكل":"Collapse All",
+    "فرد الكل":"Expand All",
+    "فتح الفلاتر":"Open Filters",
+    "إغلاق الفلاتر":"Close Filters",
+    "تم حفظ التغيرات بنجاح":"Changes saved successfully",
+    "عدد الأيام منذ آخر لعب":"Days Since Last Played",
+    "يوم":"days",
+    "اسم اللعبة *":"Game Name *",
+    "اختيارات الدقة محددة فقط بـ: 480P, 720P, 1080P, 1440P, 4k":"Resolution options are limited to: 480P, 720P, 1080P, 1440P, 4k",
+    "تعديل السجل":"Edit Record",
+    "اكتب اسم اللعبة للبحث في جميع ألعاب Library.":"Type the game name to search all Library games.",
+    "تاريخ البداية":"Start Date",
+    "الشاشة":"Screen",
+    "الريزوليوشن":"Resolution",
+    "تم الحفظ بنجاح":"Saved successfully",
+    "العربية":"Arabic",
+    "يرجى السماح بالنوافذ المنبثقة للتصدير والطباعة.":"Please allow pop-ups for export and printing.",
+    "تصدير PDF":"Export PDF",
+    "تصدير Excel 365":"Export Excel 365",
+    "طباعة":"Print"  };
   const I18N_REV=Object.fromEntries(Object.entries(I18N).map(([a,e])=>[e,a]));
   function tr(text){
     const map=lang==='en'?I18N:I18N_REV;
@@ -1623,6 +1797,23 @@
     const si=document.getElementById('search-name-input');if(si)si.value=state.searchName||''; const ss=document.getElementById('search-series-input');if(ss)ss.value=state.searchSeries||'';
     const di=document.getElementById('dates-search-input');if(di)di.value=datesSearch||'';
   }
+  function updateGlobalDateTime(){
+    const timeEl=document.getElementById('home-digital-time');
+    const dateEl=document.getElementById('home-date-line');
+    if(!timeEl && !dateEl) return;
+    const now=new Date();
+    let h=now.getHours();
+    const m=String(now.getMinutes()).padStart(2,'0');
+    const suffix=h>=12?'PM':'AM';
+    h=h%12||12;
+    if(timeEl) timeEl.textContent=String(h).padStart(2,'0')+':'+m+' '+suffix;
+    if(dateEl){
+      const locale=lang==='en'?'en-US':'en-US';
+      dateEl.textContent=new Intl.DateTimeFormat(locale,{weekday:'long',month:'long',day:'2-digit',year:'numeric'}).format(now);
+    }
+  }
+  updateGlobalDateTime();
+  window.__homeClockTimer=setInterval(updateGlobalDateTime,1000);
   document.getElementById('lang-toggle').addEventListener('click',()=>{lang=lang==='ar'?'en':'ar';localStorage.setItem('gameVault_lang_v1',lang);applyLanguage();updateGlobalDateTime();});
   // Translation observer disabled for performance; renders translate explicitly when needed.
   document.getElementById('theme-toggle').addEventListener('click',()=>{
@@ -1818,20 +2009,6 @@ if(type==='overview'){
 
   const _renderDashboard=renderDashboard;
   renderDashboard=function(){_renderDashboard();renderReport();};
-  function updateGlobalDateTime(){
-    const now=new Date();
-    const weekdayEl=document.getElementById('global-weekday');
-    const dayMonthEl=document.getElementById('global-daymonth');
-    const timeEl=document.getElementById('global-time');
-    if(!weekdayEl||!dayMonthEl||!timeEl)return;
-    const locale=lang==='en'?'en-SA':'ar-SA';
-    weekdayEl.textContent=new Intl.DateTimeFormat(locale,{weekday:'long'}).format(now);
-    dayMonthEl.textContent=new Intl.DateTimeFormat(locale,{day:'numeric',month:'long'}).format(now);
-    timeEl.textContent=new Intl.DateTimeFormat('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false}).format(now);
-  }
-  updateGlobalDateTime();
-  setInterval(updateGlobalDateTime,1000);
-
   startDynamicBackground();
 
 
@@ -2300,9 +2477,29 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
   renderDrives();
   initTabs();
   initExportButtons();
+  const closeLibraryAddGame=()=>{
+    const modal=document.getElementById('library-add-game-modal');
+    if(modal) modal.style.display='none';
+  };
+  const goToLibraryTab=()=>{
+    const libraryBtn=document.querySelector('.tabnav-btn[data-tab="library-section"]');
+    if(libraryBtn){
+      libraryBtn.click();
+    }else{
+      document.querySelectorAll('.tab-page').forEach(p=>p.classList.toggle('active',p.id==='library-section'));
+    }
+  };
   document.getElementById('library-add-game-btn')?.addEventListener('click',()=>{const m=document.getElementById('library-add-game-modal');m.style.display='block';renderAddGameForm();if(lang==='en')applyLanguage();});
-  document.getElementById('close-library-add')?.addEventListener('click',()=>document.getElementById('library-add-game-modal').style.display='none');
-  document.getElementById('library-add-game-modal')?.addEventListener('click',e=>{if(e.target.id==='library-add-game-modal')e.currentTarget.style.display='none';});
+  document.getElementById('close-library-add')?.addEventListener('click',()=>{closeLibraryAddGame();goToLibraryTab();});
+  document.getElementById('library-add-game-modal')?.addEventListener('click',e=>{if(e.target.id==='library-add-game-modal'){closeLibraryAddGame();goToLibraryTab();}});
+  document.addEventListener('keydown',e=>{
+    if(e.key!=='Escape') return;
+    const modal=document.getElementById('library-add-game-modal');
+    if(!modal || modal.style.display==='none') return;
+    e.preventDefault();
+    closeLibraryAddGame();
+    goToLibraryTab();
+  });
   if(lang==='en') applyLanguage();
 })();
 
