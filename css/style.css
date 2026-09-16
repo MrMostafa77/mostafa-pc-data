@@ -2047,18 +2047,22 @@ header.hero{
 @media(max-width:520px){.home-datetime-widget{width:100%;}.home-digital-time{font-size:21px}.home-date-line{font-size:9.5px}}
 
 /* ===== Compact Home Clock - v22 ===== */
+header.hero .home-eagle-logo{
+  width:35px;height:35px;flex:0 0 35px;object-fit:contain;display:block;position:relative;z-index:1;
+  filter:drop-shadow(0 0 5px rgba(0,190,255,.35));
+}
 header.hero .home-datetime-widget{
   position:absolute;
   top:18px;
   left:18px;
   transform:none;
-  width:196px;
+  width:245px;
   min-height:54px;
   box-sizing:border-box;
   padding:7px 10px 7px 8px;
   display:flex;
   align-items:center;
-  gap:8px;
+  gap:7px;
   overflow:hidden;
   z-index:4;
   border:1px solid rgba(86,190,255,.62);
@@ -2085,8 +2089,30 @@ header.hero .home-date-line{
   margin-top:4px;color:#b9d6e9;font-size:8.5px;font-weight:700;letter-spacing:.05px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 @media(max-width:760px){
-  header.hero .home-datetime-widget{top:10px;left:10px;width:178px;min-height:49px;padding:6px 8px;gap:6px}
+  header.hero .home-datetime-widget{top:10px;left:10px;width:225px;min-height:49px;padding:6px 8px;gap:6px}
+  header.hero .home-eagle-logo{width:30px;height:30px;flex-basis:30px}
   .home-clock-icon{width:30px;height:30px;flex-basis:30px}.home-clock-icon svg{width:28px;height:28px}
   header.hero .home-digital-time{font-size:17px}
   header.hero .home-date-line{font-size:7.5px}
 }
+
+
+/* Site Option / version label */
+.sidebar-site-option{
+  margin:18px 14px 0; padding:16px 12px 4px; border-top:1px solid rgba(120,190,230,.22);
+  display:flex; align-items:center; gap:12px; color:#dcecf8;
+}
+.sidebar-site-option-icon{font-size:24px; line-height:1; opacity:.95; filter:drop-shadow(0 0 5px rgba(0,194,255,.25));}
+.sidebar-site-option-title{font-size:15px; font-weight:800; letter-spacing:.2px;}
+.sidebar-site-option-version{font-size:12px; color:#9fc1d8; margin-top:4px; letter-spacing:.5px;}
+@media(max-width:760px){.sidebar-site-option{margin-top:10px;padding-top:12px}.sidebar-site-option-title{font-size:13px}.sidebar-site-option-version{font-size:11px}}
+
+/* Slightly larger eagle beside the clock */
+header.hero .home-eagle-logo{width:52px;height:52px;flex-basis:52px;}
+@media(max-width:760px){header.hero .home-eagle-logo{width:42px;height:42px;flex-basis:42px}}
+
+/* Final header branding */
+header.hero .home-eagle-logo{width:62px;height:62px;flex-basis:62px;object-fit:contain;}
+.home-version{margin-top:3px;color:#9fc1d8;font-size:11px;font-weight:800;letter-spacing:.6px;}
+.sidebar-site-option{display:none !important;}
+@media(max-width:760px){header.hero .home-eagle-logo{width:48px;height:48px;flex-basis:48px}.home-version{font-size:10px;}}
