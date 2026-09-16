@@ -10,6 +10,7 @@
 
 const SYNC_KEYS = [
   'gameVault_userGames_v1',
+  'gameVault_coverOverrides_v1',
   'gameVault_dateRecords_v4',
   'gameVault_driveCapacities_v1',
   'gameVault_fieldOverrides_v1',
@@ -18,13 +19,6 @@ const SYNC_KEYS = [
   'mostafa_pc_date_options_v1',
   'mostafa_pc_deleted_games_v1'
 ];
-
-// صور الأغلفة المخصصة لها معاملة منفصلة: كل لعبة في مستند خاص بيها
-// بدل ما تتكدس كلها في نفس مستند البيانات الرئيسي. مستندات Firestore
-// محدودة بـ 1 ميجا لكل مستند، وصور الأغلفة (base64) كانت بتوصّل
-// لهذا الحد بسرعة فيفشل الحفظ بصمت وترجع الصورة تختفي بعد فترة.
-const COVER_KEY = 'gameVault_coverOverrides_v1';
-const COVER_SUBCOLLECTION = 'gamevault_covers';
 
 const FS_COLLECTION = 'gamevault';
 const FS_DOC = 'mostafa_library';
@@ -51,42 +45,15 @@ function loadCoreScripts() {
 
 function patchLocalStorage() {
   const nativeSetItem = localStorage.setItem.bind(localStorage);
-  const nativeGetItem = localStorage.getItem.bind(localStorage);
   localStorage.setItem = function (key, value) {
-    const oldValue = key === COVER_KEY ? nativeGetItem(key) : null;
     nativeSetItem(key, value);
-    if (!syncReady || !db) return;
-
-    if (SYNC_KEYS.includes(key)) {
+    if (syncReady && db && SYNC_KEYS.includes(key)) {
       const payload = {};
       payload[key] = value;
       db.collection(FS_COLLECTION).doc(FS_DOC).set(payload, { merge: true })
         .catch(err => console.error('Cloud sync failed for', key, err));
-    } else if (key === COVER_KEY) {
-      syncCoverOverrides(oldValue, value);
     }
   };
-}
-
-function syncCoverOverrides(oldJson, newJson) {
-  try {
-    const oldObj = oldJson ? JSON.parse(oldJson) : {};
-    const newObj = newJson ? JSON.parse(newJson) : {};
-    const ids = new Set([...Object.keys(oldObj), ...Object.keys(newObj)]);
-    ids.forEach(id => {
-      const oldVal = oldObj[id];
-      const newVal = newObj[id];
-      if (oldVal === newVal) return;
-      const docRef = db.collection(COVER_SUBCOLLECTION).doc(String(id));
-      if (newVal === undefined) {
-        docRef.delete().catch(err => console.error('Cloud cover delete failed for', id, err));
-      } else {
-        docRef.set({ cover: newVal }).catch(err => console.error('Cloud cover sync failed for', id, err));
-      }
-    });
-  } catch (e) {
-    console.error('Cover sync diff failed', e);
-  }
 }
 
 async function hydrateFromCloud() {
@@ -116,33 +83,6 @@ async function hydrateFromCloud() {
   }
 }
 
-async function hydrateCoverOverrides() {
-  if (!db) return;
-  try {
-    const snap = await db.collection(COVER_SUBCOLLECTION).get();
-    if (!snap.empty) {
-      const obj = {};
-      snap.forEach(doc => {
-        const data = doc.data();
-        if (data && data.cover) obj[doc.id] = data.cover;
-      });
-      localStorage.setItem.call(localStorage, COVER_KEY, JSON.stringify(obj));
-    } else {
-      // أول مرة: ارفع أي صور أغلفة محلية موجودة كنقطة بداية
-      const local = localStorage.getItem(COVER_KEY);
-      if (local) {
-        const obj = JSON.parse(local);
-        const writes = Object.keys(obj).map(id =>
-          db.collection(COVER_SUBCOLLECTION).doc(String(id)).set({ cover: obj[id] })
-        );
-        await Promise.all(writes).catch(err => console.error('Initial cover upload failed', err));
-      }
-    }
-  } catch (e) {
-    console.error('Cover hydrate failed, continuing with local covers only', e);
-  }
-}
-
 async function init() {
   patchLocalStorage();
 
@@ -151,7 +91,6 @@ async function init() {
       firebase.initializeApp(firebaseConfig);
       db = firebase.firestore();
       await hydrateFromCloud();
-      await hydrateCoverOverrides();
       syncReady = true;
     } catch (e) {
       console.error('Firebase init failed, continuing with local storage only', e);
