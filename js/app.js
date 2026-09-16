@@ -27,9 +27,12 @@
     coverOverrides[id] = dataUrl;
     const updatedAt = Date.now();
     if(window.CoverStore){
-      window.CoverStore.set(id, dataUrl, updatedAt).catch(err=>{
+      window.CoverStore.set(id, dataUrl, updatedAt).then(()=>{
+        window.SoundFX?.playAdd();
+      }).catch(err=>{
         console.error('Cover save failed', err);
         window.CoverStore.showToast('فشل حفظ الصورة على جهازك: ' + (err && err.message ? err.message : 'خطأ غير معروف'), true);
+        window.SoundFX?.playError();
       });
     }
     if(window.GameVaultCloudSync && window.GameVaultCloudSync.isReady()){
@@ -39,7 +42,12 @@
   function removeCoverOverride(id){
     delete coverOverrides[id];
     if(window.CoverStore){
-      window.CoverStore.remove(id).catch(err=>console.error('Cover remove failed', err));
+      window.CoverStore.remove(id).then(()=>{
+        window.SoundFX?.playDelete();
+      }).catch(err=>{
+        console.error('Cover remove failed', err);
+        window.SoundFX?.playError();
+      });
     }
     if(window.GameVaultCloudSync && window.GameVaultCloudSync.isReady()){
       window.GameVaultCloudSync.removeCover(id);
@@ -89,11 +97,26 @@
   const norm = (s) => (s||'').toString().trim().toUpperCase();
   const esc = (s) => (s===null||s===undefined) ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+  function localTodayISO(){
+    const now=new Date();
+    const y=now.getFullYear();
+    const m=String(now.getMonth()+1).padStart(2,'0');
+    const d=String(now.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
   function computeDays(start, end){
     if(!start || !end) return null;
-    const a = new Date(start+'T00:00:00'), b = new Date(end+'T00:00:00');
-    if(isNaN(a) || isNaN(b)) return null;
-    return Math.max(0, Math.round((b-a)/86400000));
+    const a = new Date(`${start}T00:00:00`), b = new Date(`${end}T00:00:00`);
+    if(isNaN(a.getTime()) || isNaN(b.getTime())) return null;
+    // Duration is the calendar-date difference: 15 Aug -> 19 Aug = 4 days.
+    return Math.max(0, Math.round((b.getTime()-a.getTime())/86400000));
+  }
+  function recordDays(r){
+    if(!r || !r.start) return null;
+    const rawEnd=String(r.end||'').trim();
+    if(rawEnd.toLowerCase()==='postponed') return null;
+    const effectiveEnd=(!rawEnd || rawEnd.toLowerCase()==='now') ? localTodayISO() : rawEnd;
+    return computeDays(r.start,effectiveEnd);
   }
   function computeAge(releaseDate){
     if(!releaseDate) return null;
@@ -388,7 +411,7 @@
     yearMin:null, yearMax:null,
     sizeMin:null, sizeMax:null,
     sort:'name-asc',
-    page:1, pageSize:40,
+    page:1, pageSize:20,
     expandedId:null
   };
 
@@ -640,15 +663,17 @@
     const diff = Math.floor((today - played) / 86400000);
     return diff >= 0 ? diff + 1 : 0;
   }
+  const SYSTEM_OPTIONS=['Low','Low-Up','Medium','Medium-Up','High','High-Up','Very-High','VeryHigh-Up','Maxed'];
+
   const EDIT_GAME_FIELDS=[
-    ['name','اسم اللعبة','text'],['series','السلسلة','select'],['genre','النوع','select'],['hdd','الهارد','select'],
+    ['name','اسم اللعبة','text'],['system','System','select'],['series','السلسلة','select'],['genre','النوع','select'],['hdd','الهارد','select'],
     ['developer','الشركة المطوّرة','select'],['mainChar','الشخصية Home','select'],['playingState','Playing State','select'],
     ['verdict','Final Rating','select'],['perspective','المنظور','select'],['versionType','نوع النسخة','select'],['rem','نوع الإصدار','select'],
     ['arabic','الدعم العربي','select'],['goty','GOTY','select'],['ledTv','LED TV','select'],['gameVersion','إصدار اللعبة','text'],
     ['installTime','وقت التثبيت','text'],['releaseDate','تاريخ الإصدار','date'],['sizeGB','الحجم (GB)','number']
   ];
   function editFieldOptions(key,g){
-    const vals=uniqueValues(key);
+    const vals=key==='system' ? SYSTEM_OPTIONS : uniqueValues(key);
     const map=key==='playingState'?STATE_LABEL:key==='verdict'?VERDICT_LABEL:key==='perspective'?PERSP_LABEL:key==='arabic'?ARABIC_LABEL:key==='goty'?{Y:'نعم',N:'لا'}:{};
     return [''].concat(vals).map(v=>`<option value="${esc(v)}" ${String(v)===String(g[key]??'')?'selected':''}>${esc(map[v]||v||'—')}</option>`).join('');
   }
@@ -694,6 +719,7 @@
     const target=document.getElementById('results-list');
     if(target) target.prepend(ok); else host.prepend(ok);
     setTimeout(()=>ok.remove(),2500);
+    window.SoundFX?.playSaveSuccess();
   }
   function saveGameEdits(id,row){
     const g=GAMES.find(x=>Number(x.id)===Number(id)); if(!g)return;
@@ -712,6 +738,7 @@
   function deleteGameCompletely(id){
     const g=GAMES.find(x=>Number(x.id)===Number(id)); if(!g)return;
     if(!confirm(tr(`حذف اللعبة "${g.name}" بالكامل؟ سيتم حذف سجلات التواريخ المرتبطة بها أيضًا.`)))return;
+    window.SoundFX?.playDelete();
     userGames=userGames.filter(x=>Number(x.id)!==Number(id));
     const del=loadJSON('mostafa_pc_deleted_games_v1',[]); if(!del.includes(Number(id)))del.push(Number(id));
     saveJSON('mostafa_pc_deleted_games_v1',del);
@@ -778,11 +805,13 @@
           <div class="g-detail">
             <div class="g-detail-cover"><img class="game-cover-real" data-cover-id="${g.id}" loading="lazy" decoding="async" src="${coverSvgDataUri(g)}" onerror="this.onerror=null;this.src='assets/new-badge.png'" alt=""><div class="cover-tools"><label class="icon-btn cover-upload-label" title="${g.cover?tr('تحديث الصورة'):tr('إضافة صورة')}">🖼️<input type="file" accept="image/*" class="cover-upload" data-id="${g.id}" hidden></label>${g.cover?`<button type="button" class="icon-btn cover-remove" data-id="${g.id}" title="${tr('حذف الصورة')}">🗑️</button>`:''}</div></div>
             <div class="g-detail-fields">
+              <div><span class="dk">${tr('System')}</span><span class="dv">${esc(g.system||'—')}</span></div>
               <div><span class="dk">${tr('السلسلة')}</span><span class="dv">${esc(SERIES_LABEL[g.series]||g.series||'—')}</span></div>
               <div><span class="dk">${tr('الشركة المطوّرة')}</span><span class="dv">${esc(g.developer||'—')}</span></div>
               <div><span class="dk">${tr('الشخصية Home')}</span><span class="dv">${esc(g.mainChar||'—')}</span></div>
               <div><span class="dk">${tr('المنظور')}</span><span class="dv">${esc(PERSP_LABEL[g.perspective]||g.perspective||'—')}</span></div>
               <div><span class="dk">${tr('نوع النسخة')}</span><span class="dv">${esc(g.versionType||'—')}</span></div>
+              <div><span class="dk">${tr('نوع الإصدار')}</span><span class="dv">${esc(g.rem||'—')}</span></div>
               <div><span class="dk">${tr('تاريخ الإصدار')}</span><span class="dv">${esc(g.releaseDate||'—')}</span></div>
               <div class="last-played-detail"><span class="dk">${tr('آخر تاريخ لعب')}</span><span class="dv last-played-value">${esc(last||'—')}${last&&daysSinceLastPlayed(last)!=null?`<span class="last-played-days" title="${esc(tr('عدد الأيام منذ آخر لعب'))}">${fmt(daysSinceLastPlayed(last))} ${esc(tr('يوم'))}</span>`:''}</span></div>
               <div><span class="dk">${tr('مدة اللعب (أيام)')}</span><span class="dv">${(()=>{const d=computeDays(g.startDate,g.endDate);return d!=null?fmt(d):'—';})()}</span></div>
@@ -871,7 +900,7 @@
       pageEl.value=String(state.pageSize);
       pageEl.addEventListener('change',()=>{
         const n=parseInt(pageEl.value,10);
-        state.pageSize=Number.isFinite(n)&&n>0?n:40;
+        state.pageSize=Number.isFinite(n)&&n>0?n:20;
         state.page=1;
         renderResults();
       });
@@ -910,6 +939,7 @@
   }
 
   const SELECT_FIELDS = [
+    {key:'system', label:'System', options:SYSTEM_OPTIONS},
     {key:'series', label:'السلسلة'},
     {key:'genre', label:'النوع'},
     {key:'hdd', label:'الهارد'},
@@ -932,7 +962,7 @@
   function renderAddGameForm(){
     const wrap = document.getElementById('addgame-form-wrap') || document.getElementById('library-add-game-wrap');
     const selectsHtml = SELECT_FIELDS.map(f=>{
-      const opts = uniqueValues(f.key);
+      const opts = Array.isArray(f.options) ? f.options : uniqueValues(f.key);
       const optionsHtml = opts.map(v=>`<option value="${esc(v)}">${esc(f.map && f.map[v] ? f.map[v] : v)}</option>`).join('');
       return `
       <div class="ag-field">
@@ -1012,6 +1042,7 @@
     const newGame = {
       id: maxId+1,
       name: name,
+      system: fieldValue('system'),
       createdAt: new Date().toISOString(),
       series: fieldValue('series'),
       rem: fieldValue('rem'),
@@ -1059,6 +1090,7 @@
     const freshBanner = document.getElementById('ag-banner');
     freshBanner.className = 'ag-banner ag-banner-ok';
     freshBanner.textContent = `تمت إضافة "${name}" إلى Library بنجاح.`;
+    window.SoundFX?.playAdd();
     const addModal=document.getElementById('library-add-game-modal');
     if(addModal) addModal.style.display='none';
     const addWrap=document.getElementById('library-add-game-wrap');
@@ -1111,7 +1143,11 @@
   let datesSearch='';
   let datesYearFilter='';
   let datesScreenFilter='';
+  let datesResolutionFilter='';
   let datesStatusFilter='';
+  const datesSelectedRids=new Set();
+  const datesBulkSnapshots=new Map();
+  let datesBulkEditing=false;
   const normDateSearch=s=>String(s||'').replace(/[\u00A0\u2000-\u200B]/g,' ').replace(/[ًٌٍَُِّْـ]/g,'').replace(/\s+/g,' ').trim().toLocaleLowerCase('ar');
   function ensureDateRecords(){
     // v4 is intentionally independent from all previous broken date stores.
@@ -1161,7 +1197,7 @@
     return dateRecords;
   }
   function saveDateRecords(){saveJSON(DATE_RECORDS_KEY,dateRecords);}
-  function syncGameDate(r){const g=GAMES.find(x=>Number(x.id)===Number(r.gameId));if(!g)return;g.startDate=r.start||null;g.endDate=r.end||null;g.days=computeDays(r.start,r.end);g.screenType=r.screenType||null;g.device=r.device||null;g.gpu=r.gpu||null;g.resolution=r.resolution||null;if(!overrides[g.id])overrides[g.id]={};Object.assign(overrides[g.id],{screenType:g.screenType,gpu:g.gpu,resolution:g.resolution});saveJSON(OVERRIDES_KEY,overrides);}
+  function syncGameDate(r){const g=GAMES.find(x=>Number(x.id)===Number(r.gameId));if(!g)return;g.startDate=r.start||null;g.endDate=r.end||null;g.days=recordDays(r);g.screenType=r.screenType||null;g.device=r.device||null;g.gpu=r.gpu||null;g.resolution=r.resolution||null;if(!overrides[g.id])overrides[g.id]={};Object.assign(overrides[g.id],{screenType:g.screenType,gpu:g.gpu,resolution:g.resolution});saveJSON(OVERRIDES_KEY,overrides);}
   if(typeof window.makeOptionControl!=='function'){
     window.makeOptionControl=function(kind,value,field,id){
       return `<input class="dt-inline" data-field="${field}" value="${esc(value||'')}" placeholder="${tr(kind==='screen'?'نوع الشاشة':kind==='gpu'?'كارت الشاشة':'الدقة')}">`;
@@ -1176,7 +1212,18 @@
   function endDateControl(v,rid){
     const postponed=String(v||'').trim().toLowerCase()==='postponed';
     const label=postponed?'Postponed':(v||'');
-    return `<div class="dt-end-control" data-rid="${esc(rid)}"><input class="dt-date dt-end-date-input" data-field="endDate" data-editable-lock="1" type="text" value="${esc(label)}" placeholder="End Date" readonly disabled><div class="dt-end-popover" hidden><input class="dt-native-picker" type="date" value="${postponed?'':esc(v||'')}" aria-label="End Date"><button type="button" class="dt-postponed-btn" data-field="end" data-value="Postponed" data-editable-lock="1" disabled aria-label="Postponed" title="Postponed">⏸</button></div><input type="hidden" data-field="end" value="${postponed?'Postponed':''}"></div>`;
+    return `<div class="dt-end-control" data-rid="${esc(rid)}"><input class="dt-date dt-end-date-input" data-field="endDate" data-editable-lock="1" type="text" value="${esc(label)}" placeholder="End Date" readonly disabled><div class="dt-end-popover" hidden><input class="dt-native-picker" type="date" value="${postponed?'':esc(v||'')}" aria-label="End Date"><button type="button" class="dt-postponed-btn" data-field="end" data-value="Postponed" data-editable-lock="1" disabled aria-label="Postponed" title="Postponed">⏸</button><button type="button" class="dt-now-btn" data-field="now" data-editable-lock="1" disabled aria-label="Now" title="Now">Now</button></div><input type="hidden" data-field="end" value="${postponed?'Postponed':''}"></div>`;
+  }
+
+  function restoreDatesEditPosition(rid, topOffset, scrollTop){
+    requestAnimationFrame(()=>{
+      const row=document.querySelector(`#dates-wrap tr[data-rid="${CSS.escape(String(rid))}"]`);
+      if(row && Number.isFinite(topOffset)){
+        const current=row.getBoundingClientRect().top;
+        window.scrollBy(0, current-topOffset);
+      }
+      if(Number.isFinite(scrollTop)) window.scrollTo({top:scrollTop,behavior:'auto'});
+    });
   }
 
   function renderDatesTab(){
@@ -1188,37 +1235,209 @@
     const oldStatus=document.getElementById('dates-status-filter');datesStatusFilter=oldStatus?oldStatus.value:datesStatusFilter;
     if(!Array.isArray(records)){dateRecords=[];}
     const yearOptions=[...new Set((Array.isArray(dateRecords)?dateRecords:[]).map(r=>String(r.start||'').slice(0,4)).filter(y=>/^\d{4}$/.test(y)))].sort((a,b)=>Number(b)-Number(a));
+    const resolutionOptions=['4k','1440P','1080P','720P','480P'];
     const screenOptions=[...new Set((Array.isArray(dateRecords)?dateRecords:[]).map(r=>String(r.screenType||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
     const statusOptions=[...new Set((Array.isArray(dateRecords)?dateRecords:[]).map(r=>String(r.playingState||r.status||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
     const filtered=(Array.isArray(dateRecords)?dateRecords:[]).filter(r=>{
       const matchesName=!datesSearch||normDateSearch(r.name).includes(normDateSearch(datesSearch));
       const matchesYear=!datesYearFilter||String(r.start||'').slice(0,4)===datesYearFilter;
       const matchesScreen=!datesScreenFilter||String(r.screenType||'')===datesScreenFilter;
+      const matchesResolution=!datesResolutionFilter||String(r.resolution||'').toLowerCase()===datesResolutionFilter.toLowerCase();
       const matchesStatus=!datesStatusFilter||String(r.playingState||r.status||'')===datesStatusFilter;
-      return matchesName&&matchesYear&&matchesScreen&&matchesStatus;
+      return matchesName&&matchesYear&&matchesScreen&&matchesResolution&&matchesStatus;
     });
     const key=state.dateSortKey||'start',dir=state.dateSortDir||1;
-    const sorted=filtered.slice().sort((a,b)=>key==='days'?((Number(a.days)||0)-(Number(b.days)||0))*dir:String(a[key==='name'?'name':key]||'').localeCompare(String(b[key==='name'?'name':key]||''),undefined,{numeric:true,sensitivity:'base'})*dir);
-    const total=sorted.reduce((n,r)=>n+(Number(r.days)||computeDays(r.start,r.end)||0),0),avg=sorted.length?total/sorted.length:0;
+    // Date columns must be sorted as real calendar dates, not as display/text values.
+    // Keep missing/Postponed End Dates at the bottom in either direction.
+    const dateSortValue=(value)=>{
+      const raw=String(value??'').trim();
+      if(!raw || raw.toLowerCase()==='now' || raw.toLowerCase()==='postponed') return null;
+      const m=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if(m) return Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3]));
+      const parsed=Date.parse(raw);
+      return Number.isNaN(parsed)?null:parsed;
+    };
+    const sorted=filtered.slice().sort((a,b)=>{
+      if(key==='days'){
+        const av=recordDays(a),bv=recordDays(b);
+        if(av==null && bv==null)return 0;
+        if(av==null)return 1;
+        if(bv==null)return -1;
+        return (Number(av)-Number(bv))*dir;
+      }
+      if(key==='start' || key==='end'){
+        const av=dateSortValue(a[key]),bv=dateSortValue(b[key]);
+        if(av==null && bv==null)return 0;
+        if(av==null)return 1;
+        if(bv==null)return -1;
+        return (av-bv)*dir;
+      }
+      const ak=key==='name'?'name':key;
+      return String(a[ak]??'').localeCompare(String(b[ak]??''),undefined,{numeric:true,sensitivity:'base'})*dir;
+    });
+    const total=sorted.reduce((n,r)=>n+(Number(recordDays(r))||0),0),avg=sorted.length?total/sorted.length:0;
+    const completedCount=sorted.filter(r=>{const end=String(r.end||'').trim();return end && end.toLowerCase()!=='postponed';}).length;
+    const completionRate=sorted.length?(completedCount/sorted.length)*100:0;
+    const playCountEl=document.getElementById('dates-play-count');
+    const daysCountEl=document.getElementById('dates-days-count');
+    const completionEl=document.getElementById('dates-completion-rate');
+    if(playCountEl){const v=playCountEl.querySelector('strong');if(v)v.textContent=fmt(sorted.length);}
+    if(daysCountEl){const v=daysCountEl.querySelector('strong');if(v)v.textContent=fmt(total);}
+    if(completionEl){const v=completionEl.querySelector('strong');if(v)v.textContent=`${completionRate.toFixed(1)}%`; }
+    // Resolution counters follow the currently filtered Game Dates records.
+    const resolutionMetricIds={'480P':'dates-resolution-480','720P':'dates-resolution-720','1080P':'dates-resolution-1080','1440P':'dates-resolution-1440','4k':'dates-resolution-4k'};
+    Object.entries(resolutionMetricIds).forEach(([resolution,id])=>{
+      const el=document.getElementById(id);
+      if(!el)return;
+      const count=sorted.filter(r=>String(r.resolution||'').trim().toLowerCase()===resolution.toLowerCase()).length;
+      const v=el.querySelector('strong');
+      if(v)v.textContent=fmt(count);
+    });
     const arrow=k=>`dt-sort ${key===k?(dir===1?'asc':'desc'):''}`;
-    wrap.innerHTML=`<div class="dt-toolbar dates-filters"><input type="text" class="search-input dt-filter" id="dates-search-input" placeholder="Game name..." value="${esc(datesSearch)}" autocomplete="off"><select id="dates-year-filter" class="search-input dt-filter dt-year-filter" aria-label="Start Year Filter"><option value="">All Years</option>${yearOptions.map(y=>`<option value="${y}" ${datesYearFilter===y?'selected':''}>${y}</option>`).join('')}</select><select id="dates-screen-filter" class="search-input dt-filter" aria-label="Screen Filter"><option value="">All Screens</option>${screenOptions.map(v=>`<option value="${esc(v)}" ${datesScreenFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><select id="dates-status-filter" class="search-input dt-filter" aria-label="Game Status Filter"><option value="">All Statuses</option>${statusOptions.map(v=>`<option value="${esc(v)}" ${datesStatusFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><button type="button" class="plus-btn dt-add-game-btn dt-add-icon-btn" id="date-add-btn" title="Add Game" aria-label="Add Game">➕</button></div><div class="dt-stats"><div class="dt-stat"><div class="num">${fmt(sorted.length)}</div><div class="lbl">سجلات اللعب</div></div><div class="dt-stat"><div class="num">${fmt(total)}</div><div class="lbl">إجمالي أيام اللعب</div></div><div class="dt-stat"><div class="num">${fmt(avg,1)}</div><div class="lbl">متوسط الأيام</div></div></div><div class="dt-table-wrap"><table class="dt-table"><thead><tr><th class="${arrow('name')}" data-dsort="name">Game</th><th class="${arrow('start')}" data-dsort="start">Start Date</th><th class="${arrow('end')}" data-dsort="end">End Date</th><th class="${arrow('days')}" data-dsort="days">Days</th><th>Previous Plays</th><th>Play History</th><th class="${arrow('playingState')}" data-dsort="playingState">Playing State</th><th class="${arrow('screen')}" data-dsort="screen">Screen</th><th class="${arrow('gpu')}" data-dsort="gpu">GPU</th><th class="${arrow('resolution')}" data-dsort="resolution">Resolution</th><th>Edit</th><th>Save</th><th>Delete</th></tr></thead><tbody>${sorted.map(r=>`<tr data-rid="${esc(r.rid)}"><td class="dt-name">${gameNameLink(r.name)}</td><td><input class="dt-date" data-field="start" data-editable-lock="1" type="date" value="${esc(r.start||'')}" disabled></td><td>${endDateControl(r.end,r.rid)}</td><td class="dt-days">${r.days!=null?fmt(r.days):'—'}</td><td class="dt-history-count">${fmt(getPlayOrdinal(r.gameId,r.name,r))}</td><td class="dt-history-status ${getPlayCountBefore(r.gameId,r.name,r)===0?'play-status-new':'play-status-old'}">${getPlayCountBefore(r.gameId,r.name,r)===0?'New':'Old'}</td><td class="dt-game-status">${esc(r.playingState||r.status||'—')}</td><td>${makeOptionControl('screen',r.screenType||'','screen',r.rid,true)}</td><td>${makeOptionControl('gpu',r.gpu||'','gpu',r.rid,true)}</td><td>${makeOptionControl('resolution',r.resolution||'','resolution',r.rid,true)}</td><td><button type="button" class="icon-action dt-edit-btn" title="تعديل السجل">✏️</button></td><td><button type="button" class="plus-btn dt-save" title="حفظ السجل" disabled>💾</button></td><td><button type="button" class="dt-delete" title="حذف السجل">🗑️</button></td></tr>`).join('')}</tbody></table></div>`;
+    const selectedVisibleCount=sorted.filter(r=>datesSelectedRids.has(String(r.rid))).length;
+    const bulkLabel=lang==='en'?'Edit Selected':'تعديل المحدد';
+    const bulkSaveLabel=lang==='en'?'Save Selected':'حفظ المحدد';
+    const bulkCancelLabel=lang==='en'?'Cancel Selected':'إلغاء التعديل';
+    const allVisibleSelected=sorted.length>0 && sorted.every(r=>datesSelectedRids.has(String(r.rid)));
+    wrap.innerHTML=`<div class="dt-toolbar dates-filters"><input type="text" class="search-input dt-filter" id="dates-search-input" placeholder="Game name..." value="${esc(datesSearch)}" autocomplete="off"><select id="dates-resolution-filter" class="search-input dt-filter dt-resolution-filter" aria-label="Resolution Filter"><option value="">All Resolution</option>${resolutionOptions.map(v=>`<option value="${esc(v)}" ${datesResolutionFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><select id="dates-year-filter" class="search-input dt-filter dt-year-filter" aria-label="Start Year Filter"><option value="">All Years</option>${yearOptions.map(y=>`<option value="${y}" ${datesYearFilter===y?'selected':''}>${y}</option>`).join('')}</select><select id="dates-screen-filter" class="search-input dt-filter" aria-label="Screen Filter"><option value="">All Screens</option>${screenOptions.map(v=>`<option value="${esc(v)}" ${datesScreenFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><select id="dates-status-filter" class="search-input dt-filter" aria-label="Game Status Filter"><option value="">All Statuses</option>${statusOptions.map(v=>`<option value="${esc(v)}" ${datesStatusFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><button type="button" class="plus-btn dt-add-game-btn dt-add-icon-btn" id="date-add-btn" title="Add Game" aria-label="Add Game">➕</button></div><div class="dt-bulk-toolbar" id="dt-bulk-toolbar"><label class="dt-select-all"><input type="checkbox" id="dt-select-all" ${allVisibleSelected?'checked':''}> <span>${lang==='en'?'Select All':'تحديد الكل'}</span></label><span class="dt-selected-count">${lang==='en'?`${selectedVisibleCount} selected`:`${selectedVisibleCount} محدد`}</span><button type="button" class="dt-bulk-btn" id="dt-bulk-edit" ${selectedVisibleCount?'':'disabled'}>✏️ ${bulkLabel}</button><button type="button" class="dt-bulk-btn" id="dt-bulk-save" ${datesBulkEditing&&selectedVisibleCount?'':'disabled'}>💾 ${bulkSaveLabel}</button><button type="button" class="dt-bulk-btn dt-bulk-cancel" id="dt-bulk-cancel" ${datesBulkEditing&&selectedVisibleCount?'':'disabled'}>✖ ${bulkCancelLabel}</button></div><div class="dt-table-wrap"><table class="dt-table"><thead><tr><th class="dt-select-col"><input type="checkbox" id="dt-select-all-head" ${allVisibleSelected?'checked':''} aria-label="Select all"></th><th class="${arrow('name')}" data-dsort="name">Game</th><th class="${arrow('start')}" data-dsort="start">Start Date</th><th class="${arrow('end')}" data-dsort="end">End Date</th><th class="${arrow('days')}" data-dsort="days">Days</th><th>Previous Plays</th><th>Play History</th><th class="${arrow('playingState')}" data-dsort="playingState">Playing State</th><th class="${arrow('screen')}" data-dsort="screen">Screen</th><th class="${arrow('gpu')}" data-dsort="gpu">GPU</th><th class="${arrow('resolution')}" data-dsort="resolution">Resolution</th><th>Edit</th><th>Save</th><th>Delete</th></tr></thead><tbody>${sorted.map(r=>`<tr data-rid="${esc(r.rid)}" class="${datesSelectedRids.has(String(r.rid))?'dt-row-selected':''}"><td class="dt-select-col"><input type="checkbox" class="dt-row-select" data-rid="${esc(r.rid)}" ${datesSelectedRids.has(String(r.rid))?'checked':''} aria-label="Select ${esc(r.name)}"></td><td class="dt-name">${gameNameLink(r.name)}</td><td><input class="dt-date" data-field="start" data-editable-lock="1" type="date" value="${esc(r.start||'')}" ${datesSelectedRids.has(String(r.rid))&&datesBulkEditing?'':'disabled'}></td><td>${endDateControl(r.end,r.rid)}</td><td class="dt-days">${recordDays(r)!=null?fmt(recordDays(r)):'—'}</td><td class="dt-history-count">${fmt(getPlayOrdinal(r.gameId,r.name,r))}</td><td class="dt-history-status ${getPlayCountBefore(r.gameId,r.name,r)===0?'play-status-new':'play-status-old'}">${getPlayCountBefore(r.gameId,r.name,r)===0?'New':'Old'}</td><td class="dt-game-status">${esc(r.playingState||r.status||'—')}</td><td>${makeOptionControl('screen',r.screenType||'','screen',r.rid,true)}</td><td>${makeOptionControl('gpu',r.gpu||'','gpu',r.rid,true)}</td><td>${makeOptionControl('resolution',r.resolution||'','resolution',r.rid,true)}</td><td><button type="button" class="icon-action dt-edit-btn" title="تعديل السجل">✏️</button></td><td><button type="button" class="plus-btn dt-save" title="حفظ السجل" disabled>💾</button></td><td><button type="button" class="dt-delete" title="حذف السجل">🗑️</button></td></tr>`).join('')}</tbody></table></div>`;
     const inp=document.getElementById('dates-search-input');
     if(inp){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);inp.addEventListener('input',e=>{datesSearch=e.target.value;renderDatesTab();});inp.addEventListener('keydown',e=>{if(e.key===' ')e.stopPropagation();});}
     const yearFilter=document.getElementById('dates-year-filter');
     if(yearFilter)yearFilter.addEventListener('change',e=>{datesYearFilter=e.target.value;renderDatesTab();});
+    const resolutionFilter=document.getElementById('dates-resolution-filter');
+    if(resolutionFilter)resolutionFilter.addEventListener('change',e=>{datesResolutionFilter=e.target.value;renderDatesTab();});
     const screenFilter=document.getElementById('dates-screen-filter');
     if(screenFilter)screenFilter.addEventListener('change',e=>{datesScreenFilter=e.target.value;renderDatesTab();});
     const statusFilter=document.getElementById('dates-status-filter');
     if(statusFilter)statusFilter.addEventListener('change',e=>{datesStatusFilter=e.target.value;renderDatesTab();});
     wrap.querySelectorAll('[data-dsort]').forEach(th=>th.addEventListener('click',()=>{const k=th.dataset.dsort;if(state.dateSortKey===k)state.dateSortDir*=-1;else{state.dateSortKey=k;state.dateSortDir=1;}renderDatesTab();}));
-    wrap.querySelectorAll('.dt-edit-btn').forEach(btn=>btn.addEventListener('click',()=>{const row=btn.closest('tr');if(!row)return;const endDateEl=row.querySelector('[data-field="endDate"]');const endHidden=row.querySelector('[data-field="end"]');const screenEl=row.querySelector('[data-field="screen"]');const gpuEl=row.querySelector('[data-field="gpu"]');const resEl=row.querySelector('[data-field="resolution"]');const startEl=row.querySelector('[data-field="start"]');const daysEl=row.querySelector('.dt-days');row.__dtEditSnapshot={start:startEl?.value||'',endDate:endDateEl?.value||'',end:endHidden?.value||'',screen:screenEl?.value||'',gpu:gpuEl?.value||'',resolution:resEl?.value||'',days:daysEl?.textContent||'—'};row.classList.add('dt-row-editing');row.querySelectorAll('[data-editable-lock]').forEach(el=>{el.disabled=false;el.readOnly=false;el.classList.add('is-editing');});row.querySelectorAll('.dt-option-add').forEach(el=>el.disabled=false);row.querySelectorAll('.dt-postponed-btn').forEach(el=>el.disabled=false);const save=row.querySelector('.dt-save');if(save)save.disabled=false;startEl?.focus();}));
+    const selectedRids=()=>Array.from(datesSelectedRids).filter(rid=>dateRecords.some(r=>String(r.rid)===String(rid)));
+    const setRowEditMode=(row,editing)=>{
+      if(!row)return;
+      row.classList.toggle('dt-row-editing',editing);
+      row.querySelectorAll('[data-editable-lock]').forEach(el=>{el.disabled=!editing;el.readOnly=!editing;el.classList.toggle('is-editing',editing);});
+      row.querySelectorAll('.dt-option-add,.dt-postponed-btn,.dt-now-btn').forEach(el=>el.disabled=!editing);
+      const save=row.querySelector('.dt-save'); if(save)save.disabled=!editing;
+    };
+    const snapshotRow=(row)=>{
+      const endDateEl=row.querySelector('[data-field="endDate"]'), endHidden=row.querySelector('[data-field="end"]');
+      row.__dtBulkSnapshot={start:row.querySelector('[data-field="start"]')?.value||'',endDate:endDateEl?.value||'',end:endHidden?.value||'',screen:row.querySelector('[data-field="screen"]')?.value||'',gpu:row.querySelector('[data-field="gpu"]')?.value||'',resolution:row.querySelector('[data-field="resolution"]')?.value||''};
+    };
+    const enterBulkEdit=()=>{
+      const ids=selectedRids(); if(!ids.length)return;
+      datesBulkSnapshots.clear();
+      ids.forEach(rid=>{
+        const row=wrap.querySelector(`tr[data-rid="${CSS.escape(String(rid))}"]`);
+        if(row){snapshotRow(row);datesBulkSnapshots.set(String(rid),{...row.__dtBulkSnapshot});}
+      });
+      datesBulkEditing=true;
+      renderDatesTab();
+      // Re-enter edit mode after render so every selected row is editable at the same time.
+      ids.forEach(rid=>{const row=wrap.querySelector(`tr[data-rid="${CSS.escape(String(rid))}"]`);if(row)setRowEditMode(row,true);});
+    };
+    const cancelBulkEdit=()=>{
+      // No values have been written to the data model until Save Selected is pressed.
+      // Re-rendering therefore restores the exact saved values and closes all edit states together.
+      datesBulkEditing=false;
+      datesBulkSnapshots.clear();
+      renderDatesTab();
+    };
+    const saveBulkEdit=()=>{
+      const ids=selectedRids(); if(!ids.length)return;
+      ids.forEach(rid=>{
+        const row=wrap.querySelector(`tr[data-rid="${CSS.escape(String(rid))}"]`),r=dateRecords.find(x=>String(x.rid)===String(rid)); if(!row||!r)return;
+        r.start=row.querySelector('[data-field="start"]')?.value||null;
+        r.end=(row.querySelector('[data-field="end"]')?.value==='Postponed'?'Postponed':(row.querySelector('[data-field="endDate"]')?.value||null));
+        r.screenType=row.querySelector('[data-field="screen"]')?.value||null;
+        r.gpu=row.querySelector('[data-field="gpu"]')?.value||null;
+        r.resolution=row.querySelector('[data-field="resolution"]')?.value||null;
+        const g=GAMES.find(x=>Number(x.id)===Number(r.gameId));
+        r.playingState=derivePlayingState(r.start,r.end,r.playingState||r.status||g?.playingState); r.status=r.playingState; r.days=recordDays(r); syncGameDate(r);
+      });
+      saveDateRecords(); rebuildNormalizedMaps(); datesBulkEditing=false; datesBulkSnapshots.clear(); renderDatesTab(); renderHeroStats(); renderDashboard(); renderResults();
+    };
+    const toggleAll=(checked)=>{sorted.forEach(r=>{const rid=String(r.rid);if(checked)datesSelectedRids.add(rid);else datesSelectedRids.delete(rid);});renderDatesTab();};
+    // Keep the exact row in place when selecting a single Game Date record.
+    // Do not re-render the whole table here: a full render can reset the table/scroll
+    // position and makes the selected row appear to jump away from the user's cursor.
+    wrap.querySelectorAll('.dt-row-select').forEach(cb=>cb.addEventListener('change',e=>{
+      e.stopPropagation();
+      const rid=String(cb.dataset.rid);
+      const row=cb.closest('tr');
+      if(cb.checked) datesSelectedRids.add(rid); else datesSelectedRids.delete(rid);
+      row?.classList.toggle('dt-row-selected',cb.checked);
+
+      // Update only the bulk-selection controls, preserving the current row and scroll position.
+      const selectedVisibleCount=sorted.filter(r=>datesSelectedRids.has(String(r.rid))).length;
+      const countEl=wrap.querySelector('.dt-selected-count');
+      if(countEl) countEl.textContent=lang==='en'?`${selectedVisibleCount} selected`:`${selectedVisibleCount} محدد`;
+      const editBtn=wrap.querySelector('#dt-bulk-edit');
+      if(editBtn) editBtn.disabled=!selectedVisibleCount;
+      const saveBtn=wrap.querySelector('#dt-bulk-save');
+      if(saveBtn) saveBtn.disabled=!(datesBulkEditing&&selectedVisibleCount);
+      const cancelBtn=wrap.querySelector('#dt-bulk-cancel');
+      if(cancelBtn) cancelBtn.disabled=!(datesBulkEditing&&selectedVisibleCount);
+      const allVisibleSelected=sorted.length>0 && sorted.every(r=>datesSelectedRids.has(String(r.rid)));
+      const selectAll=wrap.querySelector('#dt-select-all');
+      const selectAllHead=wrap.querySelector('#dt-select-all-head');
+      if(selectAll) selectAll.checked=allVisibleSelected;
+      if(selectAllHead) selectAllHead.checked=allVisibleSelected;
+    }));
+    wrap.querySelector('#dt-select-all')?.addEventListener('change',e=>toggleAll(e.target.checked));
+    wrap.querySelector('#dt-select-all-head')?.addEventListener('change',e=>toggleAll(e.target.checked));
+    wrap.querySelector('#dt-bulk-edit')?.addEventListener('click',enterBulkEdit);
+    wrap.querySelector('#dt-bulk-save')?.addEventListener('click',saveBulkEdit);
+    wrap.querySelector('#dt-bulk-cancel')?.addEventListener('click',cancelBulkEdit);
+
+    wrap.querySelectorAll('.dt-edit-btn').forEach(btn=>btn.addEventListener('click',()=>{const row=btn.closest('tr');if(!row)return;row.__dtEditPosition={top:row.getBoundingClientRect().top,scrollTop:window.scrollY};const endDateEl=row.querySelector('[data-field="endDate"]');const endHidden=row.querySelector('[data-field="end"]');const screenEl=row.querySelector('[data-field="screen"]');const gpuEl=row.querySelector('[data-field="gpu"]');const resEl=row.querySelector('[data-field="resolution"]');const startEl=row.querySelector('[data-field="start"]');const daysEl=row.querySelector('.dt-days');row.__dtEditSnapshot={start:startEl?.value||'',endDate:endDateEl?.value||'',end:endHidden?.value||'',screen:screenEl?.value||'',gpu:gpuEl?.value||'',resolution:resEl?.value||'',days:daysEl?.textContent||'—'};row.classList.add('dt-row-editing');row.querySelectorAll('[data-editable-lock]').forEach(el=>{el.disabled=false;el.readOnly=false;el.classList.add('is-editing');});row.querySelectorAll('.dt-option-add').forEach(el=>el.disabled=false);row.querySelectorAll('.dt-postponed-btn,.dt-now-btn').forEach(el=>el.disabled=false);const save=row.querySelector('.dt-save');if(save)save.disabled=false;startEl?.focus();}));
 
     // Game Dates: Esc cancels the active row edit, restores the exact pre-edit values, and exits edit mode.
-    wrap.addEventListener('keydown',e=>{if(e.key!=='Escape')return;const active=document.activeElement;const row=active?.closest?.('tr.dt-row-editing')||wrap.querySelector('tr.dt-row-editing');if(!row||!row.__dtEditSnapshot)return;e.preventDefault();e.stopPropagation();const snap=row.__dtEditSnapshot;const set=(sel,val)=>{const el=row.querySelector(sel);if(el)el.value=val;};set('[data-field="start"]',snap.start);set('[data-field="endDate"]',snap.endDate);set('[data-field="end"]',snap.end);set('[data-field="screen"]',snap.screen);set('[data-field="gpu"]',snap.gpu);set('[data-field="resolution"]',snap.resolution);const daysEl=row.querySelector('.dt-days');if(daysEl)daysEl.textContent=snap.days;row.querySelectorAll('[data-editable-lock]').forEach(el=>{el.disabled=true;el.readOnly=true;el.classList.remove('is-editing');});row.querySelectorAll('.dt-option-add,.dt-postponed-btn').forEach(el=>el.disabled=true);const save=row.querySelector('.dt-save');if(save)save.disabled=true;row.classList.remove('dt-row-editing');delete row.__dtEditSnapshot;active?.blur?.();});
+    const cancelDatesEdit=(event)=>{
+      if(event.key!=='Escape')return;
+      if(datesBulkEditing){
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+        cancelBulkEdit();
+        return;
+      }
+      const active=document.activeElement;
+      const row=active?.closest?.('tr.dt-row-editing')||wrap.querySelector('tr.dt-row-editing');
+      if(!row||!row.__dtEditSnapshot)return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      const snap=row.__dtEditSnapshot;
+      const set=(sel,val)=>{const el=row.querySelector(sel);if(el)el.value=val;};
+      set('[data-field="start"]',snap.start);
+      set('[data-field="endDate"]',snap.endDate);
+      set('[data-field="end"]',snap.end);
+      set('[data-field="screen"]',snap.screen);
+      set('[data-field="gpu"]',snap.gpu);
+      set('[data-field="resolution"]',snap.resolution);
+      const daysEl=row.querySelector('.dt-days');
+      if(daysEl)daysEl.textContent=snap.days;
+      // Always close the End Date popup and restore its controls to the pre-edit state.
+      const pop=row.querySelector('.dt-end-popover');
+      if(pop)pop.hidden=true;
+      const postponed=row.querySelector('.dt-postponed-btn');
+      if(postponed)postponed.classList.toggle('selected',String(snap.end).toLowerCase()==='postponed');
+      row.querySelectorAll('[data-editable-lock]').forEach(el=>{el.disabled=true;el.readOnly=true;el.classList.remove('is-editing');});
+      row.querySelectorAll('.dt-option-add,.dt-postponed-btn,.dt-now-btn').forEach(el=>el.disabled=true);
+      const save=row.querySelector('.dt-save');
+      if(save)save.disabled=true;
+      row.classList.remove('dt-row-editing');
+      delete row.__dtEditSnapshot;
+      active?.blur?.();
+      row.__dtEditPosition=null;
+    };
+    // Capture Escape at document level so it also works while the End Date picker/popover is focused.
+    document.addEventListener('keydown',cancelDatesEdit,true);
     
-    wrap.querySelectorAll('.dt-save').forEach(btn=>btn.addEventListener('click',()=>{const row=btn.closest('tr'),r=dateRecords.find(x=>x.rid===row.dataset.rid);if(!r||btn.disabled)return;r.start=row.querySelector('[data-field="start"]')?.value||null;r.end=(row.querySelector('[data-field="end"]')?.value==='Postponed'?'Postponed':(row.querySelector('[data-field="endDate"]')?.value||null));r.screenType=row.querySelector('[data-field="screen"]')?.value||null;['gpu','resolution'].forEach(f=>r[f]=row.querySelector(`[data-field="${f}"]`)?.value||null);const gameForState=GAMES.find(x=>Number(x.id)===Number(r.gameId));r.playingState=derivePlayingState(r.start,r.end,r.playingState||r.status||gameForState?.playingState);r.status=r.playingState;r.days=computeDays(r.start,r.end);saveDateRecords();syncGameDate(r);rebuildNormalizedMaps();renderDatesTab();renderHeroStats();renderDashboard();renderResults();}));
+    wrap.querySelectorAll('.dt-save').forEach(btn=>btn.addEventListener('click',()=>{const row=btn.closest('tr'),r=dateRecords.find(x=>x.rid===row.dataset.rid);if(!r||btn.disabled)return;const rid=r.rid;const pos=row.__dtEditPosition||{top:row.getBoundingClientRect().top,scrollTop:window.scrollY};r.start=row.querySelector('[data-field="start"]')?.value||null;r.end=(row.querySelector('[data-field="end"]')?.value==='Postponed'?'Postponed':(row.querySelector('[data-field="endDate"]')?.value||null));r.screenType=row.querySelector('[data-field="screen"]')?.value||null;['gpu','resolution'].forEach(f=>r[f]=row.querySelector(`[data-field="${f}"]`)?.value||null);const gameForState=GAMES.find(x=>Number(x.id)===Number(r.gameId));r.playingState=derivePlayingState(r.start,r.end,r.playingState||r.status||gameForState?.playingState);r.status=r.playingState;r.days=recordDays(r);saveDateRecords();syncGameDate(r);rebuildNormalizedMaps();renderDatesTab();restoreDatesEditPosition(rid,pos.top,pos.scrollTop);renderHeroStats();renderDashboard();renderResults();}));
     wrap.querySelectorAll('.dt-end-date-input').forEach(inp=>inp.addEventListener('click',()=>{const row=inp.closest('tr');const pop=row?.querySelector('.dt-end-popover');if(pop&&!inp.disabled)pop.hidden=!pop.hidden;}));
     wrap.querySelectorAll('.dt-native-picker').forEach(inp=>inp.addEventListener('change',()=>{const row=inp.closest('tr');const visible=row?.querySelector('.dt-end-date-input');const hidden=row?.querySelector('[data-field="end"]');if(visible){visible.value=inp.value;}if(hidden)hidden.value='';const pop=row?.querySelector('.dt-end-popover');if(pop)pop.hidden=true;}));
+    wrap.querySelectorAll('.dt-now-btn').forEach(btn=>btn.addEventListener('click',()=>{const row=btn.closest('tr');const visible=row?.querySelector('.dt-end-date-input');const picker=row?.querySelector('.dt-native-picker');const hidden=row?.querySelector('[data-field="end"]');const start=row?.querySelector('[data-field="start"]')?.value||'';const today=localTodayISO();if(visible)visible.value='';if(picker)picker.value='';if(hidden)hidden.value='';const pop=row?.querySelector('.dt-end-popover');if(pop)pop.hidden=true;row?.querySelector('.dt-postponed-btn')?.classList.remove('selected');const state=row?.querySelector('.dt-game-status');if(state)state.textContent='Playing Now';const days=row?.querySelector('.dt-days');if(days)days.textContent=fmt(computeDays(start,today));}));
     wrap.querySelectorAll('.dt-postponed-btn').forEach(btn=>btn.addEventListener('click',()=>{const row=btn.closest('tr');const visible=row?.querySelector('.dt-end-date-input');const picker=row?.querySelector('.dt-native-picker');const hidden=row?.querySelector('[data-field="end"]');if(hidden)hidden.value='Postponed';if(visible)visible.value='Postponed';if(picker)picker.value='';const pop=row?.querySelector('.dt-end-popover');if(pop)pop.hidden=true;btn.classList.add('selected');const state=row?.querySelector('.dt-game-status');if(state)state.textContent='Not-Completed';const days=row?.querySelector('.dt-days');if(days)days.textContent='—';}));
     wrap.querySelectorAll('.dt-delete').forEach(btn=>btn.addEventListener('click',()=>{const row=btn.closest('tr'),r=dateRecords.find(x=>x.rid===row.dataset.rid);if(!r)return;if(!confirm(tr(`حذف سجل "${r.name}" بالكامل؟`)))return;dateRecords=dateRecords.filter(x=>x.rid!==r.rid);saveDateRecords();const g=GAMES.find(x=>Number(x.id)===Number(r.gameId));if(g){g.startDate=null;g.endDate=null;g.days=null;}renderDatesTab();renderHeroStats();renderDashboard();renderResults();}));
     document.getElementById('date-add-btn').addEventListener('click',openDateAddForm);
@@ -1475,6 +1694,7 @@
     "المنظور":"Perspective",
     "نوع النسخة":"Version Type",
     "نوع الإصدار":"Edition Type",
+    "System":"System",
     "تاريخ الإصدار":"Release Date",
     "آخر تاريخ لعب":"Last Played Date",
     "مدة اللعب (أيام)":"Play Duration (Days)",
@@ -2521,6 +2741,126 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
 
   /* ================= INIT ================= */
   renderHeroStats();
+
+
+  /* ================= GLOBAL RIGHT-CLICK MENU ================= */
+  function contextGameFromTarget(target){
+    const row=target?.closest?.('.g-row, .dt-table tbody tr');
+    if(!row) return null;
+    let id=null, game=null, record=null;
+    if(row.classList.contains('g-row')) id=Number(row.dataset.id);
+    else if(row.dataset.rid){
+      record=(Array.isArray(dateRecords)?dateRecords:[]).find(r=>String(r.rid)===String(row.dataset.rid));
+      id=record?.gameId!=null?Number(record.gameId):null;
+      game=id!=null?GAMES.find(g=>Number(g.id)===id):GAMES.find(g=>normDateSearch(g.name)===normDateSearch(record?.name));
+    } else if(row.dataset.sizeId) id=Number(row.dataset.sizeId);
+    if(!game && id!=null) game=GAMES.find(g=>Number(g.id)===id);
+    if(!game && row.dataset.gameName) game=GAMES.find(g=>normDateSearch(g.name)===normDateSearch(row.dataset.gameName));
+    return {row,game,record};
+  }
+  function getGamePath(g){
+    if(!g)return '';
+    return String(g.gamePath||g.installPath||g.folderPath||g.path||g.location||g.gameLocation||'').trim();
+  }
+  function openGameLocation(g){
+    const path=getGamePath(g);
+    if(!path){
+      alert(tr('لا يوجد مسار محفوظ لهذه اللعبة. أضف مسار اللعبة في بياناتها أولاً.'));
+      return;
+    }
+    let url=path;
+    if(!/^file:\/\//i.test(url)){
+      if(/^[A-Za-z]:[\\/]/.test(url)) url='file:///'+url.replace(/\\/g,'/');
+      else if(/^\\\\/.test(url)) url='file:'+url.replace(/\\/g,'/');
+      else url='file:///'+url.replace(/\\/g,'/');
+    }
+    window.open(url,'_blank');
+  }
+  function contextEditRow(info){
+    if(!info?.row)return;
+    const row=info.row;
+    if(row.classList.contains('g-row')){
+      row.classList.add('open');
+      snapshotGameEditRow(row);
+      setGameEditMode(row,true);
+      row.querySelector('[data-edit-field]')?.focus();
+      return;
+    }
+    if(row.dataset.rid){
+      const btn=row.querySelector('.dt-edit-btn');
+      if(btn){btn.click();return;}
+    }
+    if(row.dataset.sizeId){
+      const btn=row.querySelector('.size-edit');
+      if(btn){btn.click();return;}
+    }
+  }
+  function contextEditGame(info){
+    if(!info?.game)return;
+    openLibraryGameFromReport(info.game.name);
+    requestAnimationFrame(()=>{
+      const row=document.querySelector(`#results-list .g-row[data-id="${Number(info.game.id)}"]`);
+      if(row){snapshotGameEditRow(row);setGameEditMode(row,true);row.querySelector('[data-edit-field]')?.focus();}
+    });
+  }
+  function contextAdd(tabId){
+    if(tabId==='library-section'){
+      const b=document.getElementById('library-add-game-btn'); if(b)b.click();
+    }else if(tabId==='dates-section'){
+      document.getElementById('date-add-btn')?.click();
+    }else if(tabId==='sizes-section'){
+      alert(tr('إضافة سجل حجم تتم من خلال بيانات اللعبة في Library.'));
+    }else{
+      alert(tr('لا توجد نافذة إضافة مستقلة في هذا التبويب.'));
+    }
+  }
+  function ensureGlobalContextMenu(){
+    if(document.getElementById('global-context-menu'))return;
+    const menu=document.createElement('div');
+    menu.id='global-context-menu';
+    menu.className='global-context-menu';
+    menu.hidden=true;
+    menu.innerHTML=`
+      <button type="button" data-context-action="location">📁 <span>${tr('فتح مكان اللعبة')}</span></button>
+      <button type="button" data-context-action="row-edit">✏️ <span>${tr('التعديل على السطر')}</span></button>
+      <button type="button" data-context-action="game-edit">🎮 <span>${tr('التعديل على اللعبة')}</span></button>
+      <div class="context-menu-sep"></div>
+      <button type="button" data-context-action="add">＋ <span>${tr('إضافة')}</span></button>`;
+    document.body.appendChild(menu);
+    let info=null, tabId='';
+    const hide=()=>{menu.hidden=true;info=null;};
+    document.addEventListener('contextmenu',e=>{
+      const page=e.target.closest?.('.tab-page');
+      if(!page)return;
+      e.preventDefault();
+      info=contextGameFromTarget(e.target);
+      tabId=page.id;
+      menu.querySelector('[data-context-action="location"]').disabled=!info?.game;
+      menu.querySelector('[data-context-action="row-edit"]').disabled=!info?.row;
+      menu.querySelector('[data-context-action="game-edit"]').disabled=!info?.game;
+      const rect=menu.getBoundingClientRect();
+      const x=Math.min(e.clientX,window.innerWidth-rect.width-8);
+      const y=Math.min(e.clientY,window.innerHeight-rect.height-8);
+      menu.style.left=Math.max(8,x)+'px';menu.style.top=Math.max(8,y)+'px';menu.hidden=false;
+    },true);
+    menu.addEventListener('click',e=>{
+      const btn=e.target.closest('[data-context-action]'); if(!btn||btn.disabled)return;
+      const action=btn.dataset.contextAction;
+      // Keep the selected context target before hide() clears the menu state.
+      const selectedInfo=info;
+      const selectedTabId=tabId;
+      hide();
+      if(action==='location')openGameLocation(selectedInfo?.game);
+      else if(action==='row-edit')contextEditRow(selectedInfo);
+      else if(action==='game-edit')contextEditGame(selectedInfo);
+      else if(action==='add')contextAdd(selectedTabId);
+    });
+    document.addEventListener('mousedown',e=>{if(!menu.hidden&&!menu.contains(e.target))hide();});
+    document.addEventListener('scroll',hide,true);
+    document.addEventListener('keydown',e=>{if(e.key==='Escape')hide();});
+  }
+  ensureGlobalContextMenu();
+
   renderDashboard();
   renderDrives();
   initTabs();

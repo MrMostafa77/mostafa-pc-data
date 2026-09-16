@@ -56,10 +56,7 @@
 <button class="tabnav-btn" data-tab="reports-section" type="button"><span aria-hidden="true" class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5h16v14H4Z"/><path d="M8 16v-4M12 16V8M16 16v-7"/></svg></span><span class="tab-label">Reports</span></button>
 </nav>
 <section class="section tab-page active" id="dashboard-section">
-<div class="section-head home-section-head">
-<span class="tab">Home</span>
-<h2>Collection Overview</h2>
-</div>
+<div class="section-head home-section-head"></div>
 
 </section>
 <section class="section tab-page" id="reports-section">
@@ -169,7 +166,16 @@
 <div class="section-head">
 <span class="tab">Dates</span>
 <h2>Game Dates & Play Duration</h2>
-<span class="note">All games you have started playing, with duration, screen type, and resolution (editable here)</span>
+<div class="dates-metrics" aria-label="Game Dates summary">
+<span class="dates-metric" id="dates-play-count"><b>Games Played</b><strong>0</strong></span>
+<span class="dates-metric" id="dates-days-count"><b>Days Played</b><strong>0</strong></span>
+<span class="dates-metric" id="dates-completion-rate"><b>Completion rate</b><strong>0%</strong></span>
+<span class="dates-metric dates-resolution-metric" id="dates-resolution-480"><b>480P</b><strong>0</strong></span>
+<span class="dates-metric dates-resolution-metric" id="dates-resolution-720"><b>720P</b><strong>0</strong></span>
+<span class="dates-metric dates-resolution-metric" id="dates-resolution-1080"><b>1080P</b><strong>0</strong></span>
+<span class="dates-metric dates-resolution-metric" id="dates-resolution-1440"><b>1440P</b><strong>0</strong></span>
+<span class="dates-metric dates-resolution-metric" id="dates-resolution-4k"><b>4K</b><strong>0</strong></span>
+</div>
 </div>
 <div id="dates-wrap"></div>
 </section>
@@ -183,6 +189,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="js/sound-effects.js"></script>
 <script src="js/cover-store.js"></script>
 <script src="firebase-config.js"></script>
 <script src="js/cloud-sync.js"></script>

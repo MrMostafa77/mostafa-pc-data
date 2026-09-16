@@ -59,7 +59,10 @@ function patchLocalStorage() {
       const payload = {};
       payload[key] = value;
       db.collection(FS_COLLECTION).doc(FS_DOC).set(payload, { merge: true })
-        .catch(err => console.error('Cloud sync failed for', key, err));
+        .catch(err => {
+          console.error('Cloud sync failed for', key, err);
+          window.SoundFX?.playError();
+        });
     }
   };
 }
@@ -88,6 +91,7 @@ async function hydrateFromCloud() {
     }
   } catch (e) {
     console.error('Cloud hydrate failed, continuing with local data only', e);
+    window.SoundFX?.playError();
   }
 }
 
@@ -121,6 +125,7 @@ async function uploadCoverToCloud(id, dataUrl, updatedAt) {
         true
       );
     }
+    window.SoundFX?.playError();
   }
 }
 

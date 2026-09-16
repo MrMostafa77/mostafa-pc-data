@@ -1074,6 +1074,11 @@ nav#tabnav .tabnav-btn[data-tab="reports-section"] .tab-icon{
 .dt-year-filter{min-width:170px;cursor:pointer;}
 
 /* v14: compact dark filters for Game Dates */
+#dates-section .dates-metrics{display:flex;align-items:stretch;justify-content:center;gap:10px;margin-inline-start:auto;flex:0 0 auto;}
+#dates-section .dates-metric{min-width:145px;height:46px;padding:5px 14px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:1px solid rgba(42,94,137,.72);border-radius:8px;background:#071a2b;color:#e9f4fb;box-shadow:inset 0 1px rgba(255,255,255,.035),0 5px 16px rgba(0,0,0,.18);white-space:nowrap;}
+#dates-section .dates-metric b{font-size:11px;font-weight:800;letter-spacing:.2px;color:#9eb7c8;line-height:1.1;}
+#dates-section .dates-metric strong{font-size:17px;font-weight:900;line-height:1.05;color:#f2ca68;font-variant-numeric:tabular-nums;}
+@media(max-width:900px){#dates-section .section-head{flex-wrap:wrap;}#dates-section .dates-metrics{margin-inline-start:0;width:100%;justify-content:flex-start;overflow-x:auto;}#dates-section .dates-metric{min-width:135px;}}
 #dates-section .dates-filters{display:flex;align-items:center;gap:7px;flex-wrap:nowrap;margin-bottom:12px;padding:9px 10px;background:rgba(3,14,25,.88);border:1px solid rgba(0,174,239,.28);border-radius:12px;box-shadow:inset 0 1px rgba(255,255,255,.035),0 8px 25px rgba(0,0,0,.18);}
 #dates-section .dates-filters .dt-filter{flex:0 1 155px;min-width:110px;height:34px;padding:5px 9px;font-size:12px;background:#061625!important;border:1px solid rgba(0,177,238,.38)!important;color:#e9f7ff!important;border-radius:7px;box-sizing:border-box;}
 #dates-section .dates-filters #dates-search-input{flex:1 1 190px;min-width:150px;}
@@ -2028,7 +2033,7 @@ header.hero{
 }
 
 /* ============ HOME DATE / TIME EAGLE WIDGET ============ */
-.home-section-head{position:relative;min-height:94px;display:flex;align-items:center;justify-content:center;}
+.home-section-head{position:relative;min-height:70px;display:flex;align-items:center;justify-content:flex-end;padding:0 12px;}
 .home-datetime-widget{
   position:absolute;left:0;top:50%;transform:translateY(-50%);
   width:286px;min-height:78px;padding:10px 13px 10px 10px;
@@ -2116,3 +2121,103 @@ header.hero .home-eagle-logo{width:62px;height:62px;flex-basis:62px;object-fit:c
 .home-version{margin-top:3px;color:#9fc1d8;font-size:11px;font-weight:800;letter-spacing:.6px;}
 .sidebar-site-option{display:none !important;}
 @media(max-width:760px){header.hero .home-eagle-logo{width:48px;height:48px;flex-basis:48px}.home-version{font-size:10px;}}
+
+/* Game Dates enhancements */
+.dates-filters #dates-search-input{flex:1 1 0;min-width:180px}
+.dates-filters .dt-resolution-filter{flex:0 0 155px}
+.dt-resolution-panel{display:flex;align-items:center;gap:22px;margin:14px 0;padding:14px 18px;background:linear-gradient(145deg,#081a2c,#0b2742);border:1px solid rgba(0,170,240,.35);border-radius:12px}
+.dt-resolution-counts{display:flex;flex:1;justify-content:space-around;gap:10px}
+.dt-resolution-item{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:60px}
+.dt-resolution-item b{font-size:22px;color:#56b7ff}
+.dt-resolution-item span{font-size:12px;color:#eaf8ff}
+.dt-resolution-chart{width:112px;height:112px;border-radius:50%;background:conic-gradient(#35a7ff 0 var(--p4k),#8b6cff var(--p4k) calc(var(--p4k) + var(--p1440)),#36d6b4 calc(var(--p4k) + var(--p1440)) calc(var(--p4k) + var(--p1440) + var(--p1080)),#f3b54a calc(var(--p4k) + var(--p1440) + var(--p1080)) calc(var(--p4k) + var(--p1440) + var(--p1080) + var(--p720)),#667080 calc(var(--p4k) + var(--p1440) + var(--p1080) + var(--p720)) 100%);display:grid;place-items:center;position:relative;flex:none}
+.dt-resolution-chart:after{content:"";width:70px;height:70px;background:#081a2c;border-radius:50%;position:absolute}
+.dt-resolution-chart span{position:relative;z-index:1;color:#fff;font-weight:700;font-size:16px}
+@media(max-width:900px){.dt-resolution-panel{flex-wrap:wrap}.dt-resolution-counts{width:100%;flex-basis:100%}.dt-resolution-chart{margin:auto}}
+
+/* Final visual adjustments: navy tabs and gold labels */
+.tabnav-btn,
+#dates-section .dates-filters .dt-filter,
+#dates-section .dates-filters select,
+#dates-section .dates-filters input {
+  background: #0b2742 !important;
+  color: #e3b15c !important;
+  border-color: rgba(227,177,92,.55) !important;
+}
+.tabnav-btn .tab-label,
+.tabnav-btn .tab-icon { color: #e3b15c !important; }
+.tabnav-btn:hover,
+.tabnav-btn.active {
+  background: #123657 !important;
+  color: #f0c875 !important;
+  border-color: #e3b15c !important;
+}
+#dates-section .dates-filters .dt-filter::placeholder { color: #d2b36c !important; }
+#dates-section .dates-filters option { background: #0b2742; color: #e3b15c; }
+
+/* Game Dates: navy controls with gold text while editing */
+#dates-section .dt-row-editing .dt-choice-select,
+#dates-section .dt-row-editing .dt-date,
+#dates-section .dt-row-editing .dt-end-date-input {
+  background:#102a4a !important;
+  color:#d7b33f !important;
+  border:1px solid #d7b33f !important;
+  box-shadow:0 0 0 1px rgba(215,179,63,.12), inset 0 1px 3px rgba(0,0,0,.28) !important;
+}
+#dates-section .dt-row-editing .dt-choice-select:focus,
+#dates-section .dt-row-editing .dt-date:focus,
+#dates-section .dt-row-editing .dt-end-date-input:focus {
+  outline:none !important;
+  border-color:#f0cf62 !important;
+  box-shadow:0 0 0 2px rgba(215,179,63,.22), 0 0 12px rgba(215,179,63,.16) !important;
+}
+#dates-section .dt-row-editing .dt-choice-select option {
+  background:#102a4a !important;
+  color:#d7b33f !important;
+}
+#dates-section .dt-row-editing .dt-option-add {
+  background:#102a4a !important;
+  color:#d7b33f !important;
+  border-color:#d7b33f !important;
+}
+
+.dt-now-btn{white-space:nowrap;height:32px;padding:0 10px;border-radius:6px;border:2px solid #d4a72c;background:#08203a;color:#d4a72c;font-weight:700;cursor:pointer}.dt-now-btn:hover{background:#123b61;color:#fff1b8}.dt-now-btn:disabled{opacity:.55;cursor:not-allowed}.dt-now-btn:focus-visible{outline:2px solid #f0c75e;outline-offset:2px}
+
+/* Game Dates: resolution counters match the navy summary-card design. */
+#dates-section .dates-resolution-metric{min-width:92px;padding-inline:10px;}
+#dates-section .dates-resolution-metric b{font-size:11px;color:#9eb7c8;}
+#dates-section .dates-resolution-metric strong{font-size:17px;color:#f2ca68;}
+@media(max-width:1400px){#dates-section .dates-metrics{gap:7px;}#dates-section .dates-metric{min-width:105px;padding-inline:9px;}#dates-section .dates-resolution-metric{min-width:76px;}}
+@media(max-width:900px){#dates-section .dates-resolution-metric{min-width:76px;}}
+
+/* Game Dates — multi-row selection and bulk editing */
+#dates-section .dt-bulk-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0;padding:9px 12px;background:#0b2742;border:1px solid rgba(227,177,92,.42);border-radius:10px;color:#e3b15c}
+#dates-section .dt-select-all{display:flex;align-items:center;gap:7px;font-weight:800;cursor:pointer}
+#dates-section .dt-selected-count{font-size:12px;color:#b9cfe0;min-width:72px}
+#dates-section .dt-bulk-btn{border:1px solid #d7b33f;background:#102a4a;color:#e3b15c;border-radius:7px;padding:6px 11px;font-weight:800;cursor:pointer}
+#dates-section .dt-bulk-btn:hover:not(:disabled){background:#163d62;color:#f8d77b;box-shadow:0 0 10px rgba(215,179,63,.18)}
+#dates-section .dt-bulk-btn:disabled{opacity:.45;cursor:not-allowed}
+#dates-section .dt-bulk-cancel{border-color:rgba(255,130,130,.55)}
+#dates-section .dt-select-col{width:34px;min-width:34px;text-align:center;padding-inline:5px}
+#dates-section .dt-select-col input[type="checkbox"]{width:16px;height:16px;accent-color:#d7b33f;cursor:pointer}
+#dates-section .dt-row-selected{box-shadow:inset 3px 0 0 #d7b33f}
+#dates-section .dt-row-selected .dt-select-col{background:rgba(215,179,63,.07)}
+@media(max-width:900px){#dates-section .dt-bulk-toolbar{align-items:flex-start}.dt-selected-count{flex-basis:100%}}
+
+
+/* Global right-click context menu */
+.global-context-menu{
+  position:fixed;z-index:100000;min-width:235px;padding:7px;
+  background:#0b2742;border:1px solid #d7b33f;border-radius:10px;
+  box-shadow:0 10px 28px rgba(0,0,0,.5),0 0 16px rgba(215,179,63,.14);
+  direction:rtl;
+}
+.global-context-menu[hidden]{display:none!important}
+.global-context-menu button{
+  width:100%;display:flex;align-items:center;gap:10px;padding:9px 11px;
+  border:0;border-radius:7px;background:transparent;color:#e3b15c;
+  font:inherit;font-weight:800;text-align:right;cursor:pointer;white-space:nowrap;
+}
+.global-context-menu button:hover:not(:disabled){background:#163d62;color:#f8d77b;box-shadow:inset 0 0 0 1px rgba(227,177,92,.3)}
+.global-context-menu button:disabled{opacity:.38;cursor:not-allowed}
+.global-context-menu .context-menu-sep{height:1px;margin:5px 3px;background:rgba(227,177,92,.25)}
