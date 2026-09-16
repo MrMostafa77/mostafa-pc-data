@@ -6,7 +6,8 @@
   const BASE_GAMES = window.GameVaultData.games;
   const USERGAMES_KEY = 'gameVault_userGames_v1';
   const OVERRIDES_KEY = 'gameVault_fieldOverrides_v1'; // per-id: {screenType, gpu, resolution}
-  const COVER_OVERRIDES_KEY = 'gameVault_coverOverrides_v1';
+  // ملحوظة: صور الأغلفة بقت متخزنة في IndexedDB (js/cover-store.js) بدل localStorage
+  // القديم المحدود المساحة — شوف persistCoverOverride/removeCoverOverride تحت.
   const ONLINE_COVER_CACHE_KEY = 'gameVault_onlineCoverCache_v1'; // كاش لصور الأغلفة المجلوبة أونلاين للألعاب التي لا تملك صورة محلية
   const DATE_RECORDS_KEY = 'gameVault_dateRecords_v4';
   const SIZE_OVERRIDES_KEY = 'gameVault_sizeOverrides_v1';
@@ -18,6 +19,32 @@
     catch(e){ return fallback; }
   }
   function saveJSON(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){} }
+
+  // حفظ/حذف صورة غلاف: بيتخزن في IndexedDB محليًا (مساحة كبيرة)، وبيترفع
+  // لـ Firebase Storage لو المزامنة السحابية شغالة. أي فشل بيظهر تنبيه واضح
+  // للمستخدم بدل ما يختفي بصمت زي ما كان بيحصل مع localStorage القديم.
+  function persistCoverOverride(id, dataUrl){
+    coverOverrides[id] = dataUrl;
+    const updatedAt = Date.now();
+    if(window.CoverStore){
+      window.CoverStore.set(id, dataUrl, updatedAt).catch(err=>{
+        console.error('Cover save failed', err);
+        window.CoverStore.showToast('فشل حفظ الصورة على جهازك: ' + (err && err.message ? err.message : 'خطأ غير معروف'), true);
+      });
+    }
+    if(window.GameVaultCloudSync && window.GameVaultCloudSync.isReady()){
+      window.GameVaultCloudSync.uploadCover(id, dataUrl, updatedAt);
+    }
+  }
+  function removeCoverOverride(id){
+    delete coverOverrides[id];
+    if(window.CoverStore){
+      window.CoverStore.remove(id).catch(err=>console.error('Cover remove failed', err));
+    }
+    if(window.GameVaultCloudSync && window.GameVaultCloudSync.isReady()){
+      window.GameVaultCloudSync.removeCover(id);
+    }
+  }
 
   let userGames = loadJSON(USERGAMES_KEY, []);
   // إصلاح تلقائي لمرة واحدة: أي لعبة مضافة قديمًا وقع رقمها بالغلط على رقم لعبة محذوفة
@@ -38,7 +65,7 @@
     }catch(e){}
   })();
   let overrides = loadJSON(OVERRIDES_KEY, {});
-  let coverOverrides = loadJSON(COVER_OVERRIDES_KEY, {});
+  let coverOverrides = Object.assign({}, window.GameVaultCoverOverrides || {});
   let onlineCoverCache = loadJSON(ONLINE_COVER_CACHE_KEY, {}); // id(string) -> url مكتشف | false غير موجود
   let dateRecords = loadJSON(DATE_RECORDS_KEY, null);
   let sizeOverrides = loadJSON(SIZE_OVERRIDES_KEY, {});
@@ -688,8 +715,8 @@
     userGames=userGames.filter(x=>Number(x.id)!==Number(id));
     const del=loadJSON('mostafa_pc_deleted_games_v1',[]); if(!del.includes(Number(id)))del.push(Number(id));
     saveJSON('mostafa_pc_deleted_games_v1',del);
-    delete overrides[id]; delete coverOverrides[id];
-    saveJSON(USERGAMES_KEY,userGames);saveJSON(OVERRIDES_KEY,overrides);saveJSON(COVER_OVERRIDES_KEY,coverOverrides);
+    delete overrides[id]; if(coverOverrides[id]) removeCoverOverride(id);
+    saveJSON(USERGAMES_KEY,userGames);saveJSON(OVERRIDES_KEY,overrides);
     dateRecords=ensureDateRecords().filter(r=>Number(r.gameId)!==Number(id) && normDateSearch(r.name)!==normDateSearch(g.name)); saveDateRecords();
     rebuildGamesArray(); rebuildNormalizedMaps(); state.expandedId=null; renderHeroStats(); renderDashboard(); renderDrives(); renderFilters(); renderResults(); renderDatesTab();
   }
@@ -783,8 +810,8 @@
       container.querySelectorAll('.save-edit').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');saveGameEdits(Number(row.dataset.id),row);}));
       container.querySelectorAll('[data-edit-field]').forEach(el=>{el.addEventListener('click',e=>{if(el.readOnly||el.disabled){e.preventDefault();e.stopPropagation();}});});
       container.querySelectorAll('.g-row.editing').forEach(row=>{ if(!row.dataset.editSnapshot) snapshotGameEditRow(row); });
-      container.querySelectorAll('.cover-upload').forEach(inp=>inp.addEventListener('change',e=>{const id=Number(inp.dataset.id),file=inp.files?.[0];if(!file)return;const r=new FileReader();r.onload=()=>compressCover(r.result,data=>{if(!data)return;coverOverrides[id]=data;saveJSON(COVER_OVERRIDES_KEY,coverOverrides);const g=GAMES.find(x=>x.id===id);if(g)g.cover=data;renderResults();startDynamicBackground();});r.readAsDataURL(file);}));
-      container.querySelectorAll('.cover-remove').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const id=Number(btn.dataset.id);delete coverOverrides[id];saveJSON(COVER_OVERRIDES_KEY,coverOverrides);const g=GAMES.find(x=>x.id===id);if(g)delete g.cover;renderResults();startDynamicBackground();}));
+      container.querySelectorAll('.cover-upload').forEach(inp=>inp.addEventListener('change',e=>{const id=Number(inp.dataset.id),file=inp.files?.[0];if(!file)return;const r=new FileReader();r.onload=()=>compressCover(r.result,data=>{if(!data)return;persistCoverOverride(id,data);const g=GAMES.find(x=>x.id===id);if(g)g.cover=data;renderResults();startDynamicBackground();});r.readAsDataURL(file);}));
+      container.querySelectorAll('.cover-remove').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const id=Number(btn.dataset.id);removeCoverOverride(id);const g=GAMES.find(x=>x.id===id);if(g)delete g.cover;renderResults();startDynamicBackground();}));
       scheduleOnlineCovers(pageItems);
     }
     renderPager(totalPages);

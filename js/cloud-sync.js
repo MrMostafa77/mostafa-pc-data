@@ -10,7 +10,6 @@
 
 const SYNC_KEYS = [
   'gameVault_userGames_v1',
-  'gameVault_coverOverrides_v1',
   'gameVault_dateRecords_v4',
   'gameVault_driveCapacities_v1',
   'gameVault_fieldOverrides_v1',
@@ -19,9 +18,18 @@ const SYNC_KEYS = [
   'mostafa_pc_date_options_v1',
   'mostafa_pc_deleted_games_v1'
 ];
+// ملحوظة: صور الأغلفة (gameVault_coverOverrides_v1 سابقًا) اتشالت من هنا عمدًا.
+// كانت بتترفع كنص base64 ضخم داخل نفس مستند Firestore، اللي حده 1 ميجا فقط،
+// فسريعًا كانت بتوصل للحد وتفشل بصمت. دلوقتي الصور بتتخزن محليًا في IndexedDB
+// (مساحة أكبر بمراحل) وبتتزامن سحابيًا عبر Firestore بس (بدون Firebase Storage
+// اللي بقى محتاج خطة Blaze المدفوعة) — كل صورة بتتقسم لأجزاء صغيرة (chunks) في
+// مستندات منفصلة عشان محدش يوصل لحد الـ1 ميجا. راجع uploadCoverToCloud /
+// removeCoverFromCloud / hydrateCovers تحت.
 
 const FS_COLLECTION = 'gamevault';
 const FS_DOC = 'mostafa_library';
+const COVERS_COLLECTION = 'covers'; // covers/{gameId} (metadata) + covers/{gameId}/chunks/{n} (بيانات الصورة)
+const CHUNK_SIZE = 700000; // ~700 ألف حرف لكل جزء — بعيد جدًا وآمن عن حد الـ1 ميجا لكل مستند
 
 let db = null;
 let syncReady = false;
@@ -83,6 +91,135 @@ async function hydrateFromCloud() {
   }
 }
 
+// ============== مزامنة صور الأغلفة عبر Firestore فقط (بدون Storage) ==============
+// كل صورة بتتقسم لأجزاء نصية صغيرة (chunks) وتتخزن في مستندات منفصلة تحت
+// covers/{gameId}/chunks/{index}، ومستند covers/{gameId} نفسه بيحتفظ بس بعدد
+// الأجزاء ووقت آخر تحديث (updatedAt) عشان أي جهاز يقدر يعرف هل محتاج يجيب
+// نسخة أحدث ولا لأ من غير ما يقرأ كل الصور في كل مرة.
+
+async function uploadCoverToCloud(id, dataUrl, updatedAt) {
+  if (!syncReady || !db) return;
+  try {
+    const gameRef = db.collection(COVERS_COLLECTION).doc(String(id));
+    const chunksRef = gameRef.collection('chunks');
+
+    // امسح أي أجزاء قديمة أولاً (لو الصورة الجديدة عدد أجزائها مختلف عن القديمة)
+    const oldChunksSnap = await chunksRef.get();
+    const chunks = [];
+    for (let i = 0; i < dataUrl.length; i += CHUNK_SIZE) chunks.push(dataUrl.slice(i, i + CHUNK_SIZE));
+
+    const batch = db.batch();
+    oldChunksSnap.forEach(docSnap => batch.delete(docSnap.ref));
+    chunks.forEach((chunk, idx) => batch.set(chunksRef.doc(String(idx)), { d: chunk }));
+    batch.set(gameRef, { totalChunks: chunks.length, updatedAt: updatedAt || Date.now() });
+    await batch.commit();
+  } catch (e) {
+    console.error('Cloud cover upload failed for', id, e);
+    if (window.CoverStore) {
+      window.CoverStore.showToast(
+        'الصورة اتحفظت على جهازك، لكن رفعها للسحابة (للمزامنة مع باقي أجهزتك) فشل: ' + (e && e.message ? e.message : e),
+        true
+      );
+    }
+  }
+}
+
+async function removeCoverFromCloud(id) {
+  if (!syncReady || !db) return;
+  try {
+    const gameRef = db.collection(COVERS_COLLECTION).doc(String(id));
+    const chunksSnap = await gameRef.collection('chunks').get();
+    const batch = db.batch();
+    chunksSnap.forEach(docSnap => batch.delete(docSnap.ref));
+    batch.delete(gameRef);
+    await batch.commit();
+  } catch (e) {
+    console.error('Cloud cover remove failed for', id, e);
+  }
+}
+
+// بيرجع خريطة {gameId: updatedAt} من غير ما يجيب الصور نفسها — قراءة خفيفة
+// جدًا (مستند واحد صغير لكل لعبة) بنستخدمها بس عشان نعرف مين محتاج تحديث.
+async function getCoverManifestFromCloud() {
+  if (!db) return {};
+  try {
+    const snap = await db.collection(COVERS_COLLECTION).get();
+    const out = {};
+    snap.forEach(docSnap => { out[docSnap.id] = (docSnap.data() || {}).updatedAt || 0; });
+    return out;
+  } catch (e) {
+    console.error('Fetch cover manifest failed', e);
+    return {};
+  }
+}
+
+// بيجيب الصورة كاملة (كل الأجزاء مجمّعة بالترتيب الصحيح) للعبة معيّنة
+async function fetchCoverFromCloud(id) {
+  if (!db) return null;
+  try {
+    const chunksSnap = await db.collection(COVERS_COLLECTION).doc(String(id)).collection('chunks').get();
+    const parts = [];
+    chunksSnap.forEach(docSnap => parts.push({ idx: Number(docSnap.id), d: (docSnap.data() || {}).d || '' }));
+    parts.sort((a, b) => a.idx - b.idx);
+    const data = parts.map(p => p.d).join('');
+    return data || null;
+  } catch (e) {
+    console.error('Fetch cover failed for', id, e);
+    return null;
+  }
+}
+
+// بيجهّز window.GameVaultCoverOverrides قبل ما app.js يشتغل:
+// 1) بيرحّل أي صور قديمة كانت في localStorage لـ IndexedDB
+// 2) بياخد نسخة الصور المحفوظة محليًا على هذا الجهاز (سريعة، من غير إنترنت)
+// 3) لو فيه مزامنة سحابية شغالة، بيقارن تاريخ كل صورة محليًا مقابل السحابة،
+//    ويجيب بس الصور اللي اتحدثت من جهاز تاني (مش بيعيد تحميل كل حاجة كل مرة)
+// 4) لو صورة اتمسحت من جهاز تاني، بيشيلها من هنا كمان
+async function hydrateCovers() {
+  let local = {};
+  let localMeta = {};
+  if (window.CoverStore) {
+    await window.CoverStore.migrateFromLocalStorageOnce();
+    local = await window.CoverStore.getAll();
+    localMeta = await window.CoverStore.getAllMeta();
+  }
+
+  const merged = Object.assign({}, local);
+
+  if (syncReady) {
+    try {
+      const manifest = await getCoverManifestFromCloud();
+
+      for (const id of Object.keys(manifest)) {
+        const remoteUpdatedAt = manifest[id] || 0;
+        const localUpdatedAt = localMeta[id] || 0;
+        if (remoteUpdatedAt > localUpdatedAt) {
+          const data = await fetchCoverFromCloud(id);
+          if (data) {
+            merged[id] = data;
+            if (window.CoverStore) window.CoverStore.set(id, data, remoteUpdatedAt).catch(() => {});
+          }
+        }
+      }
+
+      // لو صورة موجودة محليًا بس مش موجودة في السحابة، معناها اتمسحت من جهاز تاني
+      Object.keys(local).forEach(id => {
+        if (!(id in manifest)) delete merged[id];
+      });
+    } catch (e) {
+      console.error('Cover hydrate from cloud failed, using local covers only', e);
+    }
+  }
+
+  window.GameVaultCoverOverrides = merged;
+}
+
+window.GameVaultCloudSync = {
+  uploadCover: uploadCoverToCloud,
+  removeCover: removeCoverFromCloud,
+  isReady: () => syncReady
+};
+
 async function init() {
   patchLocalStorage();
 
@@ -98,6 +235,7 @@ async function init() {
   }
   // لو مفيش إعدادات Firebase، الموقع هيشتغل زي ما كان بالظبط (حفظ محلي فقط)
 
+  await hydrateCovers();
   loadCoreScripts();
 }
 
