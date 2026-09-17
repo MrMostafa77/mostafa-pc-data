@@ -1169,8 +1169,8 @@
           device:r.device||'',
           gpu:r.gpu||'',
           resolution:r.resolution||'',
-          playingState:String(r.playingState||r.done||g?.playingState||'').trim(),
-          status:String(r.playingState||r.done||g?.playingState||'').trim()
+          playingState:derivePlayingState(r.start||null,r.end||null,''),
+          status:derivePlayingState(r.start||null,r.end||null,'')
         };
       });
       saveDateRecords();
@@ -1182,14 +1182,16 @@
         if(String(r.rid||'').startsWith('excel-')){
           const src=byN.get(String(r.rid).replace('excel-',''));
           if(src){
-            const ps=String(src.playingState||src.done||'').trim();
-            if(ps){r.playingState=ps;r.status=ps;}
+            const derived=derivePlayingState(r.start||null,r.end||null,'');
+            r.playingState=derived;
+            r.status=derived;
           }
-        } else if(!r.playingState){
-          const g=GAMES.find(x=>Number(x.id)===Number(r.gameId));
-          const ps=String(r.status||g?.playingState||'').trim();
-          r.playingState=ps;
-          r.status=ps;
+        } else {
+          // Playing State is always derived from the Game Dates row itself.
+          // Start + End date = Done; Start only = Playing Now; Postponed = Not-Completed.
+          const derived=derivePlayingState(r.start||null,r.end||null,r.playingState||r.status||'');
+          r.playingState=derived;
+          r.status=derived;
         }
       });
       saveDateRecords();
@@ -1197,7 +1199,7 @@
     return dateRecords;
   }
   function saveDateRecords(){saveJSON(DATE_RECORDS_KEY,dateRecords);}
-  function syncGameDate(r){const g=GAMES.find(x=>Number(x.id)===Number(r.gameId));if(!g)return;g.startDate=r.start||null;g.endDate=r.end||null;g.days=recordDays(r);g.screenType=r.screenType||null;g.device=r.device||null;g.gpu=r.gpu||null;g.resolution=r.resolution||null;if(!overrides[g.id])overrides[g.id]={};Object.assign(overrides[g.id],{screenType:g.screenType,gpu:g.gpu,resolution:g.resolution});saveJSON(OVERRIDES_KEY,overrides);}
+  function syncGameDate(r){const g=GAMES.find(x=>Number(x.id)===Number(r.gameId));if(!g)return;g.startDate=r.start||null;g.endDate=r.end||null;g.days=recordDays(r);g.screenType=r.screenType||null;g.device=r.device||null;g.gpu=r.gpu||null;g.resolution=r.resolution||null;const derived=derivePlayingState(r.start||null,r.end||null,r.playingState||r.status||g.playingState);r.playingState=derived;r.status=derived;g.playingState=derived;if(!overrides[g.id])overrides[g.id]={};Object.assign(overrides[g.id],{screenType:g.screenType,gpu:g.gpu,resolution:g.resolution});saveJSON(OVERRIDES_KEY,overrides);}
   if(typeof window.makeOptionControl!=='function'){
     window.makeOptionControl=function(kind,value,field,id){
       return `<input class="dt-inline" data-field="${field}" value="${esc(value||'')}" placeholder="${tr(kind==='screen'?'نوع الشاشة':kind==='gpu'?'كارت الشاشة':'الدقة')}">`;
