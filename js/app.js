@@ -2156,10 +2156,25 @@
     // genre/year/hardware/play-history reports, while series-completion
     // keeps them in the denominator so the completion percentage remains meaningful.
     const isCompletedGame=g=>String(g?.playingState||'').trim().toLowerCase()==='done';
-    const completedGames=GAMES.filter(isCompletedGame);
+    // Always derive completion from the live Game Dates records first.
+    // This keeps Year Summary in sync immediately after a date is saved, even
+    // when the Library game object has not yet been rebuilt.
+    const liveDateRecords=ensureDateRecords();
+    const doneGameIds=new Set();
+    const doneGameNames=new Set();
+    liveDateRecords.forEach(r=>{
+      if(!r || !(r.start||r.end)) return;
+      const derived=derivePlayingState(r.start||null,r.end||null,r.playingState||r.status||'');
+      r.playingState=derived; r.status=derived;
+      if(derived==='Done'){
+        if(r.gameId!=null && Number.isFinite(Number(r.gameId))) doneGameIds.add(Number(r.gameId));
+        const nk=normDateSearch(r.name); if(nk) doneGameNames.add(nk);
+      }
+    });
+    const completedGames=GAMES.filter(g=>isCompletedGame(g) || doneGameIds.has(Number(g.id)) || doneGameNames.has(normDateSearch(g.name)));
     const completedIds=new Set(completedGames.map(g=>Number(g.id)).filter(Number.isFinite));
     const completedNames=new Set(completedGames.map(g=>normDateSearch(g.name)).filter(Boolean));
-    const records=ensureDateRecords().filter(r=>r && (r.start||r.end) && (
+    const records=liveDateRecords.filter(r=>r && (r.start||r.end) && (
       (r.gameId!=null && completedIds.has(Number(r.gameId))) ||
       (normDateSearch(r.name) && completedNames.has(normDateSearch(r.name)))
     ));
@@ -2167,6 +2182,7 @@
     const gameKey=r=>Number(r.gameId)||normDateSearch(r.name);
     const sortedRecords=[...records].sort((x,y)=>playDateKey(y).localeCompare(playDateKey(x)));
     const isNewPlay=r=>getPlayCountBefore(r.gameId,r.name,r)===0;
+    saveDateRecords();
     const years=[...new Set(records.map(yearOf).filter(y=>/^\d{4}$/.test(y)))].sort((x,y)=>Number(x)-Number(y));
     const empty='<div class="report-empty">لا توجد بيانات لعب مسجلة.</div>';
 
