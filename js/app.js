@@ -355,8 +355,8 @@
     };
     extra.innerHTML=`
       <div class="dash-grid" style="margin-top:18px;grid-template-columns:1fr 1fr;">
-        <div class="panel"><h3>آخر 5 ألعاب تم لعبها</h3>${renderGameStrip(last5)}</div>
-        <div class="panel"><h3>أقرب 5 ألعاب تم لعبها</h3>${renderGameStrip(first5)}</div>
+        <div class="panel"><h3>Last 5 Games Played</h3>${renderGameStrip(last5)}</div>
+        <div class="panel"><h3>Farest 5 Games</h3>${renderGameStrip(first5)}</div>
       </div>
       <div class="panel epic-nostalgic-panel"><h3>Epic & Nostalgic Games</h3>${epicNostalgic.length?`<div class="epic-game-grid">${epicNostalgic.map(renderEpicCard).join('')}</div>`:'<div class="empty-state">لا توجد ألعاب بهذا التقييم.</div>'}</div>`;
 
@@ -523,6 +523,53 @@
     });
   }
 
+  /* ================= SEARCH CLEAR BUTTONS ================= */
+  function enhanceSearchClearButtons(root=document){
+    const inputs=root.querySelectorAll ? root.querySelectorAll('input.search-input[type="text"], input.search-input[type="search"], input.dt-game-search[type="text"], input.dt-game-search[type="search"]') : [];
+    inputs.forEach(input=>{
+      if(!input || input.dataset.clearButtonBound==='1') return;
+      input.dataset.clearButtonBound='1';
+      const wrap=document.createElement('div');
+      wrap.className='search-clear-wrap';
+      input.parentNode.insertBefore(wrap,input);
+      wrap.appendChild(input);
+      const btn=document.createElement('button');
+      btn.type='button';
+      btn.className='search-clear-btn';
+      btn.setAttribute('aria-label','Clear search');
+      btn.title='Clear search';
+      btn.textContent='×';
+      wrap.appendChild(btn);
+      const sync=()=>{btn.classList.toggle('is-visible',String(input.value||'').length>0);};
+      btn.addEventListener('click',e=>{
+        e.preventDefault();
+        e.stopPropagation();
+        input.value='';
+        input.focus();
+        input.dispatchEvent(new Event('input',{bubbles:true}));
+        input.dispatchEvent(new Event('search',{bubbles:true}));
+        sync();
+      });
+      input.addEventListener('input',sync);
+      input.addEventListener('change',sync);
+      input.addEventListener('search',sync);
+      sync();
+    });
+  }
+
+  function initSearchClearButtons(){
+    enhanceSearchClearButtons(document);
+    if(typeof MutationObserver!=='undefined' && !window.__searchClearObserver){
+      const observer=new MutationObserver(mutations=>{
+        mutations.forEach(m=>m.addedNodes.forEach(node=>{
+          if(node.nodeType===1) enhanceSearchClearButtons(node);
+        }));
+      });
+      observer.observe(document.body,{childList:true,subtree:true});
+      window.__searchClearObserver=observer;
+    }
+  }
+
   /* ================= SEARCH ================= */
   function searchMatch(g, nameQ, seriesQ){
     nameQ=(nameQ||'').toLowerCase().trim();
@@ -668,7 +715,7 @@
   const EDIT_GAME_FIELDS=[
     ['name','اسم اللعبة','text'],['system','System','select'],['series','السلسلة','select'],['genre','النوع','select'],['hdd','الهارد','select'],
     ['developer','الشركة المطوّرة','select'],['mainChar','الشخصية Home','select'],['playingState','Playing State','select'],
-    ['verdict','Final Rating','select'],['perspective','المنظور','select'],['versionType','نوع النسخة','select'],['rem','نوع الإصدار','select'],
+    ['verdict','Final Rating','select'],['rating','Game Rating (1-10)','number'],['perspective','المنظور','select'],['versionType','نوع النسخة','select'],['rem','نوع الإصدار','select'],
     ['arabic','الدعم العربي','select'],['goty','GOTY','select'],['ledTv','LED TV','select'],['gameVersion','إصدار اللعبة','text'],
     ['installTime','وقت التثبيت','text'],['releaseDate','تاريخ الإصدار','date'],['sizeGB','الحجم (GB)','number']
   ];
@@ -680,7 +727,7 @@
   function editGameHtml(g){
     const fields=EDIT_GAME_FIELDS.map(([key,label,type],idx)=>{
       if(type==='select') return `<div class="game-edit-field"><label>${esc(label)}</label><select data-edit-field="${key}" disabled>${editFieldOptions(key,g)}</select></div>`;
-      return `<div class="game-edit-field"><label>${esc(label)}</label><input data-edit-field="${key}" type="${type}" value="${esc(g[key]??'')}" readonly ${type==='number'?'step="0.01" min="0"':''}></div>`;
+      return `<div class="game-edit-field"><label>${esc(label)}</label><input data-edit-field="${key}" type="${type}" value="${esc(g[key]??'')}" readonly ${key==='rating'?'step="0.1" min="1" max="10" inputmode="decimal"':type==='number'?'step="0.01" min="0"':''}></div>`;
     }).join('');
     return `<div class="game-edit-panel"><div class="game-edit-grid">${fields}</div><div class="game-edit-actions"><button type="button" class="cancel-edit">↩️</button><button type="button" class="save-edit">💾</button></div></div>`;
   }
@@ -725,6 +772,7 @@
     const g=GAMES.find(x=>Number(x.id)===Number(id)); if(!g)return;
     const changed={};
     row.querySelectorAll('[data-edit-field]').forEach(el=>{let v=el.value;if(el.type==='number')v=v===''?null:Number(v);else v=v||null;changed[el.dataset.editField]=v;});
+    if(changed.rating!=null){ const n=Number(changed.rating); changed.rating=Number.isFinite(n)?Math.min(10,Math.max(1,Math.round(n*10)/10)):null; }
     if(changed.releaseDate) changed.year=parseInt(String(changed.releaseDate).slice(0,4))||null;
     changed.age=computeAge(changed.releaseDate);
     if(userGames.some(x=>Number(x.id)===Number(id))){
@@ -786,6 +834,19 @@
     return added>=oneMonthAgo && added<=now;
   }
 
+  function numericGameRating(g){
+    const n=Number(g?.rating);
+    return Number.isFinite(n) && n>=1 && n<=10 ? n : null;
+  }
+  function ratingEmblem(g,extraClass=''){
+    const n=numericGameRating(g);
+    return `<div class="rating-emblem ${extraClass}" aria-label="Game rating ${n!=null?n:'not set'}">
+      <img class="rating-wing rating-wing-left" src="assets/rating-wing-left.svg" alt="" aria-hidden="true">
+      <span class="rating-circle">${n!=null?String(n).replace(/\.0$/,''):'—'}</span>
+      <img class="rating-wing rating-wing-right" src="assets/rating-wing-right.svg" alt="" aria-hidden="true">
+    </div>`;
+  }
+
   function renderResults(){
     let list = getFiltered();
     document.getElementById('result-count').innerHTML = `<b>${fmt(list.length)}</b> لعبة من أصل ${fmt(GAMES.length)}`;
@@ -800,19 +861,20 @@
         const tags=[]; if(g.gameplay)tags.push('طور لعب مميز');if(g.graphic)tags.push('جرافيك مميز');if(g.world)tags.push('عالم مفتوح مميز');if(g.theme)tags.push('أجواء مميزة');if(g.story)tags.push('قصة مميزة');if(g.bugs)tags.push('بها أعطال');
         const isOpen=state.expandedId===g.id; const last=latestPlayDate(g.id,g.name);
         return `<div class="g-row ${isOpen?'open':''}" data-id="${g.id}">
-          ${g.verdict?`<span class="g-rating ${verdictBadgeClass(g.verdict)}" title="${esc(tr(VERDICT_LABEL[g.verdict]||g.verdict))}" aria-label="${esc(tr(VERDICT_LABEL[g.verdict]||g.verdict))}"><span class="g-rating-label">${esc(tr(VERDICT_LABEL[g.verdict]||g.verdict))}</span><span class="g-rating-stars">${'★'.repeat({'Bad':1,'Not-Bad':2,'Good':3,'Very-Good':4,'Great':5,'NOSTALGIC':6,'Epic':7}[g.verdict]||0)}</span></span>`:''}
+          ${g.verdict?`<span class="g-rating ${verdictBadgeClass(g.verdict)}" title="${esc(tr(VERDICT_LABEL[g.verdict]||g.verdict))}" aria-label="${esc(tr(VERDICT_LABEL[g.verdict]||g.verdict))}"><span class="g-rating-label">${esc(g.verdict)}</span><span class="g-rating-stars">${'★'.repeat({'Bad':1,'Not-Bad':2,'Good':3,'Very-Good':4,'Great':5,'NOSTALGIC':6,'Epic':7}[g.verdict]||0)}</span>${ratingEmblem(g,'rating-emblem-collapsed')}</span>`:''}
           <div class="g-row-top"><img class="g-thumb" data-cover-id="${g.id}" loading="lazy" decoding="async" src="${coverSvgDataUri(g)}" onerror="this.onerror=null;this.src='assets/new-badge.png'" alt=""><div class="g-idx">${fmt(start+i+1)}</div><div class="g-name">${gameNameLink(g.name, 'library-game-name')}${isNewLibraryGame(g)?` <img class="library-new-badge" src="assets/new-badge.png" alt="New">`:''}${g.series&&g.series!==g.name?`<span class="g-series">${esc(SERIES_LABEL[g.series]||g.series)}</span>`:''}</div><div class="g-badges">${g.genre?`<span class="badge">${esc(g.genre)}</span>`:''}${g.hdd?`<span class="badge hdd">${esc(g.hdd)}</span>`:''}${g.year?`<span class="badge year">${g.year}</span>`:''}${g.sizeGB?`<span class="badge size">${fmt(g.sizeGB,1)} GB</span>`:''}${getGamePlayCount(g.id,g.name)?`<span class="badge play-count-badge">🎮 ${fmt(getGamePlayCount(g.id,g.name))} مرة</span>`:''}${g.playingState?`<span class="badge ${stateBadgeClass(g.playingState)}">${STATE_LABEL[g.playingState]||g.playingState}</span>`:''}${g.verdict?`<span class="badge ${verdictBadgeClass(g.verdict)}">${VERDICT_LABEL[g.verdict]||g.verdict}</span>`:''}</div></div>
           <div class="g-detail">
             <div class="g-detail-cover"><img class="game-cover-real" data-cover-id="${g.id}" loading="lazy" decoding="async" src="${coverSvgDataUri(g)}" onerror="this.onerror=null;this.src='assets/new-badge.png'" alt=""><div class="cover-tools"><label class="icon-btn cover-upload-label" title="${g.cover?tr('تحديث الصورة'):tr('إضافة صورة')}">🖼️<input type="file" accept="image/*" class="cover-upload" data-id="${g.id}" hidden></label>${g.cover?`<button type="button" class="icon-btn cover-remove" data-id="${g.id}" title="${tr('حذف الصورة')}">🗑️</button>`:''}</div></div>
             <div class="g-detail-fields">
-              <div><span class="dk">${tr('System')}</span><span class="dv">${esc(g.system||'—')}</span></div>
               <div><span class="dk">${tr('السلسلة')}</span><span class="dv">${esc(SERIES_LABEL[g.series]||g.series||'—')}</span></div>
+              <div><span class="dk">${tr('تاريخ الإصدار')}</span><span class="dv">${esc(g.releaseDate||'—')}</span></div>
+              <div><span class="dk">${tr('نوع النسخة')}</span><span class="dv">${esc(g.versionType||'—')}</span></div>
+              <div><span class="dk">${tr('الهارد')}</span><span class="dv">${esc(g.hdd||'—')}</span></div>
               <div><span class="dk">${tr('الشركة المطوّرة')}</span><span class="dv">${esc(g.developer||'—')}</span></div>
+              <div><span class="dk">${tr('System')}</span><span class="dv">${esc(g.system||'—')}</span></div>
               <div><span class="dk">${tr('الشخصية Home')}</span><span class="dv">${esc(g.mainChar||'—')}</span></div>
               <div><span class="dk">${tr('المنظور')}</span><span class="dv">${esc(PERSP_LABEL[g.perspective]||g.perspective||'—')}</span></div>
-              <div><span class="dk">${tr('نوع النسخة')}</span><span class="dv">${esc(g.versionType||'—')}</span></div>
               <div><span class="dk">${tr('نوع الإصدار')}</span><span class="dv">${esc(g.rem||'—')}</span></div>
-              <div><span class="dk">${tr('تاريخ الإصدار')}</span><span class="dv">${esc(g.releaseDate||'—')}</span></div>
               <div class="last-played-detail"><span class="dk">${tr('آخر تاريخ لعب')}</span><span class="dv last-played-value">${esc(last||'—')}${last&&daysSinceLastPlayed(last)!=null?`<span class="last-played-days" title="${esc(tr('عدد الأيام منذ آخر لعب'))}">${fmt(daysSinceLastPlayed(last))} ${esc(tr('يوم'))}</span>`:''}</span></div>
               <div><span class="dk">${tr('مدة اللعب (أيام)')}</span><span class="dv">${(()=>{const d=computeDays(g.startDate,g.endDate);return d!=null?fmt(d):'—';})()}</span></div>
               <div><span class="dk">${tr('الدقة')}</span><span class="dv">${esc(g.resolution||'—')}</span></div>
@@ -821,7 +883,7 @@
               <div><span class="dk">${tr('اختيار مفضّل')}</span><span class="dv">${g.goty==='Y'?tr('نعم'):tr('لا')}</span></div>
               <div><span class="dk">${tr('وقت التثبيت')}</span><span class="dv">${esc(g.installTime||'—')}</span></div>
               ${tags.length?`<div class="tag-strip">${tags.map(t=>`<span class="tag-pill">${esc(tr(t))}</span>`).join('')}</div>`:''}
-            </div>
+            </div>${ratingEmblem(g,'rating-emblem-expanded')}
           </div>
           <div class="library-card-actions">
             <button type="button" class="icon-btn edit-game" title="${tr('تحديث بيانات اللعبة')}" aria-label="${tr('تحديث بيانات اللعبة')}">✏️</button>
@@ -1081,7 +1143,9 @@
     rebuildNormalizedMaps();
 
     renderHeroStats();
-    renderDashboard();
+
+
+  renderDashboard();
     renderDrives();
     renderFilters();
     renderResults();
@@ -1097,6 +1161,34 @@
     if(addWrap) addWrap.innerHTML='';
   }
 
+  // ===== Home Live Digital + Analog Clock — Option 02 =====
+  function initHomeLiveClock(){
+    const root=document.getElementById('home-clock-dual');
+    if(!root || root.dataset.clockReady==='1') return;
+    root.dataset.clockReady='1';
+    const digital=document.getElementById('home-clock-time');
+    const dateEl=document.getElementById('home-clock-date');
+    const hourHand=root.querySelector('.clock-hour');
+    const minuteHand=root.querySelector('.clock-minute');
+    const secondHand=root.querySelector('.clock-second');
+    const pad=n=>String(n).padStart(2,'0');
+    const update=()=>{
+      const d=new Date();
+      const h=d.getHours(), m=d.getMinutes(), s=d.getSeconds();
+      const hh=(h%12)||12;
+      if(digital) digital.textContent=`${pad(hh)}:${pad(m)} ${h>=12?'PM':'AM'}`;
+      if(dateEl) dateEl.textContent=d.toLocaleDateString('en-US',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+      const hourDeg=(h%12)*30 + m*.5 + s/120;
+      const minuteDeg=m*6 + s*.1;
+      const secondDeg=s*6;
+      if(hourHand) hourHand.style.transform=`translateX(-50%) rotate(${hourDeg}deg)`;
+      if(minuteHand) minuteHand.style.transform=`translateX(-50%) rotate(${minuteDeg}deg)`;
+      if(secondHand) secondHand.style.transform=`translateX(-50%) rotate(${secondDeg}deg)`;
+    };
+    update();
+    root._clockTimer=setInterval(update,1000);
+  }
+  initHomeLiveClock();
 
   /* ================= DATE OPTION LISTS ================= */
   const DATE_OPTIONS_STORE='mostafa_pc_date_options_v1';
@@ -1303,7 +1395,25 @@
     const allVisibleSelected=sorted.length>0 && sorted.every(r=>datesSelectedRids.has(String(r.rid)));
     wrap.innerHTML=`<div class="dt-toolbar dates-filters"><input type="text" class="search-input dt-filter" id="dates-search-input" placeholder="Game name..." value="${esc(datesSearch)}" autocomplete="off"><select id="dates-resolution-filter" class="search-input dt-filter dt-resolution-filter" aria-label="Resolution Filter"><option value="">All Resolution</option>${resolutionOptions.map(v=>`<option value="${esc(v)}" ${datesResolutionFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><select id="dates-year-filter" class="search-input dt-filter dt-year-filter" aria-label="Start Year Filter"><option value="">All Years</option>${yearOptions.map(y=>`<option value="${y}" ${datesYearFilter===y?'selected':''}>${y}</option>`).join('')}</select><select id="dates-screen-filter" class="search-input dt-filter" aria-label="Screen Filter"><option value="">All Screens</option>${screenOptions.map(v=>`<option value="${esc(v)}" ${datesScreenFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><select id="dates-status-filter" class="search-input dt-filter" aria-label="Game Status Filter"><option value="">All Statuses</option>${statusOptions.map(v=>`<option value="${esc(v)}" ${datesStatusFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><button type="button" class="plus-btn dt-add-game-btn dt-add-icon-btn" id="date-add-btn" title="Add Game" aria-label="Add Game">➕</button></div><div class="dt-bulk-toolbar" id="dt-bulk-toolbar"><label class="dt-select-all"><input type="checkbox" id="dt-select-all" ${allVisibleSelected?'checked':''}> <span>${lang==='en'?'Select All':'تحديد الكل'}</span></label><span class="dt-selected-count">${lang==='en'?`${selectedVisibleCount} selected`:`${selectedVisibleCount} محدد`}</span><button type="button" class="dt-bulk-btn" id="dt-bulk-edit" ${selectedVisibleCount?'':'disabled'}>✏️ ${bulkLabel}</button><button type="button" class="dt-bulk-btn" id="dt-bulk-save" ${datesBulkEditing&&selectedVisibleCount?'':'disabled'}>💾 ${bulkSaveLabel}</button><button type="button" class="dt-bulk-btn dt-bulk-cancel" id="dt-bulk-cancel" ${datesBulkEditing&&selectedVisibleCount?'':'disabled'}>✖ ${bulkCancelLabel}</button></div><div class="dt-table-wrap"><table class="dt-table"><thead><tr><th class="dt-select-col"><input type="checkbox" id="dt-select-all-head" ${allVisibleSelected?'checked':''} aria-label="Select all"></th><th class="${arrow('name')}" data-dsort="name">Game</th><th class="${arrow('start')}" data-dsort="start">Start Date</th><th class="${arrow('end')}" data-dsort="end">End Date</th><th class="${arrow('days')}" data-dsort="days">Days</th><th>Previous Plays</th><th>Play History</th><th class="${arrow('playingState')}" data-dsort="playingState">Playing State</th><th class="${arrow('screen')}" data-dsort="screen">Screen</th><th class="${arrow('gpu')}" data-dsort="gpu">GPU</th><th class="${arrow('resolution')}" data-dsort="resolution">Resolution</th><th>Edit</th><th>Save</th><th>Delete</th></tr></thead><tbody>${sorted.map(r=>`<tr data-rid="${esc(r.rid)}" class="${datesSelectedRids.has(String(r.rid))?'dt-row-selected':''}"><td class="dt-select-col"><input type="checkbox" class="dt-row-select" data-rid="${esc(r.rid)}" ${datesSelectedRids.has(String(r.rid))?'checked':''} aria-label="Select ${esc(r.name)}"></td><td class="dt-name">${gameNameLink(r.name)}</td><td><input class="dt-date" data-field="start" data-editable-lock="1" type="date" value="${esc(r.start||'')}" ${datesSelectedRids.has(String(r.rid))&&datesBulkEditing?'':'disabled'}></td><td>${endDateControl(r.end,r.rid)}</td><td class="dt-days">${recordDays(r)!=null?fmt(recordDays(r)):'—'}</td><td class="dt-history-count">${fmt(getPlayOrdinal(r.gameId,r.name,r))}</td><td class="dt-history-status ${getPlayCountBefore(r.gameId,r.name,r)===0?'play-status-new':'play-status-old'}">${getPlayCountBefore(r.gameId,r.name,r)===0?'New':'Old'}</td><td class="dt-game-status">${esc(r.playingState||r.status||'—')}</td><td>${makeOptionControl('screen',r.screenType||'','screen',r.rid,true)}</td><td>${makeOptionControl('gpu',r.gpu||'','gpu',r.rid,true)}</td><td>${makeOptionControl('resolution',r.resolution||'','resolution',r.rid,true)}</td><td><button type="button" class="icon-action dt-edit-btn" title="تعديل السجل">✏️</button></td><td><button type="button" class="plus-btn dt-save" title="حفظ السجل" disabled>💾</button></td><td><button type="button" class="dt-delete" title="حذف السجل">🗑️</button></td></tr>`).join('')}</tbody></table></div>`;
     const inp=document.getElementById('dates-search-input');
-    if(inp){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);inp.addEventListener('input',e=>{datesSearch=e.target.value;renderDatesTab();});inp.addEventListener('keydown',e=>{if(e.key===' ')e.stopPropagation();});}
+    if(inp){
+      // Keep the search input alive from the user's point of view while the table is re-rendered.
+      // Replacing the input on every keystroke used to leave focus on the old DOM node, so only
+      // the first typed character was accepted. Restore focus/caret to the newly rendered input.
+      inp.addEventListener('input',e=>{
+        datesSearch=e.target.value;
+        const caret=Number.isFinite(e.target.selectionStart)?e.target.selectionStart:String(datesSearch).length;
+        renderDatesTab();
+        requestAnimationFrame(()=>{
+          const next=document.getElementById('dates-search-input');
+          if(next){
+            next.focus();
+            const pos=Math.min(caret,next.value.length);
+            try{next.setSelectionRange(pos,pos);}catch(_){}
+          }
+        });
+      });
+      inp.addEventListener('keydown',e=>{if(e.key===' ')e.stopPropagation();});
+    }
     const yearFilter=document.getElementById('dates-year-filter');
     if(yearFilter)yearFilter.addEventListener('change',e=>{datesYearFilter=e.target.value;renderDatesTab();});
     const resolutionFilter=document.getElementById('dates-resolution-filter');
@@ -2060,31 +2170,7 @@
     const si=document.getElementById('search-name-input');if(si)si.value=state.searchName||''; const ss=document.getElementById('search-series-input');if(ss)ss.value=state.searchSeries||'';
     const di=document.getElementById('dates-search-input');if(di)di.value=datesSearch||'';
   }
-  function updateGlobalDateTime(){
-    const timeEl=document.getElementById('home-digital-time');
-    const dateEl=document.getElementById('home-date-line');
-    if(!timeEl && !dateEl) return;
-    const now=new Date();
-    let h=now.getHours();
-    const m=String(now.getMinutes()).padStart(2,'0');
-    const suffix=h>=12?'PM':'AM';
-    h=h%12||12;
-    if(timeEl) timeEl.textContent=String(h).padStart(2,'0')+':'+m+' '+suffix;
-    if(dateEl){
-      const locale=lang==='en'?'en-US':'en-US';
-      dateEl.textContent=new Intl.DateTimeFormat(locale,{weekday:'long',month:'long',day:'2-digit',year:'numeric'}).format(now);
-    }
-    const hourHand=document.getElementById('home-clock-hour-hand');
-    const minuteHand=document.getElementById('home-clock-minute-hand');
-    const minutesNow=now.getMinutes()+now.getSeconds()/60;
-    const hourDeg=((now.getHours()%12)+minutesNow/60)*30;
-    const minuteDeg=minutesNow*6;
-    if(hourHand) hourHand.style.transform='rotate('+hourDeg+'deg)';
-    if(minuteHand) minuteHand.style.transform='rotate('+minuteDeg+'deg)';
-  }
-  updateGlobalDateTime();
-  window.__homeClockTimer=setInterval(updateGlobalDateTime,1000);
-  document.getElementById('lang-toggle').addEventListener('click',()=>{lang=lang==='ar'?'en':'ar';localStorage.setItem('gameVault_lang_v1',lang);applyLanguage();updateGlobalDateTime();});
+  document.getElementById('lang-toggle').addEventListener('click',()=>{lang=lang==='ar'?'en':'ar';localStorage.setItem('gameVault_lang_v1',lang);applyLanguage();});
   // Translation observer disabled for performance; renders translate explicitly when needed.
   document.getElementById('theme-toggle').addEventListener('click',()=>{
     document.body.classList.toggle('light'); localStorage.setItem('gameVault_theme_v1',document.body.classList.contains('light')?'light':'dark');
@@ -2883,6 +2969,7 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
   renderDrives();
   initTabs();
   initExportButtons();
+  initSearchClearButtons();
   const closeLibraryAddGame=()=>{
     const modal=document.getElementById('library-add-game-modal');
     if(modal) modal.style.display='none';

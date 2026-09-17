@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 120">
+<defs><linearGradient id="goldR" x1="1" y1="0" x2="0" y2="1"><stop stop-color="#ffe9a0"/><stop offset=".38" stop-color="#d4af37"/><stop offset=".72" stop-color="#b88922"/><stop offset="1" stop-color="#765313"/></linearGradient></defs>
+<g fill="url(#goldR)" stroke="#8d681d" stroke-width="2" stroke-linejoin="round">
+<!-- broad, horizontal eagle wing -->
+<path d="M4 61 C32 55 55 48 78 39 C101 30 122 23 144 24 C129 31 116 39 103 48 C128 39 154 36 180 39 C160 45 142 53 126 62 C151 59 177 63 204 73 C177 76 152 76 128 72 C147 80 165 90 181 103 C151 96 122 84 99 68 C81 55 60 51 37 55 C25 57 14 60 4 61 Z"/>
+<path d="M96 63 C119 68 140 78 158 92 C136 87 115 79 95 68 Z" fill="#f3cf68" stroke="none"/>
+</g></svg>

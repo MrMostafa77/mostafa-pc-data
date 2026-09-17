@@ -17,29 +17,23 @@
 <div class="wrap">
 <div class="wrap">
 <header class="hero">
+<div class="home-clock-dual" id="home-clock-dual" aria-label="Live date and time">
+  <div class="home-clock-analog" aria-hidden="true">
+    <span class="clock-tick t12"></span><span class="clock-tick t3"></span><span class="clock-tick t6"></span><span class="clock-tick t9"></span>
+    <span class="clock-hand clock-hour"></span><span class="clock-hand clock-minute"></span><span class="clock-hand clock-second"></span><span class="clock-center"></span>
+  </div>
+  <div class="home-clock-info">
+    <div class="home-clock-label">LOCAL TIME</div>
+    <div class="home-clock-digital" id="home-clock-time">00:00 PM</div>
+    <div class="home-clock-date" id="home-clock-date">Thu, 17 Sep 2026</div>
+  </div>
+</div>
 <img alt="" class="hero-logo-banner" src="assets/hero-logo-banner.png"/>
 <div class="hero-top">
 <div>
 <h1 class="hero-title">Mostafa's PC Data</h1>
 <div class="hero-sub">My Games Catalog And Dates Played</div>
 </div>
-</div>
-<div class="home-datetime-widget" id="home-datetime-widget" aria-label="Current date and time">
-  <img class="home-eagle-logo" src="assets/eagle-clock-logo.png" alt="" aria-hidden="true">
-  <div class="home-clock-icon" aria-hidden="true">
-    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="20" cy="20" r="16" stroke="currentColor" stroke-width="2"/>
-      <path d="M20 4.5v2.6M20 32.9v2.6M4.5 20h2.6M32.9 20h2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-      <line id="home-clock-hour-hand" x1="20" y1="20" x2="20" y2="13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="transform-origin:20px 20px"/>
-      <line id="home-clock-minute-hand" x1="20" y1="20" x2="20" y2="9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" style="transform-origin:20px 20px"/>
-      <circle cx="20" cy="20" r="1.6" fill="currentColor"/>
-    </svg>
-  </div>
-  <div class="home-datetime-content">
-    <div class="home-digital-time" id="home-digital-time">00:00 PM</div>
-    <div class="home-date-line" id="home-date-line">Wednesday, September 16, 2026</div>
-    <div class="home-version">V1.0</div>
-  </div>
 </div>
 <div class="hero-actions">
 <button class="ui-btn" id="lang-toggle" type="button">English</button>
