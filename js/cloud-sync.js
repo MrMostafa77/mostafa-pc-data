@@ -1,12 +1,14 @@
 // ============================================================
 // طبقة مزامنة سحابية — لا تلمس app.js إطلاقًا
-// بتشتغل بالطريقة دي:
-// 1) قبل ما app.js يشتغل، بتجيب آخر نسخة من بياناتك من Firestore
-//    وتحطها في localStorage (بنفس المفاتيح اللي app.js أصلاً بيقرأها)
-// 2) بعدين بتحمّل data-inline.js و app.js زي ما كانوا بالظبط
-// 3) من لحظة ما app.js يستخدم localStorage.setItem لأي حفظ جديد،
-//    الطبقة دي بتاخد نسخة وترفعها لنفس قاعدة البيانات تلقائيًا
-// 4) بتشترك في onSnapshot عشان أي تغيير من جهاز/تبويب آخر يظهر لحظيًا
+// ============================================================
+// v2 (2026-09-19): كل "مفتاح" (Game Dates, Library, Favorites...) بقى ليه
+// مستند صغير خاص بيه + Chunks منفصلة (بالظبط زي أغلفة الصور)، بدل ما كل
+// المفاتيح تتحشر مع بعض في مستند واحد بحد أقصى 1 ميجا. ده كان السبب الحقيقي
+// إن "Game Dates" بالذات بتفشل بصمت: مستند "mostafa_library" كان وصل لحد
+// الـ1,048,576 بايت المسموح به في Firestore ولسه محتاج يكبر (سجلات اللعب
+// بتزيد كل ما تضيف تاريخ لعبة جديدة)، فأي كتابة كانت بترفض بالكامل.
+// دلوقتي كل مفتاح مستقل تمامًا وله سقف مستقل، فمينفعش مفتاح واحد يوقف باقي
+// المفاتيح، ومفيش سقف عملي على حجم Game Dates بعد كده.
 // ============================================================
 
 const SYNC_KEYS = [
@@ -22,16 +24,12 @@ const SYNC_KEYS = [
   'gameVault_gameTags_v1',
   'gameVault_upcomingGames_v1'
 ];
-// ملحوظة: صور الأغلفة (gameVault_coverOverrides_v1 سابقًا) اتشالت من هنا عمدًا.
-// كانت بتترفع كنص base64 ضخم داخل نفس مستند Firestore، اللي حده 1 ميجا فقط،
-// فسريعًا كانت بتوصل للحد وتفشل بصمت. دلوقتي الصور بتتخزن محليًا في IndexedDB
-// (مساحة أكبر بمراحل) وبتتزامن سحابيًا عبر Firestore بس (بدون Firebase Storage
-// اللي بقى محتاج خطة Blaze المدفوعة) — كل صورة بتتقسم لأجزاء صغيرة (chunks) في
-// مستندات منفصلة عشان محدش يوصل لحد الـ1 ميجا. راجع uploadCoverToCloud /
-// removeCoverFromCloud / hydrateCovers تحت.
+// ملحوظة: صور الأغلفة (gameVault_coverOverrides_v1 سابقًا) مش في القايمة دي —
+// ليها نظامها الخاص تحت (uploadCoverToCloud / hydrateCovers) لأسباب مشابهة.
 
-const FS_COLLECTION = 'gamevault';
-const FS_DOC = 'mostafa_library';
+const FS_KEYS_COLLECTION = 'gamevault_store'; // {key} (metadata: totalChunks, v) + {key}/chunks/{n}
+const FS_LEGACY_COLLECTION = 'gamevault';     // المستند القديم — للترحيل مرة واحدة بس
+const FS_LEGACY_DOC = 'mostafa_library';
 const COVERS_COLLECTION = 'covers'; // covers/{gameId} (metadata) + covers/{gameId}/chunks/{n} (بيانات الصورة)
 const CHUNK_SIZE = 700000; // ~700 ألف حرف لكل جزء — بعيد جدًا وآمن عن حد الـ1 ميجا لكل مستند
 
@@ -40,11 +38,11 @@ let syncReady = false;
 let applyingRemote = false;
 let unsubscribeCore = null;
 let realtimePollTimer = null;
-let lastRemoteFingerprint = '';
-let lastSnapshotAt = 0;
+let legacyMigrationChecked = false;
 const localWriteVersion = Object.create(null);
 const pendingCloudWrites = Object.create(null);
-const remoteVersions = Object.create(null);
+const remoteVersions = Object.create(null); // last version WE fetched/applied per key
+const knownMetaVersions = Object.create(null); // last version seen in metadata (may not be fetched yet)
 
 function isFirebaseConfigured() {
   return typeof firebaseConfig !== 'undefined' &&
@@ -53,12 +51,11 @@ function isFirebaseConfigured() {
 }
 
 function loadCoreScripts() {
-  // IMPORTANT: these two files are the actual app logic (including the
-  // realtime-refresh listener). Loading them without a cache-busting
-  // version meant some phones/tablets could keep running an OLD cached
-  // copy of app.js indefinitely (even after a manual reload), which looks
-  // exactly like "sync doesn't happen live" or "this one tab never hears
-  // updates" depending on which old copy got stuck. Always version these.
+  // هذول هما كود التطبيق الفعلي (بما فيه الـlistener اللي بيحدّث الشاشة
+  // لحظيًا). تحميلهم من غير version كان معناه إن بعض الموبايلات/التابلت ممكن
+  // تفضل شغالة بنسخة قديمة متكاشة من app.js للأبد (حتى بعد reload يدوي)،
+  // وده بيظهر بالظبط كأن المزامنة "مش بتوصل لحظيًا" أو إن تبويب معين "مش
+  // بيسمع خالص". لازم النسخة دي تتزود مع كل تحديث كود (راجع index.html).
   const v = window.__APP_VERSION || Date.now();
   const s1 = document.createElement('script');
   s1.src = 'js/data-inline.js?v=' + v;
@@ -96,6 +93,10 @@ function patchLocalStorage() {
   };
 }
 
+function showSyncToast(message, isError) {
+  if (window.CoverStore) window.CoverStore.showToast(message, isError);
+}
+
 let cloudWriteTimers = Object.create(null);
 function queueCloudWrite(key, value) {
   clearTimeout(cloudWriteTimers[key]);
@@ -103,80 +104,54 @@ function queueCloudWrite(key, value) {
   localWriteVersion[key] = version;
   pendingCloudWrites[key] = true;
   cloudWriteTimers[key] = setTimeout(() => {
-    const payload = {};
-    payload[key] = value;
-    payload._syncMeta = {};
-    payload._syncMeta[key] = version;
-    db.collection(FS_COLLECTION).doc(FS_DOC).set(payload, { merge: true })
+    uploadKeyToCloud(key, value, version)
       .then(() => {
         // Keep the version so an older cached snapshot can never roll this
         // device back after the write has already reached Firestore.
         remoteVersions[key] = Math.max(Number(remoteVersions[key] || 0), version);
+        knownMetaVersions[key] = Math.max(Number(knownMetaVersions[key] || 0), version);
         delete pendingCloudWrites[key];
       })
       .catch(err => {
         delete pendingCloudWrites[key];
         console.error('Cloud sync failed for', key, err);
         window.SoundFX?.playError();
-        // Previously this failure was invisible to the user (console + a
-        // sound effect only). A write can fail silently on a weak
-        // mobile/tablet connection — most likely for the largest store
-        // (Game Dates), which made it look like that tab "never syncs".
-        // Show it, and retry once automatically.
-        if (window.CoverStore) {
-          window.CoverStore.showToast(
-            'فشلت مزامنة "' + key + '" مع السحابة، هيتم إعادة المحاولة تلقائيًا: ' + (err && err.message ? err.message : err),
-            true
-          );
-        }
+        showSyncToast(
+          'فشلت مزامنة "' + key + '" مع السحابة، هيتم إعادة المحاولة تلقائيًا: ' + (err && err.message ? err.message : err),
+          true
+        );
         clearTimeout(cloudWriteTimers['retry:' + key]);
         cloudWriteTimers['retry:' + key] = setTimeout(() => queueCloudWrite(key, value), 4000);
       });
   }, 50);
 }
 
-function applyRemoteCoreData(data) {
-  const changedKeys = [];
-  // Ignore duplicate snapshots/polls with identical payloads.
-  try {
-    const fp = JSON.stringify(SYNC_KEYS.map(key => data[key] === undefined ? null : String(data[key])));
-    if (fp === lastRemoteFingerprint) return;
-    lastRemoteFingerprint = fp;
-  } catch (e) {}
-  const meta = (data && data._syncMeta && typeof data._syncMeta === 'object') ? data._syncMeta : {};
-  applyingRemote = true;
-  try {
-    SYNC_KEYS.forEach(key => {
-      if (data[key] === undefined) return;
-      const remoteVersion = Number(meta[key] || 0);
-      const localVersion = Number(localWriteVersion[key] || 0);
-      const knownRemoteVersion = Number(remoteVersions[key] || 0);
+// كل مفتاح بقى ليه مستند خاص بيه تحت gamevault_store/{key} + subcollection
+// chunks — بالظبط نفس أسلوب صور الأغلفة، فمفيش سقف 1 ميجا مشترك بين كل
+// المفاتيح تاني، وأي مفتاح ممكن يكبر لوحده براحته.
+async function uploadKeyToCloud(key, value, version) {
+  const keyRef = db.collection(FS_KEYS_COLLECTION).doc(key);
+  const chunksRef = keyRef.collection('chunks');
+  const str = String(value == null ? '' : value);
 
-      // A write made locally on this device is authoritative until Firestore
-      // confirms it. This prevents an older snapshot/cache from immediately
-      // deleting a newly-added Game Dates row.
-      if (pendingCloudWrites[key]) return;
-      if (remoteVersion && localVersion && remoteVersion < localVersion) return;
-      if (remoteVersion && knownRemoteVersion && remoteVersion < knownRemoteVersion) return;
-      if (remoteVersion) remoteVersions[key] = Math.max(knownRemoteVersion, remoteVersion);
+  const oldChunksSnap = await chunksRef.get();
+  const chunks = [];
+  for (let i = 0; i < str.length; i += CHUNK_SIZE) chunks.push(str.slice(i, i + CHUNK_SIZE));
+  if (chunks.length === 0) chunks.push(''); // keep at least one empty chunk for an empty value
 
-      const next = String(data[key]);
-      const current = localStorage.getItem(key);
-      if (current !== next) {
-        nativeSetLocal(key, next);
-        changedKeys.push(key);
-      }
-    });
+  const batch = db.batch();
+  oldChunksSnap.forEach(docSnap => batch.delete(docSnap.ref));
+  chunks.forEach((chunk, idx) => batch.set(chunksRef.doc(String(idx)), { d: chunk }));
+  batch.set(keyRef, { totalChunks: chunks.length, v: version, updatedAt: version });
+  await batch.commit();
+}
 
-    // Keep applyingRemote=true while the UI refreshes. Several render helpers
-    // normalize their stores and call localStorage.setItem(); those writes
-    // must NOT be sent back to Firestore as if they were a new user edit.
-    if (changedKeys.length) {
-      window.dispatchEvent(new CustomEvent('gamevault:cloud-update', { detail: { keys: changedKeys } }));
-    }
-  } finally {
-    applyingRemote = false;
-  }
+async function fetchKeyFromCloud(key) {
+  const chunksSnap = await db.collection(FS_KEYS_COLLECTION).doc(key).collection('chunks').get();
+  const parts = [];
+  chunksSnap.forEach(docSnap => parts.push({ idx: Number(docSnap.id), d: (docSnap.data() || {}).d || '' }));
+  parts.sort((a, b) => a.idx - b.idx);
+  return parts.map(p => p.d).join('');
 }
 
 function nativeSetLocal(key, value) {
@@ -184,13 +159,46 @@ function nativeSetLocal(key, value) {
   setter(key, value);
 }
 
+// بتاخد قايمة {key: {v, totalChunks}} (من onSnapshot أو من get عادي)، تقارنها
+// بآخر نسخة عارفينها، وتجيب بس المفاتيح اللي فعلاً اتغيرت من جهاز/تبويب تاني.
+async function reconcileMeta(metaByKey) {
+  const changedKeys = [];
+  for (const key of SYNC_KEYS) {
+    const meta = metaByKey[key];
+    if (!meta) continue;
+    const remoteVersion = Number(meta.v || meta.updatedAt || 0);
+    const localVersion = Number(localWriteVersion[key] || 0);
+    const knownRemoteVersion = Number(remoteVersions[key] || 0);
+
+    if (pendingCloudWrites[key]) continue; // نستنى الكتابة المحلية تخلص الأول
+    if (remoteVersion && localVersion && remoteVersion < localVersion) continue;
+    if (remoteVersion && remoteVersion <= knownRemoteVersion) continue; // نفس النسخة اللي عندنا بالظبط
+
+    try {
+      const value = await fetchKeyFromCloud(key);
+      remoteVersions[key] = remoteVersion || Date.now();
+      const current = localStorage.getItem(key);
+      if (current !== value) {
+        applyingRemote = true;
+        try { nativeSetLocal(key, value); } finally { applyingRemote = false; }
+        changedKeys.push(key);
+      }
+    } catch (e) {
+      console.error('Fetch key failed for', key, e);
+    }
+  }
+  if (changedKeys.length) {
+    window.dispatchEvent(new CustomEvent('gamevault:cloud-update', { detail: { keys: changedKeys } }));
+  }
+}
+
 function subscribeToCloud() {
   if (!db || unsubscribeCore) return;
-  unsubscribeCore = db.collection(FS_COLLECTION).doc(FS_DOC).onSnapshot(
+  unsubscribeCore = db.collection(FS_KEYS_COLLECTION).onSnapshot(
     snap => {
-      lastSnapshotAt = Date.now();
-      if (!snap.exists) return;
-      applyRemoteCoreData(snap.data() || {});
+      const metaByKey = {};
+      snap.forEach(docSnap => { metaByKey[docSnap.id] = docSnap.data() || {}; });
+      reconcileMeta(metaByKey);
     },
     err => {
       console.error('Cloud realtime listener failed', err);
@@ -199,73 +207,101 @@ function subscribeToCloud() {
   );
 }
 
-
 // بعض متصفحات التابلت/الموبايل قد تفقد قناة Firestore realtime مؤقتًا
-// (خصوصًا مع WebView أو تغيير الشبكة). نستخدم فحصًا خفيفًا جدًا كشبكة أمان.
-// الـ onSnapshot يظل المسار الأساسي، والفحص لا يعيد معالجة نفس البيانات.
+// (خصوصًا مع WebView أو تغيير الشبكة). الفحص ده بيجيب بس المستندات الصغيرة
+// (metadata) من السيرفر مباشرة كل شوية، وما بيجيبش بيانات المفاتيح الكبيرة
+// (زي Game Dates) إلا لو فعلاً اتغيرت — رخيص وسريع.
+async function pollFromServer() {
+  if (!syncReady || !db) return;
+  try {
+    const snap = await db.collection(FS_KEYS_COLLECTION).get({ source: 'server' });
+    const metaByKey = {};
+    snap.forEach(docSnap => { metaByKey[docSnap.id] = docSnap.data() || {}; });
+    await reconcileMeta(metaByKey);
+  } catch (e) {
+    console.warn('Realtime fallback poll failed', e);
+  }
+}
 function startRealtimeFallbackPoll() {
   if (realtimePollTimer || !db) return;
-  realtimePollTimer = setInterval(async () => {
-    if (!syncReady || !db) return;
-    // لا نحتاج polling متكرر طالما الـ listener شغال بشكل طبيعي.
-    // Poll every cycle as a second independent delivery path.
-    // Some browsers/WebViews can keep the Firestore listener alive without
-    // delivering document changes reliably; polling guarantees convergence.
-
-    try {
-      const snap = await db.collection(FS_COLLECTION).doc(FS_DOC).get({ source: 'server' });
-      if (snap.exists) applyRemoteCoreData(snap.data() || {});
-    } catch (e) {
-      console.warn('Realtime fallback poll failed', e);
-    }
-  }, 2000);
+  realtimePollTimer = setInterval(pollFromServer, 2000);
 }
 
-// Extra safety net on top of subscribeToCloud() + startRealtimeFallbackPoll():
-// when a phone/tablet browser puts the tab to sleep (screen off, app
-// backgrounded, switched networks) the realtime listener and the 2-second
-// poll can both stop firing. Neither one reliably "wakes up" on its own on
-// every device. So the moment the tab becomes visible/focused again, or the
-// device regains network, force one immediate server read — this guarantees
-// the page catches up within a second of being looked at again, without
-// requiring a manual reload.
-function forceResync() {
-  if (!db || !syncReady) return;
-  db.collection(FS_COLLECTION).doc(FS_DOC).get({ source: 'server' })
-    .then(snap => { if (snap.exists) applyRemoteCoreData(snap.data() || {}); })
-    .catch(e => console.warn('Force resync failed', e));
-}
+// شبكة أمان إضافية فوق onSnapshot + الفحص الدوري: لما المتصفح يحط التاب في
+// وضع نوم (الشاشة اتقفلت، التطبيق راح للخلفية، الشبكة اتغيرت) ممكن الاتنين
+// يقفوا عن العمل مؤقتًا من غير ما "يرجعوا لوحدهم" بشكل مضمون على كل جهاز.
+// فبمجرد ما التاب يرجع يبقى مرئي/فوكس، أو النت يرجع، بنعمل فحص فوري من
+// السيرفر مباشرة — كده التحديثات بتوصل خلال ثانية من غير ما تحتاج reload.
 let reconnectBound = false;
 function bindReconnectSafetyNet() {
   if (reconnectBound) return;
   reconnectBound = true;
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') forceResync();
+    if (document.visibilityState === 'visible') pollFromServer();
   });
-  window.addEventListener('focus', forceResync);
-  window.addEventListener('online', forceResync);
+  window.addEventListener('focus', pollFromServer);
+  window.addEventListener('online', pollFromServer);
+}
+
+// ترحيل لمرة واحدة: لو مفيش أي مستندات في gamevault_store لسه (تحديث لأول
+// مرة على الجهاز/المشروع)، هات القيم القديمة من المستند المُجمّع القديم
+// (gamevault/mostafa_library) وابدأ منها بدل ما تبدأ فاضي.
+async function migrateLegacyDocIfNeeded(existingKeys) {
+  if (legacyMigrationChecked) return;
+  legacyMigrationChecked = true;
+  const missing = SYNC_KEYS.filter(k => !existingKeys.has(k));
+  if (!missing.length) return;
+  try {
+    const legacySnap = await db.collection(FS_LEGACY_COLLECTION).doc(FS_LEGACY_DOC).get();
+    if (!legacySnap.exists) return;
+    const legacyData = legacySnap.data() || {};
+    for (const key of missing) {
+      if (legacyData[key] === undefined) continue;
+      const value = String(legacyData[key]);
+      nativeSetLocal(key, value);
+      await uploadKeyToCloud(key, value, Date.now());
+    }
+  } catch (e) {
+    console.error('Legacy migration failed', e);
+  }
 }
 
 async function hydrateFromCloud() {
   if (!db) return;
   try {
-    const snap = await db.collection(FS_COLLECTION).doc(FS_DOC).get();
-    if (snap.exists) {
-      const data = snap.data();
-      SYNC_KEYS.forEach(key => {
-        if (data[key] !== undefined) {
-          nativeSetLocal(key, data[key]);
-        }
-      });
-    } else {
-      // أول مرة: ارفع أي بيانات محلية موجودة كنقطة بداية
-      const initial = {};
-      SYNC_KEYS.forEach(key => {
-        const v = localStorage.getItem(key);
-        if (v !== null) initial[key] = v;
-      });
-      if (Object.keys(initial).length) {
-        await db.collection(FS_COLLECTION).doc(FS_DOC).set(initial, { merge: true });
+    const snap = await db.collection(FS_KEYS_COLLECTION).get();
+    const existingKeys = new Set();
+    snap.forEach(docSnap => existingKeys.add(docSnap.id));
+
+    await migrateLegacyDocIfNeeded(existingKeys);
+
+    for (const key of SYNC_KEYS) {
+      if (!existingKeys.has(key)) continue;
+      try {
+        const value = await fetchKeyFromCloud(key);
+        nativeSetLocal(key, value);
+        const metaDoc = snap.docs.find(d => d.id === key);
+        const v = Number((metaDoc && metaDoc.data() && metaDoc.data().v) || Date.now());
+        remoteVersions[key] = v;
+        knownMetaVersions[key] = v;
+      } catch (e) {
+        console.error('Hydrate fetch failed for', key, e);
+      }
+    }
+
+    // أي مفتاح عندنا محليًا بس مش موجود سحابيًا خالص (أول مرة يستخدم الموقع
+    // من هنا) — ارفعه كنقطة بداية.
+    for (const key of SYNC_KEYS) {
+      if (existingKeys.has(key)) continue;
+      const v = localStorage.getItem(key);
+      if (v === null) continue;
+      try {
+        const version = Date.now();
+        await uploadKeyToCloud(key, v, version);
+        remoteVersions[key] = version;
+        knownMetaVersions[key] = version;
+      } catch (e) {
+        console.error('Initial upload failed for', key, e);
       }
     }
   } catch (e) {
@@ -298,12 +334,10 @@ async function uploadCoverToCloud(id, dataUrl, updatedAt) {
     await batch.commit();
   } catch (e) {
     console.error('Cloud cover upload failed for', id, e);
-    if (window.CoverStore) {
-      window.CoverStore.showToast(
-        'الصورة اتحفظت على جهازك، لكن رفعها للسحابة (للمزامنة مع باقي أجهزتك) فشل: ' + (e && e.message ? e.message : e),
-        true
-      );
-    }
+    showSyncToast(
+      'الصورة اتحفظت على جهازك، لكن رفعها للسحابة (للمزامنة مع باقي أجهزتك) فشل: ' + (e && e.message ? e.message : e),
+      true
+    );
     window.SoundFX?.playError();
   }
 }
@@ -416,9 +450,8 @@ async function init() {
       // some WiFi routers/tablets don't handle that connection well — the
       // stream silently stalls and no more updates arrive until the page
       // is fully reloaded (which opens a brand-new connection). Forcing
-      // long-polling avoids that failure mode entirely; it's slightly
-      // heavier per-request but far more reliable on phones/tablets.
-      // MUST be called before any other Firestore call.
+      // long-polling avoids that failure mode entirely. MUST be called
+      // before any other Firestore call.
       try {
         db.settings({ experimentalAutoDetectLongPolling: true, merge: true });
       } catch (settingsErr) {
