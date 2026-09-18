@@ -13,6 +13,9 @@
   const SIZE_OVERRIDES_KEY = 'gameVault_sizeOverrides_v1';
   const SIZE_DELETED_KEY = 'gameVault_sizeDeleted_v1';
   const CAP_KEY = 'gameVault_driveCapacities_v1';
+  const FAVORITES_KEY = 'gameVault_favorites_v1';
+  const TAGS_KEY = 'gameVault_gameTags_v1';
+  const UPCOMING_GAMES_KEY = 'gameVault_upcomingGames_v1'; // fixed 5 manual Home slots
 
   function loadJSON(key, fallback){
     try{ const v = JSON.parse(localStorage.getItem(key) || 'null'); return v===null ? fallback : v; }
@@ -79,6 +82,8 @@
   let sizeOverrides = loadJSON(SIZE_OVERRIDES_KEY, {});
   let sizeDeleted = new Set(loadJSON(SIZE_DELETED_KEY, []).map(Number));
   let capacities = loadJSON(CAP_KEY, {});
+  let favorites = new Set(loadJSON(FAVORITES_KEY, []).map(Number));
+  let gameTags = loadJSON(TAGS_KEY, {});
 
   let GAMES = [];
   function rebuildGamesArray(){
@@ -251,12 +256,10 @@
 
   function compressCover(dataUrl, cb){const img=new Image();img.onload=()=>{const maxW=500,maxH=700,scale=Math.min(1,maxW/img.naturalWidth,maxH/img.naturalHeight),c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.naturalWidth*scale));c.height=Math.max(1,Math.round(img.naturalHeight*scale));c.getContext('2d').drawImage(img,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',0.78));};img.onerror=()=>cb(null);img.src=dataUrl;}
 
-  /* ================= HERO STATS ================= */
+  /* ================= HOME CURRENTLY PLAYING ================= */
   function renderHeroStats(){
-    // The top area is reserved ONLY for games currently being played.
-    // A game is considered active only when it has a Game Dates record
-    // with a start date and no end date. Finished/closed date records are
-    // never shown here, even if the library status still says "Playing Now".
+    // Keep the legacy header strip hidden; Playing Now is rendered in the Home dashboard cards.
+    ensureDateRecords();
     const activeMap = new Map();
     (Array.isArray(dateRecords) ? dateRecords : []).forEach(r=>{
       if(!r || !r.start || r.end) return;
@@ -276,27 +279,134 @@
       String(b.r.start||'').localeCompare(String(a.r.start||''))
     );
 
-    // Show exactly the number of active games: 1 game = 1 card, 2 = 2 cards, etc.
-    const playingSlots = activeGames.map(({g,r})=>`
-      <div class="hstat hstat-playing">
-        <img class="playing-cover" data-cover-id="${g.id}" loading="lazy" decoding="async" src="${esc(gameImage(g))}" alt="">
-        <div class="playing-info">
-          <div class="playing-title" title="${esc(g.name)}">${gameNameLink(g.name)}</div>
-          <div class="playing-label">🎮 ${tr('قيد اللعب حاليًا')}</div>
-          <div class="playing-date">${esc(r.start)}</div>
-        </div>
-      </div>
-    `).join('');
+    const parsePlayDate = value => {
+      const raw=String(value||'').trim();
+      if(!raw) return null;
+      if(/^\d{4}-\d{2}-\d{2}$/.test(raw)) return new Date(raw+'T00:00:00');
+      const m=raw.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/);
+      if(m) return new Date(Number(m[3]),Number(m[2])-1,Number(m[1]));
+      const d=new Date(raw+'T00:00:00');
+      return isNaN(d.getTime()) ? null : d;
+    };
+    const today=new Date(); today.setHours(0,0,0,0);
+    const elapsedDays=start=>{
+      const d=parsePlayDate(start);
+      if(!d || isNaN(d.getTime())) return '—';
+      return Math.max(0,Math.floor((today.getTime()-d.getTime())/86400000)+1);
+    };
 
+    const playingMarkup=activeGames.map(({g,r})=>{
+      const days=elapsedDays(r.start);
+      return `<div class="home-playing-card" title="${esc(g.name)}">
+        <img class="home-playing-cover" data-cover-id="${g.id}" loading="lazy" decoding="async" src="${esc(gameImage(g))}" alt="">
+        <div class="home-playing-info">
+          <div class="home-playing-title">${gameNameLink(g.name)}</div>
+          <div class="home-playing-label">🎮 Playing Now</div>
+          <div class="home-playing-date">Started: ${esc(r.start)}</div>
+        </div>
+        <div class="home-playing-days" aria-label="${days} days playing"><strong>${days}</strong><span>DAYS</span></div>
+      </div>`;
+    }).join('');
+
+    // Show the same Currently Playing strip on Home, Library and Reports.
+    ['home-playing-now','library-playing-now','reports-playing-now'].forEach(id=>{
+      const playingWrap=document.getElementById(id);
+      if(!playingWrap) return;
+      playingWrap.innerHTML=playingMarkup;
+      playingWrap.classList.toggle('has-games',activeGames.length>0);
+      playingWrap.setAttribute('aria-hidden',activeGames.length?'false':'true');
+    });
+    if(activeGames.length) scheduleOnlineCovers(activeGames.map(x=>x.g));
+
+    // Keep the legacy hero container empty/hidden so no duplicate cards appear above the tabs.
     const heroStats=document.getElementById('hero-stats');
-    if(heroStats){
-      heroStats.innerHTML=playingSlots;
-      heroStats.style.display=activeGames.length?'flex':'none';
-      scheduleOnlineCovers(activeGames.map(x=>x.g));
-    }
+    if(heroStats){ heroStats.innerHTML=''; heroStats.style.display='none'; }
 
     const fc = document.getElementById('footer-count');
     if(fc) fc.textContent = fmt(GAMES.length);
+  }
+
+
+  /* ================= HOME UPCOMING GAMES ================= */
+  function openUpcomingGamePicker(slot){
+    const modal=document.getElementById('upcoming-game-modal');
+    const search=document.getElementById('upcoming-game-search');
+    const results=document.getElementById('upcoming-game-results');
+    const preview=document.getElementById('upcoming-game-preview');
+    const saveBtn=document.getElementById('upcoming-game-save');
+    if(!modal || !search || !results) return;
+
+    const ids=loadJSON(UPCOMING_GAMES_KEY,[null,null,null,null,null]);
+    while(ids.length<5) ids.push(null);
+    const used=new Set(ids.map(Number).filter((id,i)=>id && i!==slot));
+    let selectedId=Number(ids[slot])||null;
+    const libraryGames=GAMES.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'}));
+
+    const updatePreview=()=>{
+      const g=GAMES.find(x=>Number(x.id)===selectedId);
+      preview.innerHTML=g
+        ? `<img src="${esc(gameImage(g))}" alt=""><div><strong>${esc(g.name)}</strong><span>${esc(g.series||'Standalone')}</span></div>`
+        : `<div class="upcoming-picker-placeholder">+</div><div><strong>No game selected</strong><span>Type a game name to search your Library</span></div>`;
+      saveBtn.disabled=!g;
+      if(g) scheduleOnlineCovers([g]);
+    };
+
+    const renderResults=query=>{
+      const q=String(query||'').trim().toLocaleLowerCase();
+      if(!q){
+        results.innerHTML='<div class="upcoming-search-hint">Type a game name to search your Library.</div>';
+        return;
+      }
+      const matches=libraryGames.filter(g=>{
+        const id=Number(g.id);
+        if(used.has(id) && id!==selectedId) return false;
+        return String(g.name||'').toLocaleLowerCase().includes(q);
+      }).slice(0,30);
+      if(!matches.length){
+        results.innerHTML='<div class="upcoming-no-results">No matching games found in Library.</div>';
+        return;
+      }
+      results.innerHTML=matches.map(g=>`<button type="button" class="upcoming-result ${Number(g.id)===selectedId?'selected':''}" data-upcoming-result="${Number(g.id)}">
+        <img src="${esc(gameImage(g))}" loading="lazy" decoding="async" alt=""><span>${esc(g.name)}</span><small>${esc(g.series||'Standalone')}</small>
+      </button>`).join('');
+      results.querySelectorAll('[data-upcoming-result]').forEach(btn=>btn.addEventListener('click',()=>{
+        selectedId=Number(btn.dataset.upcomingResult)||null;
+        renderResults(search.value);
+        updatePreview();
+      }));
+      scheduleOnlineCovers(matches);
+    };
+
+    search.value='';
+    selectedId=Number(ids[slot])||null;
+    updatePreview();
+    renderResults('');
+    search.oninput=()=>renderResults(search.value);
+    saveBtn.onclick=()=>{
+      if(!selectedId) return;
+      const fresh=loadJSON(UPCOMING_GAMES_KEY,[null,null,null,null,null]);
+      while(fresh.length<5) fresh.push(null);
+      const duplicate=fresh.some((v,i)=>i!==slot && Number(v)===selectedId);
+      if(duplicate){ alert('This game is already in another upcoming slot.'); return; }
+      fresh[slot]=selectedId;
+      saveJSON(UPCOMING_GAMES_KEY,fresh.slice(0,5));
+      modal.hidden=true;
+      renderDashboard();
+    };
+    document.getElementById('upcoming-game-cancel')?.addEventListener('click',()=>{modal.hidden=true;},{once:true});
+    document.getElementById('upcoming-game-close')?.addEventListener('click',()=>{modal.hidden=true;},{once:true});
+    modal.hidden=false;
+    modal.onclick=ev=>{if(ev.target===modal) modal.hidden=true;};
+    if(!window.__upcomingPickerEsc){
+      window.__upcomingPickerEsc=true;
+      document.addEventListener('keydown',ev=>{
+        if(ev.key==='Escape'){
+          const m=document.getElementById('upcoming-game-modal');
+          if(m && !m.hidden) m.hidden=true;
+        }
+      });
+    }
+    setTimeout(()=>search.focus(),0);
   }
 
   /* ================= DASHBOARD CHARTS ================= */
@@ -321,7 +431,7 @@
     return `<div class="recent-games">${items.map(g=>`<div class="recent-game">
       <img data-cover-id="${g.id}" loading="lazy" decoding="async" src="${gameImage(g)}" alt="">
       <div class="rg-name" title="${esc(g.name)}">${gameNameLink(g.name)}</div>
-      <div class="rg-date">${esc(g.endDate||g.startDate||'—')}</div>
+      <div class="rg-date">${esc(g._playDate||g.endDate||g.startDate||'—')}</div>
     </div>`).join('')}</div>`;
   }
   function renderDashboard(){
@@ -332,8 +442,124 @@
     const verdictCounts={}; GAMES.forEach(g=>{if(g.verdict) verdictCounts[g.verdict]=(verdictCounts[g.verdict]||0)+1;});
     const verdictOrder=['Epic','Great','Very-Good','Good','NOSTALGIC','Not-Bad','Bad'];
     barChart(document.getElementById('chart-verdict'),verdictOrder.filter(v=>verdictCounts[v]).map(v=>({label:VERDICT_LABEL[v]||v,value:verdictCounts[v]})),{brass:true});
-    const played=GAMES.filter(g=>g.startDate).sort((a,b)=>String(b.startDate).localeCompare(String(a.startDate)));
-    const last5=played.slice(0,5), first5=played.slice(-5).reverse();
+    // Home dashboard: Playing Now is driven only by Game Dates rows with a Start Date and no End Date.
+    // Upcoming Games are five fixed, manually selected slots stored in browser local data.
+    const liveDateRecords=ensureDateRecords();
+    const activeMap=new Map();
+    liveDateRecords.forEach(r=>{
+      if(!r || !r.start || r.end) return;
+      const g=GAMES.find(x =>
+        (r.gameId!=null && Number(x.id)===Number(r.gameId)) ||
+        normDateSearch(x.name)===normDateSearch(r.name)
+      );
+      if(!g) return;
+      const key=String(g.id);
+      const prev=activeMap.get(key);
+      if(!prev || String(r.start).localeCompare(String(prev.r.start||''))>0) activeMap.set(key,{g,r});
+    });
+    const activeGames=[...activeMap.values()].sort((a,b)=>String(b.r.start||'').localeCompare(String(a.r.start||'')));
+
+    const upcomingIds=loadJSON(UPCOMING_GAMES_KEY,[]);
+    const upcomingGames=Array.from({length:5},(_,i)=>{
+      const id=Number(upcomingIds?.[i])||null;
+      return id ? GAMES.find(g=>Number(g.id)===id) || null : null;
+    });
+
+    // Home history strips: only games that have been played (completed play
+    // records), never games that are currently Playing Now.  Last 5 is based
+    // on the latest completed play; Farest 5 is based on the number of days
+    // since that latest completed play, descending.
+    // Home history must contain ONLY records whose final state is Done.
+    // In particular, Postponed / Not-Completed / Playing Now records are never
+    // eligible for Last 5 or Farest 5.
+    const homeCompletedKey=r=>{
+      const raw=String(r?.end||'').trim();
+      return raw.toLowerCase()==='now' ? localTodayISO() : raw;
+    };
+    const homeIsDoneRecord=r=>{
+      if(!r || !r.start || !r.end) return false;
+      return derivePlayingState(r.start,r.end,r.playingState||r.status||'')==='Done';
+    };
+    const activeGameIds=new Set(activeGames.map(x=>String(x.g.id)));
+    const homeHistoryMap=new Map();
+    liveDateRecords.filter(r=>homeIsDoneRecord(r) && homeCompletedKey(r)).forEach(r=>{
+      const g=GAMES.find(x =>
+        (r.gameId!=null && Number(x.id)===Number(r.gameId)) ||
+        normDateSearch(x.name)===normDateSearch(r.name)
+      );
+      if(!g || activeGameIds.has(String(g.id))) return;
+      const key=String(g.id);
+      const date=homeCompletedKey(r);
+      const prev=homeHistoryMap.get(key);
+      if(!prev || date.localeCompare(homeCompletedKey(prev.r))>0) homeHistoryMap.set(key,{g,r});
+    });
+    const homeHistory=[...homeHistoryMap.values()].map(x=>{
+      const d=new Date(`${homeCompletedKey(x.r)}T00:00:00`);
+      const days=isNaN(d.getTime()) ? null : Math.max(0,Math.floor((new Date(new Date().setHours(0,0,0,0)).getTime()-d.getTime())/86400000));
+      return {...x,daysSince:days};
+    });
+    const lastFive=homeHistory.slice().sort((a,b)=>homeCompletedKey(b.r).localeCompare(homeCompletedKey(a.r))).slice(0,5);
+    const farestFive=homeHistory.slice().sort((a,b)=>{
+      const ad=a.daysSince==null?-1:a.daysSince, bd=b.daysSince==null?-1:b.daysSince;
+      return bd-ad || homeCompletedKey(a.r).localeCompare(homeCompletedKey(b.r));
+    }).slice(0,5);
+
+    const parseHomePlayDate=value=>{
+      const raw=String(value||'').trim();
+      if(!raw) return null;
+      if(/^\d{4}-\d{2}-\d{2}$/.test(raw)) return new Date(raw+'T00:00:00');
+      const m=raw.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/);
+      if(m) return new Date(Number(m[3]),Number(m[2])-1,Number(m[1]));
+      const d=new Date(raw+'T00:00:00');
+      return isNaN(d.getTime()) ? null : d;
+    };
+    const playingDays=start=>{
+      const d=parseHomePlayDate(start);
+      if(!d || isNaN(d.getTime())) return '—';
+      return Math.max(0,Math.floor((today.getTime()-d.getTime())/86400000)+1);
+    };
+    const installedGames=GAMES
+      .filter(g=>String(g.playingState||'').trim().toLowerCase()==='installed')
+      .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+    const playingEntries=new Map(activeGames.map(x=>[String(x.g.id),x]));
+    const homePlayingItems=[
+      ...activeGames.map(x=>({g:x.g,r:x.r,isPlaying:true,isInstalled:false})),
+      ...installedGames.filter(g=>!playingEntries.has(String(g.id))).map(g=>({g,r:null,isPlaying:false,isInstalled:true}))
+    ];
+
+    const renderPlayingStrip=items=>{
+      if(!items.length) return '<div class="upcoming-empty">No games are currently being played or installed.</div>';
+      setTimeout(()=>scheduleOnlineCovers(items.map(x=>x.g)),0);
+      return `<div class="recent-games home-planning-games">${items.map(({g,r,isPlaying,isInstalled})=>{
+        const days=isPlaying ? playingDays(r.start) : null;
+        const latest=getLatestPlayRecord(g.id,g.name);
+        const latestDate=latest ? (latest.end || latest.start || '—') : null;
+        const status=isPlaying ? `<div class="home-status-circle playing-days-circle" title="${days} days playing"><strong>${days}</strong><span>DAYS</span></div>` : '';
+        return `<div class="recent-game ${isPlaying?'playing-now-game':''} ${isInstalled?'installed-game':''}">
+          <div class="home-playing-image-wrap"><img data-cover-id="${g.id}" loading="lazy" decoding="async" src="${esc(gameImage(g))}" alt="">${status}</div>
+          <div class="rg-name" title="${esc(g.name)}">${gameNameLink(g.name)}</div>
+          <div class="rg-date">${isPlaying ? `Last Play: ${esc(latestDate || r.start || '—')}` : 'Installed'}</div>
+        </div>`;
+      }).join('')}</div>`;
+    };
+
+    const renderUpcomingSlots=()=>{
+      return `<div class="recent-games home-planning-games upcoming-games-grid">${upcomingGames.map((g,i)=>{
+        if(!g){
+          return `<button type="button" class="recent-game upcoming-slot upcoming-add-slot" data-upcoming-slot="${i}" aria-label="Add upcoming game">
+            <span class="upcoming-plus">+</span><span class="upcoming-add-label">Add Game</span>
+          </button>`;
+        }
+        return `<div class="recent-game upcoming-slot" data-upcoming-slot="${i}" title="${esc(g.name)}">
+          <button type="button" class="upcoming-change" data-upcoming-slot="${i}" title="Change game" aria-label="Change game">+</button>
+          <img data-cover-id="${g.id}" loading="lazy" decoding="async" src="${esc(gameImage(g))}" alt="">
+          <div class="rg-name" title="${esc(g.name)}">${gameNameLink(g.name)}</div>
+          <div class="rg-date">Upcoming</div>
+          <button type="button" class="upcoming-remove" data-upcoming-remove="${i}" title="Remove" aria-label="Remove">×</button>
+        </div>`;
+      }).join('')}</div>`;
+    };
+
     const dash=document.getElementById('dashboard-section');
     let extra=document.getElementById('dashboard-extra');
     if(!extra){ extra=document.createElement('div'); extra.id='dashboard-extra'; dash.appendChild(extra); }
@@ -342,23 +568,62 @@
       return {label:v.label,total:games.length,done,pct:games.length?done/games.length*100:0};
     }).sort((a,b)=>b.total-a.total).slice(0,12);
     const topPlayed=[...seriesRows].sort((a,b)=>b.total-a.total).slice(0,8);
-    const epicNostalgic=GAMES.filter(g=>['Epic','NOSTALGIC'].includes(String(g.verdict||'')));
+    const nostalgicGames=GAMES.filter(g=>String(g.verdict||'').trim().toLowerCase()==='nostalgic');
+    const epicGames=GAMES.filter(g=>String(g.verdict||'').trim().toLowerCase()==='epic');
     const today=new Date(); today.setHours(0,0,0,0);
     const renderEpicCard=g=>{
       const rs=getGamePlayRecords(g.id,g.name).filter(r=>r && (r.start||r.end));
-      // The elapsed-days counter and displayed last-play date are based on the latest End Date only.
       const completedPlays=rs.filter(r=>r.end && r.end !== 'Postponed' && !isNaN(new Date(r.end+'T00:00:00'))).sort((a,b)=>String(b.end).localeCompare(String(a.end)));
       const lastDate=completedPlays.length ? completedPlays[0].end : '—';
       let days='—';
       if(lastDate){const d=new Date(lastDate+'T00:00:00'); if(!isNaN(d))days=Math.max(0,Math.floor((today-d)/86400000));}
       const ageClass=(typeof days==='number'?(days>=730?' days-circle-red':(days>=365?' days-circle-yellow':'')):''); return `<div class="epic-game-card"><img loading="lazy" decoding="async" src="${gameImage(g)}" alt=""><div class="epic-game-name" title="${esc(g.name)}">${gameNameLink(g.name)}</div><div class="epic-game-stats"><span class="days-circle${ageClass}">${days}</span><span class="last-date-box">${esc(lastDate)}<small>${rs.length} مرات لعب</small></span></div></div>`;
     };
+    const renderHistoryStrip=(items, emptyText)=>{
+      if(!items.length) return `<div class="upcoming-empty">${emptyText}</div>`;
+      setTimeout(()=>scheduleOnlineCovers(items.map(x=>x.g)),0);
+      return `<div class="recent-games home-planning-games">${items.map(({g,r,daysSince})=>`
+        <div class="recent-game" title="${esc(g.name)}">
+          <img data-cover-id="${g.id}" loading="lazy" decoding="async" src="${esc(gameImage(g))}" alt="">
+          <div class="rg-name" title="${esc(g.name)}">${gameNameLink(g.name)}</div>
+          <div class="rg-date">${esc(homeCompletedKey(r)||'—')}${daysSince!=null?` · ${fmt(daysSince)} days ago`:''}</div>
+        </div>`).join('')}</div>`;
+    };
+
     extra.innerHTML=`
-      <div class="dash-grid" style="margin-top:18px;grid-template-columns:1fr 1fr;">
-        <div class="panel"><h3>Last 5 Games Played</h3>${renderGameStrip(last5)}</div>
-        <div class="panel"><h3>Farest 5 Games</h3>${renderGameStrip(first5)}</div>
+      <div class="dash-grid home-planning-row" style="margin-top:18px;grid-template-columns:1fr 1fr;">
+        <div class="panel home-planning-panel"><h3>Playing Now</h3><div id="home-playing-dashboard">${renderPlayingStrip(homePlayingItems)}</div></div>
+        <div class="panel home-planning-panel"><h3>Up-coming Games</h3><div id="home-upcoming-dashboard">${renderUpcomingSlots()}</div></div>
       </div>
-      <div class="panel epic-nostalgic-panel"><h3>Epic & Nostalgic Games</h3>${epicNostalgic.length?`<div class="epic-game-grid">${epicNostalgic.map(renderEpicCard).join('')}</div>`:'<div class="empty-state">لا توجد ألعاب بهذا التقييم.</div>'}</div>`;
+      <div class="dash-grid home-planning-row" style="margin-top:18px;grid-template-columns:1fr 1fr;">
+        <div class="panel home-planning-panel"><h3>Last 5 Games Played</h3>${renderHistoryStrip(lastFive,'No games have been played yet.')}</div>
+        <div class="panel home-planning-panel"><h3>Farest 5 Games</h3>${renderHistoryStrip(farestFive,'No play history is available yet.')}</div>
+      </div>
+      <div class="dash-grid epic-nostalgic-sections" style="margin-top:18px;grid-template-columns:1fr 1fr;">
+        <div class="panel epic-nostalgic-panel"><h3>Nostalgic Games</h3>${nostalgicGames.length?`<div class="epic-game-grid">${nostalgicGames.map(renderEpicCard).join('')}</div>`:'<div class="empty-state">No nostalgic games found.</div>'}</div>
+        <div class="panel epic-nostalgic-panel"><h3>Epic Games</h3>${epicGames.length?`<div class="epic-game-grid">${epicGames.map(renderEpicCard).join('')}</div>`:'<div class="empty-state">No epic games found.</div>'}</div>
+      </div>`;
+
+    extra.querySelectorAll('[data-upcoming-slot]').forEach(el=>{
+      el.addEventListener('click',e=>{
+        if(e.target.closest('[data-upcoming-remove]')) return;
+        const slot=Number(el.dataset.upcomingSlot);
+        openUpcomingGamePicker(slot);
+      });
+    });
+    extra.querySelectorAll('[data-upcoming-remove]').forEach(btn=>{
+      btn.addEventListener('click',e=>{
+        e.preventDefault(); e.stopPropagation();
+        const slot=Number(btn.dataset.upcomingRemove);
+        const ids=loadJSON(UPCOMING_GAMES_KEY,[null,null,null,null,null]);
+        ids[slot]=null;
+        saveJSON(UPCOMING_GAMES_KEY,ids);
+        renderDashboard();
+      });
+    });
+    const upcomingCovers=upcomingGames.filter(Boolean);
+    if(upcomingCovers.length) scheduleOnlineCovers(upcomingCovers);
+
 
     const perspCounts={}; GAMES.forEach(g=>{if(g.perspective) perspCounts[g.perspective]=(perspCounts[g.perspective]||0)+1;});
     barChart(document.getElementById('chart-persp'),Object.entries(perspCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:PERSP_LABEL[k]||k,value:v})));
@@ -412,6 +677,7 @@
     sizeMin:null, sizeMax:null,
     sort:'name-asc',
     page:1, pageSize:20,
+    datePage:1, datePageSize:20,
     expandedId:null
   };
 
@@ -574,7 +840,7 @@
   function searchMatch(g, nameQ, seriesQ){
     nameQ=(nameQ||'').toLowerCase().trim();
     seriesQ=(seriesQ||'').toLowerCase().trim();
-    return (!nameQ || (g.name||'').toLowerCase().includes(nameQ)) && (!seriesQ || (g.series||'').toLowerCase().includes(seriesQ));
+    return (!nameQ || (g.name||'').toLowerCase().startsWith(nameQ)) && (!seriesQ || (g.series||'').toLowerCase().startsWith(seriesQ));
   }
 
   function updateSuggestions(activeInput){
@@ -584,7 +850,7 @@
     const isSeries = searchInput.id === 'search-series-input';
     const q = ((isSeries ? state.searchSeries : state.searchName)||'').toLowerCase();
     if(!q){ suggBox.classList.remove('open'); return; }
-    const matches = GAMES.filter(g=>((isSeries ? (g.series||'') : (g.name||'')).toLowerCase().includes(q))).slice(0,8);
+    const matches = GAMES.filter(g=>((isSeries ? (g.series||'') : (g.name||'')).toLowerCase().startsWith(q)));
     const seen = new Set();
     if(!matches.length){ suggBox.classList.remove('open'); return; }
     suggBox.innerHTML = matches.map(g=>{
@@ -692,9 +958,34 @@
   }
 
   function latestPlayDate(gid,name){
-    const rows=(Array.isArray(dateRecords)?dateRecords:[]).filter(r=>Number(r.gameId)===Number(gid) || normDateSearch(r.name)===normDateSearch(name));
+    // "Days since last played" is ALWAYS calculated from the END DATE of
+    // the latest completed play.  Never fall back to START DATE here: START
+    // DATE is the beginning of a play session, not the date it was finished.
+    // Use both editable date records and the complete imported play log so
+    // historical records are included even when localStorage is incomplete.
+    const key=normDateSearch(name);
+    const rows=[];
+    (Array.isArray(dateRecords)?dateRecords:[]).forEach(r=>{
+      if(Number(r.gameId)===Number(gid) || normDateSearch(r.name)===key) rows.push(r);
+    });
+    if(Array.isArray(PLAY_LOGS)){
+      PLAY_LOGS.forEach(r=>{
+        if(Number(r.gameId)===Number(gid) || normDateSearch(r.name)===key) rows.push(r);
+      });
+    }
+    const game=GAMES.find(g=>Number(g.id)===Number(gid));
+    if(game && game.endDate) rows.push({end:game.endDate});
     if(!rows.length)return null;
-    return rows.reduce((max,r)=>{const d=r.end||r.start||'';return d>max?d:max;},'')||null;
+
+    return rows.reduce((max,r)=>{
+      // IMPORTANT: use END only.  Records without an End Date (Playing Now,
+      // Postponed, etc.) must not be treated as the last completed play.
+      const raw=String(r?.end||'').trim();
+      if(!raw || raw.toLowerCase()==='postponed' || raw.toLowerCase()==='now') return max;
+      const parsed=new Date(raw+'T00:00:00');
+      if(isNaN(parsed.getTime())) return max;
+      return raw>max?raw:max;
+    },'')||null;
   }
   function daysSinceLastPlayed(dateValue){
     if(!dateValue) return null;
@@ -708,7 +999,7 @@
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const diff = Math.floor((today - played) / 86400000);
-    return diff >= 0 ? diff + 1 : 0;
+    return diff >= 0 ? diff : 0;
   }
   const SYSTEM_OPTIONS=['Low','Low-Up','Medium','Medium-Up','High','High-Up','Very-High','VeryHigh-Up','Maxed'];
 
@@ -803,6 +1094,19 @@
     );
   }
   function getGamePlayCount(gid,name){return getGamePlayRecords(gid,name).length;}
+  function getLatestPlayRecord(gid,name){
+    const rows=getGamePlayRecords(gid,name).filter(r=>r && (r.start||r.end));
+    if(!rows.length) return null;
+    return rows.slice().sort((a,b)=>{
+      const cmp=playDateKey(b).localeCompare(playDateKey(a));
+      return cmp || String(b.rid||'').localeCompare(String(a.rid||''),undefined,{numeric:true});
+    })[0];
+  }
+  function derivedLibraryPlayingState(g){
+    const latest=getLatestPlayRecord(g?.id,g?.name);
+    if(latest) return derivePlayingState(latest.start||null,latest.end||null,latest.playingState||latest.status||'');
+    return String(g?.playingState||'').trim();
+  }
   function getPlayCountBefore(gid,name,currentRecord){
     // Number of plays before the current record (used for New/Old status).
     const key=playDateKey(currentRecord);
@@ -847,6 +1151,98 @@
     </div>`;
   }
 
+
+  /* ================= LIBRARY GAME TOOLS ================= */
+  function gameToolData(g){
+    const id=Number(g?.id);
+    const records=getGamePlayRecords(id,g?.name).slice().sort((a,b)=>playDateKey(b).localeCompare(playDateKey(a)));
+    return {id, records, tags:Array.isArray(gameTags[id])?gameTags[id]:[], favorite:favorites.has(id)};
+  }
+  function saveGameToolsState(){
+    saveJSON(FAVORITES_KEY,[...favorites]);
+    saveJSON(TAGS_KEY,gameTags);
+  }
+  function openGameTools(g, mode){
+    const modal=document.getElementById('game-tools-modal'), body=document.getElementById('game-tools-body'), title=document.getElementById('game-tools-title');
+    if(!modal||!body||!g)return;
+    const d=gameToolData(g);
+    title.textContent=`${g.name} — ${mode==='history'?'Game Session History':mode==='tags'?'Tags & Collections':'Quick Actions'}`;
+    const icons={favorite:'⭐',tags:'🏷️',history:'📜',play:'▶️',size:'💽'};
+    const quick=`<div class="game-quick-actions">
+      <button type="button" class="game-quick-btn ${d.favorite?'is-active':''}" data-tool="favorite"><span>${icons.favorite}</span><b>Favorite</b></button>
+      <button type="button" class="game-quick-btn" data-tool="tags"><span>${icons.tags}</span><b>Tags</b></button>
+      <button type="button" class="game-quick-btn" data-tool="history"><span>${icons.history}</span><b>History</b></button>
+      <button type="button" class="game-quick-btn" data-tool="play"><span>${icons.play}</span><b>Add Play Date</b></button>
+      <button type="button" class="game-quick-btn" data-tool="size"><span>${icons.size}</span><b>Edit Size</b></button>
+    </div>`;
+    if(mode==='history'){
+      body.innerHTML=quick+`<div class="game-tool-section"><div class="game-tool-section-title">Game Session History <span>${fmt(d.records.length)} sessions</span></div>
+      ${d.records.length?`<div class="game-history-list">${d.records.map((r,i)=>`<div class="game-history-item">
+        <div class="history-num">${i+1}</div><div class="history-main"><strong>${esc(r.start||'—')} → ${esc(r.end||'Playing Now')}</strong>
+        <div class="history-meta"><span>Days: ${recordDays(r)!=null?fmt(recordDays(r)):'—'}</span><span>Screen: ${esc(r.screenType||'—')}</span><span>GPU: ${esc(r.gpu||'—')}</span><span>Resolution: ${esc(r.resolution||'—')}</span><span>Status: ${esc(r.playingState||r.status||'—')}</span></div></div>
+      </div>`).join('')}</div>`:'<div class="empty-state">No play sessions recorded.</div>'}</div>`;
+    } else if(mode==='tags'){
+      body.innerHTML=quick+`<div class="game-tool-section"><div class="game-tool-section-title">Custom Tags & Collection</div>
+        <label class="tool-label">Tags (comma separated)</label><input id="tool-tags-input" class="tool-input" value="${esc(d.tags.join(', '))}" placeholder="Favorite, Horror, Replay">
+        <label class="tool-label">Collection</label><input id="tool-collection-input" class="tool-input" value="${esc(g.collection||'')}" placeholder="My Collection">
+        <button type="button" class="tool-save-btn" id="tool-tags-save">💾 Save Tags & Collection</button>
+      </div>`;
+    } else {
+      body.innerHTML=quick+`<div class="game-tool-section"><div class="game-tool-section-title">Quick Actions</div><p class="tool-hint">Use the buttons above to manage this game.</p></div>`;
+    }
+    modal.hidden=false;
+    body.querySelectorAll('[data-tool]').forEach(btn=>btn.addEventListener('click',()=>{
+      const action=btn.dataset.tool;
+      if(action==='favorite'){ favorites.has(d.id)?favorites.delete(d.id):favorites.add(d.id); saveGameToolsState(); renderResults(); openGameTools(g,'quick'); }
+      if(action==='tags') openGameTools(g,'tags');
+      if(action==='history') openGameTools(g,'history');
+      if(action==='size') openSizeTool(g);
+      if(action==='play') quickAddPlayDate(g);
+    }));
+    body.querySelector('#tool-tags-save')?.addEventListener('click',()=>{
+      const tags=(body.querySelector('#tool-tags-input')?.value||'').split(',').map(x=>x.trim()).filter(Boolean);
+      gameTags[d.id]=tags;
+      const collection=(body.querySelector('#tool-collection-input')?.value||'').trim();
+      if(userGames.some(x=>Number(x.id)===d.id)){const ug=userGames.find(x=>Number(x.id)===d.id);ug.collection=collection||null;saveJSON(USERGAMES_KEY,userGames);}
+      else {overrides[d.id]=Object.assign({},overrides[d.id]||{}, {collection:collection||null});saveJSON(OVERRIDES_KEY,overrides);}
+      saveGameToolsState(); rebuildGamesArray(); renderResults(); openGameTools(GAMES.find(x=>Number(x.id)===d.id),'tags');
+    });
+  }
+  function closeGameTools(){const m=document.getElementById('game-tools-modal');if(m)m.hidden=true;}
+  function openSizeTool(g){
+    const modal=document.getElementById('game-tools-modal'), body=document.getElementById('game-tools-body'), title=document.getElementById('game-tools-title');
+    if(!modal||!body)return;
+    title.textContent=`${g.name} — Edit Size`;
+    const bytes=bytesFromGB(sizeValueGB(g));
+    body.innerHTML=`<div class="game-tool-section size-tool"><div class="game-tool-section-title">Edit Game Size</div>
+      <label class="tool-label">Size in Bytes</label><input id="tool-size-bytes" class="tool-input tool-bytes-input" inputmode="numeric" value="${fmtBytes(bytes)}" autocomplete="off">
+      <div class="size-live-convert"><span>GB</span><strong id="tool-size-gb">${gbFromBytes(bytes).toFixed(2)} GB</strong></div>
+      <button type="button" class="tool-save-btn" id="tool-size-save">💾 Save Size</button>
+      <p class="tool-hint">Enter bytes and the GB value updates automatically. The saved value replaces the old size in Library and Sizes.</p></div>`;
+    modal.hidden=false;
+    const inp=body.querySelector('#tool-size-bytes'), out=body.querySelector('#tool-size-gb');
+    inp?.addEventListener('input',()=>{inp.value=inp.value.replace(/\D/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,','); if(out)out.textContent=gbFromBytes(inp.value).toFixed(2)+' GB';});
+    body.querySelector('#tool-size-save')?.addEventListener('click',()=>{
+      const gb=gbFromBytes(inp?.value||0);
+      sizeOverrides[g.id]=gb; saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides);
+      const gg=GAMES.find(x=>Number(x.id)===Number(g.id)); if(gg)gg.sizeGB=gb;
+      renderResults(); try{renderSizesTab();}catch(e){}
+      showLibrarySaveSuccess(); openGameTools(g,'quick');
+    });
+  }
+  function quickAddPlayDate(g){
+    closeGameTools();
+    const nav=document.querySelector('.tabnav-btn[data-tab="dates-section"]');
+    if(nav){nav.click(); requestAnimationFrame(()=>{
+      const add=document.getElementById('date-add-btn'); if(add)add.click();
+      setTimeout(()=>{const s=document.getElementById('new-date-game-search'); if(s){s.value=g.name;s.dispatchEvent(new Event('input',{bubbles:true}));const first=document.querySelector('#new-date-game-results .dt-game-result'); if(first)first.click();}},80);
+    });}
+  }
+  function installGameToolModal(){
+    document.getElementById('game-tools-close')?.addEventListener('click',closeGameTools);
+    document.getElementById('game-tools-modal')?.addEventListener('click',e=>{if(e.target.id==='game-tools-modal')closeGameTools();});
+  }
+
   function renderResults(){
     let list = getFiltered();
     document.getElementById('result-count').innerHTML = `<b>${fmt(list.length)}</b> لعبة من أصل ${fmt(GAMES.length)}`;
@@ -859,10 +1255,10 @@
     else {
       container.innerHTML=pageItems.map((g,i)=>{
         const tags=[]; if(g.gameplay)tags.push('طور لعب مميز');if(g.graphic)tags.push('جرافيك مميز');if(g.world)tags.push('عالم مفتوح مميز');if(g.theme)tags.push('أجواء مميزة');if(g.story)tags.push('قصة مميزة');if(g.bugs)tags.push('بها أعطال');
-        const isOpen=state.expandedId===g.id; const last=latestPlayDate(g.id,g.name);
+        const isOpen=state.expandedId===g.id; const last=latestPlayDate(g.id,g.name); const libraryState=derivedLibraryPlayingState(g);
         return `<div class="g-row ${isOpen?'open':''}" data-id="${g.id}">
           ${g.verdict?`<span class="g-rating ${verdictBadgeClass(g.verdict)}" title="${esc(tr(VERDICT_LABEL[g.verdict]||g.verdict))}" aria-label="${esc(tr(VERDICT_LABEL[g.verdict]||g.verdict))}"><span class="g-rating-label">${esc(g.verdict)}</span><span class="g-rating-stars">${'★'.repeat({'Bad':1,'Not-Bad':2,'Good':3,'Very-Good':4,'Great':5,'NOSTALGIC':6,'Epic':7}[g.verdict]||0)}</span>${ratingEmblem(g,'rating-emblem-collapsed')}</span>`:''}
-          <div class="g-row-top"><img class="g-thumb" data-cover-id="${g.id}" loading="lazy" decoding="async" src="${coverSvgDataUri(g)}" onerror="this.onerror=null;this.src='assets/new-badge.png'" alt=""><div class="g-idx">${fmt(start+i+1)}</div><div class="g-name">${gameNameLink(g.name, 'library-game-name')}${isNewLibraryGame(g)?` <img class="library-new-badge" src="assets/new-badge.png" alt="New">`:''}${g.series&&g.series!==g.name?`<span class="g-series">${esc(SERIES_LABEL[g.series]||g.series)}</span>`:''}</div><div class="g-badges">${g.genre?`<span class="badge">${esc(g.genre)}</span>`:''}${g.hdd?`<span class="badge hdd">${esc(g.hdd)}</span>`:''}${g.year?`<span class="badge year">${g.year}</span>`:''}${g.sizeGB?`<span class="badge size">${fmt(g.sizeGB,1)} GB</span>`:''}${getGamePlayCount(g.id,g.name)?`<span class="badge play-count-badge">🎮 ${fmt(getGamePlayCount(g.id,g.name))} مرة</span>`:''}${g.playingState?`<span class="badge ${stateBadgeClass(g.playingState)}">${STATE_LABEL[g.playingState]||g.playingState}</span>`:''}${g.verdict?`<span class="badge ${verdictBadgeClass(g.verdict)}">${VERDICT_LABEL[g.verdict]||g.verdict}</span>`:''}</div></div>
+          <div class="g-row-top"><img class="g-thumb" data-cover-id="${g.id}" loading="lazy" decoding="async" src="${coverSvgDataUri(g)}" onerror="this.onerror=null;this.src='assets/new-badge.png'" alt=""><div class="g-idx">${fmt(start+i+1)}</div><div class="g-name">${gameNameLink(g.name, 'library-game-name')}${isNewLibraryGame(g)?` <img class="library-new-badge" src="assets/new-badge.png" alt="New">`:''}${g.series&&g.series!==g.name?`<span class="g-series">${esc(SERIES_LABEL[g.series]||g.series)}</span>`:''}</div><div class="g-badges">${g.genre?`<span class="badge">${esc(g.genre)}</span>`:''}${g.hdd?`<span class="badge hdd">${esc(g.hdd)}</span>`:''}${g.year?`<span class="badge year">${g.year}</span>`:''}${g.sizeGB?`<span class="badge size">${fmt(g.sizeGB,1)} GB</span>`:''}${getGamePlayCount(g.id,g.name)?`<span class="badge play-count-badge">🎮 ${fmt(getGamePlayCount(g.id,g.name))} مرة</span>`:''}${libraryState?`<span class="badge ${stateBadgeClass(libraryState)}">${STATE_LABEL[libraryState]||libraryState}</span>`:''}${g.verdict?`<span class="badge ${verdictBadgeClass(g.verdict)}">${VERDICT_LABEL[g.verdict]||g.verdict}</span>`:''}</div></div>
           <div class="g-detail">
             <div class="g-detail-cover"><img class="game-cover-real" data-cover-id="${g.id}" loading="lazy" decoding="async" src="${coverSvgDataUri(g)}" onerror="this.onerror=null;this.src='assets/new-badge.png'" alt=""><div class="cover-tools"><label class="icon-btn cover-upload-label" title="${g.cover?tr('تحديث الصورة'):tr('إضافة صورة')}">🖼️<input type="file" accept="image/*" class="cover-upload" data-id="${g.id}" hidden></label>${g.cover?`<button type="button" class="icon-btn cover-remove" data-id="${g.id}" title="${tr('حذف الصورة')}">🗑️</button>`:''}</div></div>
             <div class="g-detail-fields">
@@ -882,10 +1278,15 @@
               <div><span class="dk">${tr('إصدار اللعبة')}</span><span class="dv">${esc(g.gameVersion||'—')}</span></div>
               <div><span class="dk">${tr('اختيار مفضّل')}</span><span class="dv">${g.goty==='Y'?tr('نعم'):tr('لا')}</span></div>
               <div><span class="dk">${tr('وقت التثبيت')}</span><span class="dv">${esc(g.installTime||'—')}</span></div>
-              ${tags.length?`<div class="tag-strip">${tags.map(t=>`<span class="tag-pill">${esc(tr(t))}</span>`).join('')}</div>`:''}
+              ${tags.length?`<div class="tag-strip">${tags.map(t=>`<span class="tag-pill">${esc(tr(t))}</span>`).join('')}</div>`:''}${Array.isArray(gameTags[g.id])&&gameTags[g.id].length?`<div class="tag-strip custom-tags">${gameTags[g.id].map(t=>`<span class="tag-pill custom-tag">${esc(t)}</span>`).join('')}</div>`:''}
             </div>${ratingEmblem(g,'rating-emblem-expanded')}
           </div>
           <div class="library-card-actions">
+            <button type="button" class="game-quick-inline ${favorites.has(Number(g.id))?'is-favorite':''}" data-tool-inline="favorite" title="Favorite">⭐ <span>Favorite</span></button>
+            <button type="button" class="game-quick-inline" data-tool-inline="tags" title="Tags">🏷️ <span>Tags</span></button>
+            <button type="button" class="game-quick-inline" data-tool-inline="history" title="History">📜 <span>History</span></button>
+            <button type="button" class="game-quick-inline" data-tool-inline="play" title="Add Play Date">▶️ <span>Add Play Date</span></button>
+            <button type="button" class="game-quick-inline" data-tool-inline="size" title="Edit Size">💽 <span>Edit Size</span></button>
             <button type="button" class="icon-btn edit-game" title="${tr('تحديث بيانات اللعبة')}" aria-label="${tr('تحديث بيانات اللعبة')}">✏️</button>
             <button type="button" class="icon-btn save-game" title="${tr('حفظ')}" aria-label="${tr('حفظ')}">💾</button>
             <button type="button" class="icon-btn delete-game" title="${tr('حذف اللعبة بالكامل')}" aria-label="${tr('حذف اللعبة بالكامل')}">🗑️</button>
@@ -897,6 +1298,13 @@
       container.querySelectorAll('.edit-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');row.classList.add('open');snapshotGameEditRow(row);setGameEditMode(row,true);row.querySelector('[data-edit-field]')?.focus();}));
       container.querySelectorAll('.save-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');if(!row.classList.contains('editing')){setGameEditMode(row,true);return;}saveGameEdits(Number(row.dataset.id),row);}));
       container.querySelectorAll('.delete-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();deleteGameCompletely(Number(btn.closest('.g-row').dataset.id));}));
+      container.querySelectorAll('[data-tool-inline]').forEach(btn=>btn.addEventListener('click',e=>{
+        e.stopPropagation();
+        const g=GAMES.find(x=>Number(x.id)===Number(btn.closest('.g-row')?.dataset.id)); if(!g)return;
+        const action=btn.dataset.toolInline;
+        if(action==='favorite'){favorites.has(Number(g.id))?favorites.delete(Number(g.id)):favorites.add(Number(g.id));saveGameToolsState();renderResults();return;}
+        openGameTools(g,action==='history'?'history':action==='tags'?'tags':'quick');
+      }));
       container.querySelectorAll('.cancel-edit').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');restoreGameEditRow(row);setGameEditMode(row,false);renderResults();}));
       container.querySelectorAll('.save-edit').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');saveGameEdits(Number(row.dataset.id),row);}));
       container.querySelectorAll('[data-edit-field]').forEach(el=>{el.addEventListener('click',e=>{if(el.readOnly||el.disabled){e.preventDefault();e.stopPropagation();}});});
@@ -980,7 +1388,7 @@
       if(id==='library-section'){ initLibrarySearch(); initLibraryControls(); renderFilters(); renderResults(); }
       else if(id==='sizes-section') renderSizesTab();
       else if(id==='dates-section') renderDatesTab();
-      else if(id==='reports-section') { if(typeof renderReport==='function') renderReport(); }
+      else if(id==='reports-section') { if(typeof renderReport==='function') { rendered.delete(id); renderReport(); } }
     }
     navBtns.forEach(btn=>btn.addEventListener('click',()=>{
       const target=btn.dataset.tab;
@@ -1333,7 +1741,7 @@
     const screenOptions=[...new Set((Array.isArray(dateRecords)?dateRecords:[]).map(r=>String(r.screenType||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
     const statusOptions=[...new Set((Array.isArray(dateRecords)?dateRecords:[]).map(r=>String(r.playingState||r.status||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
     const filtered=(Array.isArray(dateRecords)?dateRecords:[]).filter(r=>{
-      const matchesName=!datesSearch||normDateSearch(r.name).includes(normDateSearch(datesSearch));
+      const matchesName=!datesSearch||normDateSearch(r.name).startsWith(normDateSearch(datesSearch));
       const matchesYear=!datesYearFilter||String(r.start||'').slice(0,4)===datesYearFilter;
       const matchesScreen=!datesScreenFilter||String(r.screenType||'')===datesScreenFilter;
       const matchesResolution=!datesResolutionFilter||String(r.resolution||'').toLowerCase()===datesResolutionFilter.toLowerCase();
@@ -1388,12 +1796,30 @@
       if(v)v.textContent=fmt(count);
     });
     const arrow=k=>`dt-sort ${key===k?(dir===1?'asc':'desc'):''}`;
-    const selectedVisibleCount=sorted.filter(r=>datesSelectedRids.has(String(r.rid))).length;
+    const totalDatePages=Math.max(1,Math.ceil(sorted.length/state.datePageSize));
+    if(state.datePage>totalDatePages) state.datePage=totalDatePages;
+    const dateStart=(state.datePage-1)*state.datePageSize;
+    const pageDateItems=sorted.slice(dateStart,dateStart+state.datePageSize);
+    const selectedVisibleCount=pageDateItems.filter(r=>datesSelectedRids.has(String(r.rid))).length;
     const bulkLabel=lang==='en'?'Edit Selected':'تعديل المحدد';
     const bulkSaveLabel=lang==='en'?'Save Selected':'حفظ المحدد';
     const bulkCancelLabel=lang==='en'?'Cancel Selected':'إلغاء التعديل';
     const allVisibleSelected=sorted.length>0 && sorted.every(r=>datesSelectedRids.has(String(r.rid)));
-    wrap.innerHTML=`<div class="dt-toolbar dates-filters"><input type="text" class="search-input dt-filter" id="dates-search-input" placeholder="Game name..." value="${esc(datesSearch)}" autocomplete="off"><select id="dates-resolution-filter" class="search-input dt-filter dt-resolution-filter" aria-label="Resolution Filter"><option value="">All Resolution</option>${resolutionOptions.map(v=>`<option value="${esc(v)}" ${datesResolutionFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><select id="dates-year-filter" class="search-input dt-filter dt-year-filter" aria-label="Start Year Filter"><option value="">All Years</option>${yearOptions.map(y=>`<option value="${y}" ${datesYearFilter===y?'selected':''}>${y}</option>`).join('')}</select><select id="dates-screen-filter" class="search-input dt-filter" aria-label="Screen Filter"><option value="">All Screens</option>${screenOptions.map(v=>`<option value="${esc(v)}" ${datesScreenFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><select id="dates-status-filter" class="search-input dt-filter" aria-label="Game Status Filter"><option value="">All Statuses</option>${statusOptions.map(v=>`<option value="${esc(v)}" ${datesStatusFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><button type="button" class="plus-btn dt-add-game-btn dt-add-icon-btn" id="date-add-btn" title="Add Game" aria-label="Add Game">➕</button></div><div class="dt-bulk-toolbar" id="dt-bulk-toolbar"><label class="dt-select-all"><input type="checkbox" id="dt-select-all" ${allVisibleSelected?'checked':''}> <span>${lang==='en'?'Select All':'تحديد الكل'}</span></label><span class="dt-selected-count">${lang==='en'?`${selectedVisibleCount} selected`:`${selectedVisibleCount} محدد`}</span><button type="button" class="dt-bulk-btn" id="dt-bulk-edit" ${selectedVisibleCount?'':'disabled'}>✏️ ${bulkLabel}</button><button type="button" class="dt-bulk-btn" id="dt-bulk-save" ${datesBulkEditing&&selectedVisibleCount?'':'disabled'}>💾 ${bulkSaveLabel}</button><button type="button" class="dt-bulk-btn dt-bulk-cancel" id="dt-bulk-cancel" ${datesBulkEditing&&selectedVisibleCount?'':'disabled'}>✖ ${bulkCancelLabel}</button></div><div class="dt-table-wrap"><table class="dt-table"><thead><tr><th class="dt-select-col"><input type="checkbox" id="dt-select-all-head" ${allVisibleSelected?'checked':''} aria-label="Select all"></th><th class="${arrow('name')}" data-dsort="name">Game</th><th class="${arrow('start')}" data-dsort="start">Start Date</th><th class="${arrow('end')}" data-dsort="end">End Date</th><th class="${arrow('days')}" data-dsort="days">Days</th><th>Previous Plays</th><th>Play History</th><th class="${arrow('playingState')}" data-dsort="playingState">Playing State</th><th class="${arrow('screen')}" data-dsort="screen">Screen</th><th class="${arrow('gpu')}" data-dsort="gpu">GPU</th><th class="${arrow('resolution')}" data-dsort="resolution">Resolution</th><th>Edit</th><th>Save</th><th>Delete</th></tr></thead><tbody>${sorted.map(r=>`<tr data-rid="${esc(r.rid)}" class="${datesSelectedRids.has(String(r.rid))?'dt-row-selected':''}"><td class="dt-select-col"><input type="checkbox" class="dt-row-select" data-rid="${esc(r.rid)}" ${datesSelectedRids.has(String(r.rid))?'checked':''} aria-label="Select ${esc(r.name)}"></td><td class="dt-name">${gameNameLink(r.name)}</td><td><input class="dt-date" data-field="start" data-editable-lock="1" type="date" value="${esc(r.start||'')}" ${datesSelectedRids.has(String(r.rid))&&datesBulkEditing?'':'disabled'}></td><td>${endDateControl(r.end,r.rid)}</td><td class="dt-days">${recordDays(r)!=null?fmt(recordDays(r)):'—'}</td><td class="dt-history-count">${fmt(getPlayOrdinal(r.gameId,r.name,r))}</td><td class="dt-history-status ${getPlayCountBefore(r.gameId,r.name,r)===0?'play-status-new':'play-status-old'}">${getPlayCountBefore(r.gameId,r.name,r)===0?'New':'Old'}</td><td class="dt-game-status">${esc(r.playingState||r.status||'—')}</td><td>${makeOptionControl('screen',r.screenType||'','screen',r.rid,true)}</td><td>${makeOptionControl('gpu',r.gpu||'','gpu',r.rid,true)}</td><td>${makeOptionControl('resolution',r.resolution||'','resolution',r.rid,true)}</td><td><button type="button" class="icon-action dt-edit-btn" title="تعديل السجل">✏️</button></td><td><button type="button" class="plus-btn dt-save" title="حفظ السجل" disabled>💾</button></td><td><button type="button" class="dt-delete" title="حذف السجل">🗑️</button></td></tr>`).join('')}</tbody></table></div>`;
+    wrap.innerHTML=`<div class="dt-toolbar dates-filters"><input type="text" class="search-input dt-filter" id="dates-search-input" placeholder="Game name..." value="${esc(datesSearch)}" autocomplete="off"><select id="dates-resolution-filter" class="search-input dt-filter dt-resolution-filter" aria-label="Resolution Filter"><option value="">All Resolution</option>${resolutionOptions.map(v=>`<option value="${esc(v)}" ${datesResolutionFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><select id="dates-year-filter" class="search-input dt-filter dt-year-filter" aria-label="Start Year Filter"><option value="">All Years</option>${yearOptions.map(y=>`<option value="${y}" ${datesYearFilter===y?'selected':''}>${y}</option>`).join('')}</select><select id="dates-screen-filter" class="search-input dt-filter" aria-label="Screen Filter"><option value="">All Screens</option>${screenOptions.map(v=>`<option value="${esc(v)}" ${datesScreenFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><select id="dates-status-filter" class="search-input dt-filter" aria-label="Game Status Filter"><option value="">All Statuses</option>${statusOptions.map(v=>`<option value="${esc(v)}" ${datesStatusFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select><button type="button" class="plus-btn dt-add-game-btn dt-add-icon-btn" id="date-add-btn" title="Add Game" aria-label="Add Game">➕</button><select class="page-select dt-page-size-select" id="dates-page-size-select" aria-label="Rows per page"><option value="20">20 / page</option><option value="40">40 / page</option><option value="999999">All</option></select></div><div class="dt-bulk-toolbar" id="dt-bulk-toolbar"><label class="dt-select-all"><input type="checkbox" id="dt-select-all" ${allVisibleSelected?'checked':''}> <span>${lang==='en'?'Select All':'تحديد الكل'}</span></label><span class="dt-selected-count">${lang==='en'?`${selectedVisibleCount} selected`:`${selectedVisibleCount} محدد`}</span><button type="button" class="dt-bulk-btn" id="dt-bulk-edit" ${selectedVisibleCount?'':'disabled'}>✏️ ${bulkLabel}</button><button type="button" class="dt-bulk-btn" id="dt-bulk-save" ${datesBulkEditing&&selectedVisibleCount?'':'disabled'}>💾 ${bulkSaveLabel}</button><button type="button" class="dt-bulk-btn dt-bulk-cancel" id="dt-bulk-cancel" ${datesBulkEditing&&selectedVisibleCount?'':'disabled'}>✖ ${bulkCancelLabel}</button></div><div class="dt-table-wrap"><table class="dt-table"><thead><tr><th class="dt-select-col"><input type="checkbox" id="dt-select-all-head" ${allVisibleSelected?'checked':''} aria-label="Select all"></th><th class="${arrow('name')}" data-dsort="name">Game</th><th class="${arrow('start')}" data-dsort="start">Start Date</th><th class="${arrow('end')}" data-dsort="end">End Date</th><th class="${arrow('days')}" data-dsort="days">Days</th><th>Previous Plays</th><th>Play History</th><th class="${arrow('playingState')}" data-dsort="playingState">Playing State</th><th class="${arrow('screen')}" data-dsort="screen">Screen</th><th class="${arrow('gpu')}" data-dsort="gpu">GPU</th><th class="${arrow('resolution')}" data-dsort="resolution">Resolution</th><th>Edit</th><th>Save</th><th>Delete</th></tr></thead><tbody>${pageDateItems.map(r=>`<tr data-rid="${esc(r.rid)}" class="${datesSelectedRids.has(String(r.rid))?'dt-row-selected':''}"><td class="dt-select-col"><input type="checkbox" class="dt-row-select" data-rid="${esc(r.rid)}" ${datesSelectedRids.has(String(r.rid))?'checked':''} aria-label="Select ${esc(r.name)}"></td><td class="dt-name">${gameNameLink(r.name)}</td><td><input class="dt-date" data-field="start" data-editable-lock="1" type="date" value="${esc(r.start||'')}" ${datesSelectedRids.has(String(r.rid))&&datesBulkEditing?'':'disabled'}></td><td>${endDateControl(r.end,r.rid)}</td><td class="dt-days">${recordDays(r)!=null?fmt(recordDays(r)):'—'}</td><td class="dt-history-count">${fmt(getPlayOrdinal(r.gameId,r.name,r))}</td><td class="dt-history-status ${getPlayCountBefore(r.gameId,r.name,r)===0?'play-status-new':'play-status-old'}">${getPlayCountBefore(r.gameId,r.name,r)===0?'New':'Old'}</td><td class="dt-game-status">${esc(r.playingState||r.status||'—')}</td><td>${makeOptionControl('screen',r.screenType||'','screen',r.rid,true)}</td><td>${makeOptionControl('gpu',r.gpu||'','gpu',r.rid,true)}</td><td>${makeOptionControl('resolution',r.resolution||'','resolution',r.rid,true)}</td><td><button type="button" class="icon-action dt-edit-btn" title="تعديل السجل">✏️</button></td><td><button type="button" class="plus-btn dt-save" title="حفظ السجل" disabled>💾</button></td><td><button type="button" class="dt-delete" title="حذف السجل">🗑️</button></td></tr>`).join('')}</tbody></table></div><div class="pager dt-pager" id="dates-pager"></div>`;
+    const datePager=document.getElementById('dates-pager');
+    if(datePager){
+      if(totalDatePages<=1){datePager.innerHTML='';}
+      else{
+        let ph=`<button ${state.datePage===1?'disabled':''} data-dp="${state.datePage-1}">Previous</button>`;
+        const ws=5; let sp=Math.max(1,state.datePage-Math.floor(ws/2)); let ep=Math.min(totalDatePages,sp+ws-1); sp=Math.max(1,ep-ws+1);
+        for(let pg=sp;pg<=ep;pg++) ph+=`<button class="${pg===state.datePage?'active':''}" data-dp="${pg}">${pg}</button>`;
+        ph+=`<button ${state.datePage===totalDatePages?'disabled':''} data-dp="${state.datePage+1}">Next</button>`;
+        datePager.innerHTML=ph;
+        datePager.querySelectorAll('[data-dp]').forEach(btn=>btn.addEventListener('click',()=>{state.datePage=Number(btn.dataset.dp);renderDatesTab();}));
+      }
+    }
+    const pageSizeEl=document.getElementById('dates-page-size-select');
+    if(pageSizeEl){pageSizeEl.value=String(state.datePageSize);pageSizeEl.addEventListener('change',e=>{const n=parseInt(e.target.value,10);state.datePageSize=Number.isFinite(n)&&n>0?n:20;state.datePage=1;renderDatesTab();});}
     const inp=document.getElementById('dates-search-input');
     if(inp){
       // Keep the search input alive from the user's point of view while the table is re-rendered.
@@ -1401,6 +1827,7 @@
       // the first typed character was accepted. Restore focus/caret to the newly rendered input.
       inp.addEventListener('input',e=>{
         datesSearch=e.target.value;
+        state.datePage=1;
         const caret=Number.isFinite(e.target.selectionStart)?e.target.selectionStart:String(datesSearch).length;
         renderDatesTab();
         requestAnimationFrame(()=>{
@@ -1415,14 +1842,14 @@
       inp.addEventListener('keydown',e=>{if(e.key===' ')e.stopPropagation();});
     }
     const yearFilter=document.getElementById('dates-year-filter');
-    if(yearFilter)yearFilter.addEventListener('change',e=>{datesYearFilter=e.target.value;renderDatesTab();});
+    if(yearFilter)yearFilter.addEventListener('change',e=>{datesYearFilter=e.target.value;state.datePage=1;renderDatesTab();});
     const resolutionFilter=document.getElementById('dates-resolution-filter');
-    if(resolutionFilter)resolutionFilter.addEventListener('change',e=>{datesResolutionFilter=e.target.value;renderDatesTab();});
+    if(resolutionFilter)resolutionFilter.addEventListener('change',e=>{datesResolutionFilter=e.target.value;state.datePage=1;renderDatesTab();});
     const screenFilter=document.getElementById('dates-screen-filter');
-    if(screenFilter)screenFilter.addEventListener('change',e=>{datesScreenFilter=e.target.value;renderDatesTab();});
+    if(screenFilter)screenFilter.addEventListener('change',e=>{datesScreenFilter=e.target.value;state.datePage=1;renderDatesTab();});
     const statusFilter=document.getElementById('dates-status-filter');
-    if(statusFilter)statusFilter.addEventListener('change',e=>{datesStatusFilter=e.target.value;renderDatesTab();});
-    wrap.querySelectorAll('[data-dsort]').forEach(th=>th.addEventListener('click',()=>{const k=th.dataset.dsort;if(state.dateSortKey===k)state.dateSortDir*=-1;else{state.dateSortKey=k;state.dateSortDir=1;}renderDatesTab();}));
+    if(statusFilter)statusFilter.addEventListener('change',e=>{datesStatusFilter=e.target.value;state.datePage=1;renderDatesTab();});
+    wrap.querySelectorAll('[data-dsort]').forEach(th=>th.addEventListener('click',()=>{const k=th.dataset.dsort;if(state.dateSortKey===k)state.dateSortDir*=-1;else{state.dateSortKey=k;state.dateSortDir=1;}state.datePage=1;renderDatesTab();}));
     const selectedRids=()=>Array.from(datesSelectedRids).filter(rid=>dateRecords.some(r=>String(r.rid)===String(rid)));
     const setRowEditMode=(row,editing)=>{
       if(!row)return;
@@ -1588,7 +2015,7 @@
 
     function renderGameResults(q=''){
       const nq=normDateSearch(q);
-      const list=available.filter(g=>!nq||normDateSearch(g.name).includes(nq));
+      const list=available.filter(g=>!nq||normDateSearch(g.name).startsWith(nq));
       results.innerHTML=list.length
         ? list.map(g=>`<button type="button" class="dt-game-result" data-gid="${g.id}"><span class="dt-result-icon">🎮</span><span>${esc(g.name)}</span></button>`).join('')
         : '<div class="dt-no-results">No games found</div>';
@@ -1668,7 +2095,7 @@
     const rows=GAMES.filter(g=>{
       if(sizeDeleted.has(Number(g.id))) return false;
       const text=`${g.name||''} ${g.hdd||''}`.toLocaleLowerCase('ar');
-      return (!q||text.includes(q))&&(!filter?.value||String(g.hdd||'')===filter.value);
+      return (!q||text.startsWith(q))&&(!filter?.value||String(g.hdd||'')===filter.value);
     }).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{numeric:true,sensitivity:'base'}));
     const iconEdit='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17.25V20h2.75L18.81 7.94l-2.75-2.75L4 17.25Zm15.71-10.46c.39-.39.39-1.03 0-1.42l-1.08-1.08a1.003 1.003 0 0 0-1.42 0l-1.07 1.07 2.75 2.75 1.07-1.07Z"/></svg>';
     const iconSave='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4Zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6ZM6 5h8v4H6V5Z"/></svg>';
@@ -2095,7 +2522,24 @@
     "يرجى السماح بالنوافذ المنبثقة للتصدير والطباعة.":"Please allow pop-ups for export and printing.",
     "تصدير PDF":"Export PDF",
     "تصدير Excel 365":"Export Excel 365",
-    "طباعة":"Print"  };
+    "طباعة":"Print",
+    "Expand all":"فرد الكل",
+    "Collapse all":"طي الكل",
+    "History":"السجل",
+    "سجل":"record",
+    "سجل لعب":"play records",
+    "كل سجلات اللعب":"All play records",
+    "سجل جميع ألعاب السلسلة من التاريخ الأول إلى الأخير":"All games in this series from the first date to the last",
+    "لا يوجد سجل لعب":"No play history",
+    "تاريخ البداية":"Start Date",
+    "تاريخ النهاية":"End Date",
+    "مدة اللعب (أيام)":"Play Duration (Days)",
+    "الشاشة":"Screen",
+    "الدقة":"Resolution",
+    "الجهاز":"Device",
+    "كارت الشاشة":"Graphics Card",
+    "يوم منذ آخر لعب":"days since last played",
+    "لم يتم لعبها":"Never played"  };
   const I18N_REV=Object.fromEntries(Object.entries(I18N).map(([a,e])=>[e,a]));
   function tr(text){
     const map=lang==='en'?I18N:I18N_REV;
@@ -2176,6 +2620,8 @@
     document.body.classList.toggle('light'); localStorage.setItem('gameVault_theme_v1',document.body.classList.contains('light')?'light':'dark');
   });
   if(localStorage.getItem('gameVault_theme_v1')==='light') document.body.classList.add('light');
+  installGameToolModal();
+  document.getElementById('backup-project-btn')?.addEventListener('click',backupProject);
 
   function reportBars(items){
     if(!items.length) return '<div class="empty-state">لا توجد بيانات.</div>';
@@ -2234,9 +2680,275 @@
     openLibraryGameFromReport(link.dataset.gameName||link.textContent.replace('↗','').trim());
   }, true);
 
+  // SERIES report: show every series in the Library and expand its games inline.
+  function librarySeriesList(){
+    const map=new Map();
+    GAMES.forEach(g=>{
+      const raw=String(g?.series||'').trim();
+      if(!raw || raw.toUpperCase()==='SOLO') return;
+      const key=norm(raw);
+      if(!map.has(key)) map.set(key, raw);
+    });
+    return [...map.values()].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
+  }
+
+  let expandedSeriesKey='';
+  let seriesDirectorySearch='';
+
+  function ensureSeriesHistoryModal(){
+    let modal=document.getElementById('series-history-modal');
+    if(modal) return modal;
+    modal=document.createElement('div');
+    modal.id='series-history-modal';
+    modal.className='series-history-modal';
+    modal.hidden=true;
+    modal.innerHTML=`
+      <div class="series-history-backdrop" data-close-series-history></div>
+      <div class="series-history-dialog" role="dialog" aria-modal="true" aria-labelledby="series-history-title">
+        <div class="series-history-head">
+          <div>
+            <h3 id="series-history-title">History</h3>
+            <p id="series-history-subtitle"></p>
+          </div>
+          <button type="button" class="icon-btn series-history-close" data-close-series-history aria-label="Close">✕</button>
+        </div>
+        <div id="series-history-body" class="series-history-body"></div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    modal.addEventListener('click',e=>{
+      if(e.target.closest('[data-close-series-history]')) closeSeriesHistory();
+    });
+    return modal;
+  }
+
+  function closeSeriesHistory(){
+    const modal=document.getElementById('series-history-modal');
+    if(modal){ modal.hidden=true; document.body.classList.remove('series-history-open'); }
+  }
+
+  function formatHistoryDate(v){
+    if(!v) return '—';
+    return String(v);
+  }
+
+  function renderHistoryRows(records, title){
+    const rows=[...(Array.isArray(records)?records:[])].sort((a,b)=>{
+      const da=new Date(a.start||a.end||0).getTime();
+      const db=new Date(b.start||b.end||0).getTime();
+      return (isNaN(da)?0:da)-(isNaN(db)?0:db);
+    });
+    if(!rows.length){
+      return `<div class="series-history-empty">${esc(tr('لا يوجد سجل لعب'))}</div>`;
+    }
+    return `<div class="series-history-meta">${fmt(rows.length)} ${esc(tr('سجل لعب'))}</div>
+      <div class="dt-table-wrap series-history-table-wrap">
+        <table class="dt-table series-history-table">
+          <thead><tr>
+            <th>${esc(tr('اللعبة'))}</th>
+            <th>${esc(tr('تاريخ البداية'))}</th>
+            <th>${esc(tr('تاريخ النهاية'))}</th>
+            <th>${esc(tr('مدة اللعب (أيام)'))}</th>
+            <th>${esc(tr('الشاشة'))}</th>
+            <th>${esc(tr('الدقة'))}</th>
+            <th>${esc(tr('الجهاز'))}</th>
+            <th>${esc(tr('كارت الشاشة'))}</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r=>{
+              const d=recordDays(r);
+              return `<tr>
+                <td>${gameNameLink(r.name||'—','series-history-game-name')}</td>
+                <td>${esc(formatHistoryDate(r.start))}</td>
+                <td>${esc(formatHistoryDate(r.end))}</td>
+                <td>${d!=null?fmt(d):'—'}</td>
+                <td>${esc(r.screenType||'—')}</td>
+                <td>${esc(r.resolution||'—')}</td>
+                <td>${esc(r.device||'—')}</td>
+                <td>${esc(r.gpu||'—')}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  function openSeriesHistory({game=null, series=null}={}){
+    const modal=ensureSeriesHistoryModal();
+    const isGame=!!game;
+
+    // History must show the complete original play log, not only the subset
+    // currently present in the editable Game Dates/localStorage store.
+    // The imported playLogs contains every historical play record (for example
+    // MAX PAYNE has 20 separate plays), while dateRecords may be incomplete
+    // after an older migration/version. Merge both sources and de-duplicate by
+    // the original Excel record number (excel-N) / matching play identity.
+    const localRecords=Array.isArray(dateRecords)?dateRecords:[];
+    const sourceLogs=Array.isArray(PLAY_LOGS)?PLAY_LOGS:[];
+    const historyRecords=[];
+    const seen=new Set();
+    const addRecord=(r,i,source)=>{
+      if(!r)return;
+      const name=String(r.name||'');
+      const g=GAMES.find(x=>Number(x.id)===Number(r.gameId)) || GAMES.find(x=>normDateSearch(x.name)===normDateSearch(name));
+      const gameId=g?Number(g.id):(r.gameId!=null?Number(r.gameId):null);
+      const seriesName=g?.series || r.series || '';
+      const matches=isGame
+        ? (gameId===Number(game.id) || normDateSearch(name)===normDateSearch(game.name))
+        : norm(seriesName)===norm(series);
+      if(!matches)return;
+      const key=source==='log'
+        ? `excel-${String(r.n??i+1)}`
+        : String(r.rid||`local-${i}`);
+      if(seen.has(key))return;
+      seen.add(key);
+      historyRecords.push({
+        ...r,
+        rid:key,
+        gameId,
+        name:name || g?.name || '',
+        series:seriesName,
+        start:r.start||null, end:r.end||null,
+        days:(r.days!=null && r.days!=='')?Number(r.days):computeDays(r.start,r.end),
+        screenType:r.screenType||'', device:r.device||'', gpu:r.gpu||'', resolution:r.resolution||''
+      });
+    };
+
+    // Original imported history first: this guarantees all historical plays
+    // are visible even if the editable local store was previously truncated.
+    sourceLogs.forEach((r,i)=>addRecord(r,i,'log'));
+    // Then include genuinely user-added records that are not part of the
+    // original imported log.
+    localRecords.forEach((r,i)=>{
+      if(String(r.rid||'').startsWith('excel-'))return;
+      addRecord(r,i,'local');
+    });
+    const records=historyRecords;
+
+    const title=isGame ? (game.name||'History') : series;
+    const subtitle=isGame
+      ? `${esc(tr('كل سجلات اللعب'))} • ${esc(title)}`
+      : `${esc(tr('سجل جميع ألعاب السلسلة من التاريخ الأول إلى الأخير'))} • ${esc(title)} • ${fmt(records.length)} ${esc(tr('سجل'))}`;
+
+    modal.querySelector('#series-history-title').textContent=title;
+    modal.querySelector('#series-history-subtitle').innerHTML=subtitle;
+    modal.querySelector('#series-history-body').innerHTML=renderHistoryRows(records,title);
+    modal.hidden=false;
+    document.body.classList.add('series-history-open');
+  }
+
+  function renderSeriesDirectory(el){
+    const allSeriesList=librarySeriesList();
+    const query=norm(seriesDirectorySearch);
+    const seriesList=query
+      ? allSeriesList.filter(series=>norm(series).startsWith(query))
+      : allSeriesList;
+    if(!allSeriesList.length){
+      el.innerHTML='<div class="empty-state">No series found in the Library.</div>';
+      return;
+    }
+
+    el.innerHTML=`<div class="series-directory">
+      <div class="series-directory-title">
+        <div>
+          <h2>SERIES</h2>
+          <p>${query ? `${fmt(seriesList.length)} matching series` : `${fmt(seriesList.length)} series available in the Library`}</p>
+        </div>
+        <div class="series-directory-tools">
+          <div class="series-directory-search">
+            <span class="series-search-icon" aria-hidden="true">⌕</span>
+            <input type="search" id="series-directory-search" value="${esc(seriesDirectorySearch)}"
+              placeholder="Search series..." autocomplete="off" aria-label="Search series">
+          </div>
+          <button type="button" class="series-directory-tool" id="series-expand-all">⌄ <span>Expand all</span></button>
+          <button type="button" class="series-directory-tool" id="series-collapse-all">⌃ <span>Collapse all</span></button>
+        </div>
+      </div>
+      <div class="series-directory-list">
+        ${seriesList.length ? seriesList.map(series=>{
+          const key=norm(series);
+          const games=GAMES.filter(g=>norm(g.series)===key)
+            .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'}));
+          const open=expandedSeriesKey===key || expandedSeriesKey==='__ALL__';
+          const completedGames=games.filter(g=>String(g.playingState||'').trim().toLowerCase()==='done').length;
+          const completion=games.length ? Math.round((completedGames/games.length)*100) : 0;
+          return `<div class="series-directory-group ${open?'open':''}">
+            <div class="series-directory-row-wrap">
+              <button type="button" class="series-directory-row" data-series-key="${esc(key)}" aria-expanded="${open?'true':'false'}">
+                <span class="series-directory-chevron" aria-hidden="true">${open?'▾':'▸'}</span>
+                <span class="series-directory-name">${esc(series)}</span>
+                <span class="series-directory-stats" aria-label="${fmt(games.length)} games, ${fmt(completion)}% complete">
+                  <span class="series-stat-circle games"><strong>${fmt(games.length)}</strong><small>GAMES</small></span>
+                  <span class="series-stat-circle completion"><strong>${fmt(completion)}%</strong><small>DONE</small></span>
+                </span>
+              </button>
+              <button type="button" class="series-history-btn" data-series-history="${esc(key)}" title="History">History</button>
+            </div>
+            <div class="series-directory-games" ${open?'':'hidden'}>
+              ${games.map(g=>{
+                const last=latestPlayDate(g.id,g.name);
+                const days=last&&daysSinceLastPlayed(last)!=null?daysSinceLastPlayed(last):null;
+                return `<div class="series-directory-game">
+                  <div class="series-game-main">${gameNameLink(g.name||'—')}</div>
+                  <div class="series-game-meta">
+                    ${days!=null?`<span class="series-last-played-days">${fmt(days)}</span>`:`<span class="series-last-played-days never">—</span>`}
+                    <button type="button" class="series-history-btn game-history-btn" data-game-id="${esc(g.id)}" title="History">History</button>
+                  </div>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+        }).join('') : '<div class="empty-state">No matching series found.</div>'}
+      </div>
+    </div>`;
+
+    const searchInput=el.querySelector('#series-directory-search');
+    searchInput?.addEventListener('input',()=>{
+      seriesDirectorySearch=searchInput.value;
+      renderSeriesDirectory(el);
+      const nextInput=el.querySelector('#series-directory-search');
+      if(nextInput){
+        nextInput.focus();
+        nextInput.setSelectionRange(nextInput.value.length,nextInput.value.length);
+      }
+    });
+
+    el.querySelector('#series-expand-all')?.addEventListener('click',()=>{
+      expandedSeriesKey='__ALL__';
+      renderSeriesDirectory(el);
+    });
+    el.querySelector('#series-collapse-all')?.addEventListener('click',()=>{
+      expandedSeriesKey='';
+      renderSeriesDirectory(el);
+    });
+    el.querySelectorAll('.series-directory-row').forEach(row=>{
+      row.addEventListener('click',()=>{
+        const key=row.dataset.seriesKey||'';
+        expandedSeriesKey=(expandedSeriesKey===key)?'':key;
+        renderSeriesDirectory(el);
+      });
+    });
+    el.querySelectorAll('[data-game-id]').forEach(btn=>{
+      btn.addEventListener('click',e=>{
+        e.stopPropagation();
+        const game=GAMES.find(g=>String(g.id)===String(btn.dataset.gameId));
+        if(game) openSeriesHistory({game});
+      });
+    });
+    el.querySelectorAll('[data-series-history]').forEach(btn=>{
+      btn.addEventListener('click',e=>{
+        e.stopPropagation();
+        const series=seriesList.find(s=>norm(s)===norm(btn.dataset.seriesHistory));
+        if(series) openSeriesHistory({series});
+      });
+    });
+  }
+
   function renderReport(){
     const el=document.getElementById('dynamic-report'); if(!el)return;
     const type=document.getElementById('report-select')?.value||'overview';
+    const reportsSection=document.getElementById('reports-section');
+    if(reportsSection) reportsSection.dataset.reportType=type;
     // Reports use completed games as the reporting population.
     // A game marked Done is counted; incomplete games are excluded from
     // genre/year/hardware/play-history reports, while series-completion
@@ -2284,6 +2996,18 @@
 if(type==='overview'){
       const total=completedGames.length, size=completedGames.reduce((a,g)=>a+(Number(g.sizeGB)||0),0), playedGames=new Set(records.map(gameKey)).size;
       el.innerHTML=`<div class="report-grid">${statCard(total,'الألعاب المكتملة')}${statCard(size.toFixed(2)+' GB','حجم الألعاب المكتملة')}${statCard(playedGames,'ألعاب مكتملة تم لعبها')}${statCard(records.length,'سجلات اللعب للألعاب المكتملة')}</div>`;
+    } else if(type==='backlog'){
+      const activeIds=new Set();
+      liveDateRecords.forEach(r=>{
+        const derived=derivePlayingState(r.start||null,r.end||null,r.playingState||r.status||'');
+        if(derived==='Playing Now' && r.gameId!=null) activeIds.add(Number(r.gameId));
+      });
+      const neverPlayed=GAMES.filter(g=>getGamePlayCount(g.id,g.name)===0 && !activeIds.has(Number(g.id)))
+        .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'}));
+      el.innerHTML=`<div class="report-grid">${statCard(neverPlayed.length,'Backlog / Never Played')}</div>
+        <div class="dt-table-wrap report-table-wrap"><table class="dt-table report-table"><thead><tr><th>#</th><th>Game</th><th>Series</th><th>Genre</th><th>Release Year</th><th>Size</th></tr></thead><tbody>
+        ${neverPlayed.length?neverPlayed.map((g,i)=>`<tr><td>${i+1}</td><td>${gameNameLink(g.name)}</td><td>${esc(g.series||'—')}</td><td>${esc(g.genre||'—')}</td><td>${esc(g.year||'—')}</td><td>${sizeValueGB(g)?fmt(sizeValueGB(g),2)+' GB':'—'}</td></tr>`).join(''):`<tr><td colspan="6">No backlog games found.</td></tr>`}
+        </tbody></table></div>`;
     } else if(type==='ramadan'){
       const ramadanWindows={
         'Ramadan-2005':['2005-10-05','2005-11-03'],'Ramadan-2006':['2006-09-24','2006-10-23'],'Ramadan-2007':['2007-09-13','2007-10-12'],'Ramadan-2008':['2008-09-01','2008-09-30'],'Ramadan-2009':['2009-08-22','2009-09-19'],'Ramadan-2010':['2010-08-11','2010-09-08'],'Ramadan-2011':['2011-08-01','2011-08-29'],'Ramadan-2012':['2012-07-20','2012-08-18'],'Ramadan-2013':['2013-07-10','2013-08-07'],'Ramadan-2014':['2014-06-29','2014-07-27'],'Ramadan-2015':['2015-06-18','2015-07-16'],'Ramadan-2016':['2016-06-06','2016-07-05'],'Ramadan-2017':['2017-05-27','2017-06-24'],'Ramadan-2018':['2018-05-16','2018-06-14'],'Ramadan-2019':['2019-05-06','2019-06-03'],'Ramadan-2020':['2020-04-24','2020-05-23'],'Ramadan-2021':['2021-04-13','2021-05-12'],'Ramadan-2022':['2022-04-02','2022-05-01'],'Ramadan-2023':['2023-03-23','2023-04-20'],'Ramadan-2024':['2024-03-11','2024-04-09'],'Ramadan-2025':['2025-03-01','2025-03-30'],'Ramadan-2026':['2026-02-18','2026-03-19']
@@ -2347,10 +3071,49 @@ if(type==='overview'){
       ${last30.map((r,i)=>`<tr><td>${i+1}</td><td>${gameNameLink(r.name||'—')}</td><td>${esc(r.start||r.end||'—')}</td><td><span class="report-type ${isNewPlay(r)?'new':'old'}">${isNewPlay(r)?'جديدة':'قديمة'}</span></td></tr>`).join('')}
       </tbody></table></div>`:empty;
     } else if(type==='series'){
-      const c={};completedGames.forEach(g=>{if(g.series)c[g.series]=(c[g.series]||0)+1;});el.innerHTML=reportBars(Object.entries(c).map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value));
+      renderSeriesDirectory(el);
     }
   }
-  document.getElementById('report-select')?.addEventListener('change',renderReport); document.getElementById('report-select')?.addEventListener('input',renderReport);
+  document.getElementById('report-select')?.addEventListener('change',renderReport);
+  document.getElementById('report-select')?.addEventListener('input',renderReport);
+
+  /* ================= PROJECT BACKUP ================= */
+  async function backupProject(){
+    const btn=document.getElementById('backup-project-btn');
+    const status=document.getElementById('backup-status');
+    if(btn)btn.disabled=true;
+    if(status){status.hidden=false;status.textContent='Preparing project backup…';}
+    try{
+      if(!window.JSZip) throw new Error('Backup engine is not available. Check your internet connection.');
+      const response=await fetch('backup-project.zip',{cache:'no-store'});
+      if(!response.ok) throw new Error('Project backup package was not found.');
+      const zip=await JSZip.loadAsync(await response.arrayBuffer());
+      const snapshot={
+        exportedAt:new Date().toISOString(),
+        userGames:loadJSON(USERGAMES_KEY,[]),
+        overrides:loadJSON(OVERRIDES_KEY,{}),
+        dateRecords:loadJSON(DATE_RECORDS_KEY,[]),
+        sizeOverrides:loadJSON(SIZE_OVERRIDES_KEY,{}),
+        sizeDeleted:loadJSON(SIZE_DELETED_KEY,[]),
+        capacities:loadJSON(CAP_KEY,{}),
+        favorites:loadJSON(FAVORITES_KEY,[]),
+        gameTags:loadJSON(TAGS_KEY,{}),
+        upcomingGames:loadJSON(UPCOMING_GAMES_KEY,[null,null,null,null,null])
+      };
+      zip.file('backup/current-local-data.json',JSON.stringify(snapshot,null,2));
+      zip.file('backup/README.txt','This backup contains the complete project files plus the current browser-local data snapshot. Restore the project files first, then restore local data from backup/current-local-data.json if needed.');
+      const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+      const url=URL.createObjectURL(blob), a=document.createElement('a');
+      a.href=url; a.download=`Mostafa-PC-Data-Backup-${new Date().toISOString().slice(0,10)}.zip`;
+      document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+      if(status){status.textContent='Backup ZIP created successfully.';setTimeout(()=>status.hidden=true,3500);}
+    }catch(err){
+      console.error(err);
+      if(status){status.textContent='Backup failed: '+(err?.message||'Unknown error');setTimeout(()=>status.hidden=true,5000);}
+      alert('Backup failed: '+(err?.message||'Unknown error'));
+    }finally{if(btn)btn.disabled=false;}
+  }
+
   function startDynamicBackground(){
     const bg=document.getElementById('dynamic-bg'); if(!bg)return;
     // Use the real game artwork already stored in the project instead of one repeated wallpaper.

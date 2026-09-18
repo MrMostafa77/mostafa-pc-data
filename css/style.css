@@ -1046,6 +1046,9 @@ body::-webkit-scrollbar-corner,
 
 /* === FINAL REPORTS TAB: SINGLE TAB NEXT TO HOME === */
 #reports-section .report-panel{margin-top:0;}
+/* Collection Summary owns the dashboard analytics below it. Other reports
+   must show only their own report content. */
+#reports-section[data-report-type]:not([data-report-type="overview"]) > .dash-grid{display:none!important;}
 #reports-section .report-grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));}
 nav#tabnav .tabnav-btn[data-tab="reports-section"]{
   cursor:pointer;
@@ -1204,7 +1207,7 @@ nav#tabnav .tabnav-btn[data-tab="reports-section"] .tab-icon{
 .report-game-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px}.report-game-card{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:12px;padding:10px;text-align:center}.report-game-card img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;display:block;margin-bottom:8px}.report-game-name{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.report-game-meta{font-size:11px;color:var(--muted);line-height:1.6;margin-top:5px}
 
 /* Epic & Nostalgic games on dashboard */
-.epic-nostalgic-panel{margin-top:18px}.epic-game-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:14px}.epic-game-card{text-align:center;min-width:0}.epic-game-card img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:10px;display:block;border:1px solid var(--border)}.epic-game-name{font-size:12px;font-weight:700;margin:7px 2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.epic-game-stats{display:flex;align-items:center;justify-content:center;gap:7px}.days-circle{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(211,164,74,.16);border:1px solid #d3a44a;color:#e7bd61;font-weight:800;font-size:12px}.last-date-box{min-width:78px;padding:5px 7px;border:1px solid var(--border);border-radius:7px;background:rgba(255,255,255,.035);font-size:10px;color:var(--text)}.last-date-box small{display:block;color:var(--muted);font-size:9px;margin-top:2px}@media(max-width:900px){.epic-game-grid{grid-template-columns:repeat(3,1fr)}}
+.epic-nostalgic-panel{margin-top:0}.epic-nostalgic-sections{align-items:start}.epic-game-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:14px}.epic-game-card{text-align:center;min-width:0}.epic-game-card img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:10px;display:block;border:1px solid var(--border)}.epic-game-name{font-size:12px;font-weight:700;margin:7px 2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.epic-game-stats{display:flex;align-items:center;justify-content:center;gap:7px}.days-circle{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(211,164,74,.16);border:1px solid #d3a44a;color:#e7bd61;font-weight:800;font-size:12px}.last-date-box{min-width:78px;padding:5px 7px;border:1px solid var(--border);border-radius:7px;background:rgba(255,255,255,.035);font-size:10px;color:var(--text)}.last-date-box small{display:block;color:var(--muted);font-size:9px;margin-top:2px}@media(max-width:900px){.epic-game-grid{grid-template-columns:repeat(3,1fr)}}
 .ramadan-year>summary{cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;list-style:none;font-size:1.05rem}.ramadan-year>summary::-webkit-details-marker{display:none}.ramadan-year>summary:before{content:'＋';margin-inline-end:8px}.ramadan-year[open]>summary:before{content:'−'}
 
 .days-circle-yellow{background:#d4a72c!important;color:#fff!important}.days-circle-red{background:#c0392b!important;color:#fff!important}
@@ -2039,7 +2042,26 @@ header.hero{
 }
 
 /* ============ HOME DATE / TIME EAGLE WIDGET ============ */
-.home-section-head{position:relative;min-height:70px;display:flex;align-items:center;justify-content:flex-end;padding:0 12px;}
+ .home-section-head{position:relative;min-height:70px;display:flex;align-items:center;justify-content:flex-start;padding:4px 12px;gap:10px;overflow:hidden;}
+.playing-section-head{position:relative;min-height:92px !important;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;overflow:hidden;padding:10px 14px !important;}
+.playing-section-head .section-playing-now{width:100%;max-width:100%;margin-top:4px;}
+.playing-section-head .section-playing-now:not(.has-games){display:none;}
+.playing-section-head:has(.section-playing-now.has-games){padding-bottom:8px !important;}
+@media(max-width:700px){.playing-section-head{min-height:86px !important;}.playing-section-head .section-playing-now{overflow-x:auto;}}
+.home-playing-now{display:flex;align-items:center;gap:10px;min-width:0;max-width:calc(100% - 150px);overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;}
+.home-playing-now:not(.has-games){display:none;}
+.home-playing-card{height:66px;min-width:238px;max-width:300px;display:flex;align-items:center;gap:9px;padding:4px 7px;border:1px solid rgba(75,150,220,.24);border-radius:10px;background:linear-gradient(135deg,rgba(8,25,43,.86),rgba(11,43,70,.62));box-shadow:0 5px 16px rgba(0,0,0,.18),inset 0 0 12px rgba(60,150,220,.04);overflow:hidden;}
+.home-playing-cover{width:43px;height:57px;flex:0 0 43px;object-fit:cover;border-radius:6px;border:1px solid rgba(95,185,245,.55);box-shadow:0 0 9px rgba(0,194,255,.12);}
+.home-playing-info{min-width:0;flex:1;display:flex;flex-direction:column;justify-content:center;text-align:left;}
+.home-playing-title{font-size:12px;font-weight:900;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#eef7ff;}
+.home-playing-title a{color:inherit;text-decoration:none;}
+.home-playing-label{font-size:9px;font-weight:800;color:#54d7c2;margin-top:3px;white-space:nowrap;}
+.home-playing-date{font-size:8.5px;color:#a9bfd0;margin-top:2px;white-space:nowrap;}
+.home-playing-days{width:43px;height:43px;flex:0 0 43px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1.5px solid #d3a44a;background:rgba(211,164,74,.12);box-shadow:inset 0 0 8px rgba(211,164,74,.06),0 0 8px rgba(211,164,74,.08);color:#f0c66a;line-height:1;}
+.home-playing-days strong{font-family:var(--font-mono);font-size:14px;font-weight:900;}
+.home-playing-days span{font-size:6px;font-weight:900;letter-spacing:.6px;margin-top:3px;color:#d9bd7b;}
+@media(max-width:900px){.home-playing-now{max-width:calc(100% - 105px);}.home-playing-card{min-width:215px;}}
+@media(max-width:600px){.home-section-head{min-height:82px;overflow:visible;align-items:center;}.home-playing-now{max-width:100%;width:100%;padding-right:0;}.home-playing-card{min-width:225px;}.home-section-head .section-tools{position:absolute;right:8px;top:-38px;}}
 .home-datetime-widget{
   position:absolute;left:0;top:50%;transform:translateY(-50%);
   width:286px;min-height:78px;padding:10px 13px 10px 10px;
@@ -2564,4 +2586,483 @@ header.hero .home-clock-dual::before{display:none}
 @media(max-width:700px){
   .rating-emblem-expanded{inset-inline-end:8px!important;bottom:6px!important;transform:scale(.9)!important;}
   .g-row.open .g-detail{padding-bottom:62px!important;}
+}
+
+/* Home current-playing cards live in the Home section header. */
+header.hero > .hero-stats{display:none !important;}
+
+/* Game Dates pagination */
+.dt-page-size-select{min-width:105px;}
+.dt-pager{margin:10px 0 4px;display:flex;justify-content:center;gap:6px;flex-wrap:wrap;}
+
+/* Compact shared hero banner across all tabs */
+header.hero{
+  min-height:320px !important;
+  height:320px !important;
+  box-sizing:border-box !important;
+  padding:14px 0 12px !important;
+  background-size:100% 100% !important;
+  background-position:center center !important;
+}
+header.hero .home-clock-dual{top:10px !important;left:10px !important;}
+
+/* ===== Requested Library tools / fixed language controls ===== */
+.hero-actions{position:absolute;right:22px;top:18px;display:flex;align-items:center;gap:8px;direction:ltr;z-index:20}
+#lang-toggle{order:0}
+#backup-project-btn{order:1}
+#theme-toggle{order:2}
+.game-quick-inline{min-height:40px;padding:8px 13px;border-radius:10px;border:1px solid rgba(110,180,255,.30);background:rgba(8,28,50,.78);color:#8fc8ff;font-weight:800;display:inline-flex;align-items:center;gap:6px;cursor:pointer;transition:.18s ease;box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.game-quick-inline:hover,.game-quick-inline.is-favorite{transform:translateY(-1px);border-color:rgba(227,177,92,.72);color:#ffd77e}
+.library-card-actions{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap}
+.game-tools-modal{position:fixed;inset:0;z-index:5000;background:rgba(1,7,16,.78);backdrop-filter:blur(5px);display:grid;place-items:center;padding:22px}
+.game-tools-modal[hidden]{display:none}
+.game-tools-card{width:min(920px,96vw);max-height:88vh;overflow:auto;background:linear-gradient(180deg,#0d1c31,#07111f);border:1px solid rgba(113,174,235,.34);border-radius:18px;box-shadow:0 20px 70px rgba(0,0,0,.5);padding:20px}
+.game-tools-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.game-tools-head h3{margin:0;color:#e8f1ff;font-size:22px}
+.game-quick-actions{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:10px;margin-bottom:16px}
+.game-quick-btn{min-height:76px;border:1px solid rgba(113,174,235,.28);border-radius:13px;background:rgba(14,35,58,.88);color:#dceaff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:13px}
+.game-quick-btn span{font-size:25px}.game-quick-btn b{color:#8fc8ff}.game-quick-btn:hover,.game-quick-btn.is-active{border-color:#d9a64f;box-shadow:0 0 18px rgba(217,166,79,.16)}.game-quick-btn.is-active b{color:#ffd36d}
+.game-tool-section{border-top:1px solid rgba(255,255,255,.10);padding-top:15px}
+.game-tool-section-title{font-size:17px;font-weight:900;color:#e8f1ff;margin-bottom:12px;display:flex;justify-content:space-between}
+.tool-label{display:block;margin:10px 0 6px;color:#a9b9cc;font-weight:700}.tool-input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid rgba(113,174,235,.28);background:#071525;color:#fff;font-size:15px;outline:none}.tool-input:focus{border-color:#75bfff;box-shadow:0 0 0 3px rgba(117,191,255,.10)}
+.tool-save-btn{margin-top:13px;border:1px solid rgba(227,177,92,.55);background:#152a42;color:#ffd77e;border-radius:10px;padding:11px 18px;font-weight:900;cursor:pointer}.tool-hint{color:#8f9daf;font-size:12px}
+.game-history-list{display:flex;flex-direction:column;gap:9px;max-height:55vh;overflow:auto}
+.game-history-item{display:grid;grid-template-columns:48px 1fr;gap:12px;padding:14px;border-radius:12px;background:rgba(255,255,255,.045);border:1px solid rgba(113,174,235,.16)}
+.history-num{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#152a42;border:1px solid #d0a24d;color:#ffd36d;font-weight:900;font-size:16px}.history-main strong{color:#eaf3ff;font-size:15px}.history-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:7px;color:#9fb1c5;font-size:12px}.history-meta span{padding:3px 8px;border-radius:7px;background:rgba(11,28,47,.85)}
+.custom-tags{margin-top:5px}.custom-tag{border-color:rgba(113,174,235,.35)!important;color:#8fc8ff!important}
+.size-live-convert{margin-top:10px;padding:12px 14px;border-radius:10px;background:rgba(13,34,56,.8);display:flex;justify-content:space-between;color:#91a5bb}.size-live-convert strong{color:#ffd36d;font-size:18px}
+.backup-status{position:fixed;right:22px;top:86px;z-index:6000;padding:10px 14px;border:1px solid rgba(113,174,235,.35);background:#0b1b2e;color:#dbeaff;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.backup-status[hidden]{display:none}
+@media(max-width:900px){.game-quick-actions{grid-template-columns:repeat(2,1fr)}.hero-actions{right:10px;top:10px}.game-quick-inline span{display:none}}
+
+html[dir="rtl"] .hero-actions{right:22px;left:auto;direction:ltr}
+
+/* ===== Compact Library game action controls ===== */
+.library-card-actions{
+  gap:6px!important;
+  margin:9px 0 0!important;
+  padding:9px 0 0!important;
+}
+.library-card-actions .game-quick-inline{
+  min-height:34px!important;
+  height:34px!important;
+  padding:5px 10px!important;
+  gap:5px!important;
+  border-radius:8px!important;
+  font-size:13px!important;
+  line-height:1!important;
+  box-shadow:0 3px 9px rgba(0,0,0,.10)!important;
+}
+.library-card-actions .game-quick-inline:first-child{padding-inline:9px!important;}
+.library-card-actions .game-quick-inline::first-letter{font-size:13px!important;}
+.library-card-actions .icon-btn{
+  width:27px!important;
+  min-width:27px!important;
+  height:27px!important;
+  font-size:12px!important;
+  border-radius:7px!important;
+}
+@media(max-width:700px){
+  .library-card-actions{gap:5px!important;}
+  .library-card-actions .game-quick-inline{
+    min-height:32px!important;height:32px!important;
+    padding:4px 8px!important;font-size:12px!important;
+  }
+}
+
+
+/* ===== Home: Playing Now + Up-coming Games ===== */
+.home-planning-panel{min-width:0;overflow:hidden;}
+.home-planning-panel h3{margin-bottom:12px;}
+.home-planning-games{width:100%;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;}
+.home-planning-games .recent-game{position:relative;height:255px;padding:10px;background:linear-gradient(145deg,rgba(7,19,34,.94),rgba(10,32,55,.82));border-color:rgba(105,158,204,.28);box-shadow:inset 0 0 18px rgba(65,140,205,.035);}
+.home-planning-games .recent-game img{height:174px;margin-bottom:8px;}
+.home-planning-games .recent-game .rg-name{font-size:12px;color:#e9f1f8;}
+.home-planning-games .recent-game .rg-date{font-size:10px;margin-top:3px;color:#91abc0;}
+.playing-now-game{box-shadow:inset 0 0 20px rgba(52,215,194,.045),0 4px 14px rgba(0,0,0,.12)!important;}
+.playing-now-game .rg-date{color:#54d7c2!important;}
+.upcoming-slot{cursor:pointer;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease;}
+.upcoming-slot:hover{transform:translateY(-2px);border-color:rgba(84,170,235,.65)!important;box-shadow:0 8px 22px rgba(0,0,0,.22),inset 0 0 18px rgba(50,150,230,.06)!important;}
+.upcoming-add-slot{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#9fb7ca;cursor:pointer;}
+.upcoming-plus{width:58px;height:58px;border:1px dashed rgba(110,177,226,.65);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:300;line-height:1;color:#64b9ef;background:rgba(33,104,157,.09);box-shadow:0 0 20px rgba(40,150,220,.08);opacity:0;transform:scale(.9);transition:opacity .16s ease,transform .16s ease;}
+.upcoming-add-label{font-size:11px;font-weight:800;letter-spacing:.2px;opacity:0;transition:opacity .16s ease;}
+.upcoming-add-slot:hover .upcoming-plus,.upcoming-add-slot:focus-visible .upcoming-plus{opacity:1;transform:scale(1);}
+.upcoming-add-slot:hover .upcoming-add-label,.upcoming-add-slot:focus-visible .upcoming-add-label{opacity:1;}
+.upcoming-change,.upcoming-remove{position:absolute;top:7px;width:25px;height:25px;border-radius:50%;font-size:18px;line-height:21px;cursor:pointer;z-index:2;opacity:0;pointer-events:none;transition:opacity .16s ease,background .16s ease,border-color .16s ease;}
+.upcoming-change{right:7px;border:1px solid rgba(100,177,226,.4);background:rgba(5,15,27,.88);color:#73c2f2;}
+.upcoming-change:hover{border-color:#73c2f2;background:rgba(20,62,94,.95);}
+.upcoming-remove{left:7px;border:1px solid rgba(190,110,110,.35);background:rgba(5,15,27,.88);color:#e8a0a0;}
+.upcoming-remove:hover{border-color:#e8a0a0;background:rgba(90,25,30,.8);}
+.upcoming-slot:hover .upcoming-change,.upcoming-slot:hover .upcoming-remove,.upcoming-slot:focus-within .upcoming-change,.upcoming-slot:focus-within .upcoming-remove{opacity:1;pointer-events:auto;}
+.upcoming-add-slot .upcoming-plus{opacity:0;transition:opacity .16s ease;}
+.upcoming-add-slot:hover .upcoming-plus,.upcoming-add-slot:focus-visible .upcoming-plus,.upcoming-add-slot:focus-within .upcoming-plus{opacity:1;}
+.upcoming-empty{min-height:255px;display:flex;align-items:center;justify-content:center;border:1px dashed rgba(105,158,204,.25);border-radius:12px;color:#8299ac;font-size:11px;text-align:center;padding:15px;}
+.upcoming-game-modal{position:fixed;inset:0;z-index:2000;background:rgba(2,8,16,.78);backdrop-filter:blur(7px);padding:28px;display:flex;align-items:center;justify-content:center;}
+.upcoming-game-card{width:min(680px,100%);max-height:min(760px,calc(100vh - 56px));overflow:auto;border:1px solid rgba(115,165,210,.4);border-radius:18px;padding:20px;background:linear-gradient(145deg,#071525,#0d243b 62%,#162f49);box-shadow:0 28px 80px rgba(0,0,0,.55),inset 0 1px rgba(255,255,255,.06);}
+.upcoming-game-head{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;margin-bottom:15px;}
+.upcoming-game-head h2{margin:0;color:#eef5fb;font-size:19px;}
+.upcoming-game-head p{margin:4px 0 0;color:#8da7bc;font-size:11px;}
+.upcoming-picker-label{display:block;margin:12px 0 6px;color:#bcd0e0;font-size:11px;font-weight:800;}
+.upcoming-picker-search,.upcoming-picker-select{width:100%;border:1px solid rgba(111,163,207,.35);border-radius:9px;background:#061525;color:#eaf3fa;padding:10px 11px;outline:none;}
+.upcoming-picker-search:focus,.upcoming-picker-select:focus{border-color:rgba(84,181,240,.75);box-shadow:0 0 0 2px rgba(40,150,220,.1);}
+.upcoming-picker-select{min-height:42px;}
+.upcoming-picker-preview{min-height:72px;display:flex;align-items:center;gap:12px;padding:9px;border:1px solid rgba(109,157,199,.2);border-radius:11px;background:rgba(4,14,25,.5);}
+.upcoming-picker-preview img{width:46px;height:60px;object-fit:cover;border-radius:7px;border:1px solid rgba(100,180,235,.45);}
+.upcoming-picker-preview strong{display:block;color:#edf5fb;font-size:13px;}
+.upcoming-picker-preview span{display:block;color:#8ca6ba;font-size:10px;margin-top:3px;}
+.upcoming-picker-placeholder{width:46px;height:60px;border:1px dashed rgba(91,169,223,.5);border-radius:7px;display:flex;align-items:center;justify-content:center;color:#61baf0;font-size:27px;}
+.upcoming-picker-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:17px;}
+.upcoming-save-btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important;}
+@media(max-width:1100px){.home-planning-games{grid-template-columns:repeat(3,minmax(0,1fr));}}
+@media(max-width:700px){.home-planning-row{grid-template-columns:1fr!important;}.home-planning-games{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:440px){.home-planning-games{grid-template-columns:1fr;}}
+
+
+/* ===== Series Report ===== */
+.series-directory{width:100%}
+.series-directory-title{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:2px 0 14px;padding:15px 17px;border:1px solid rgba(113,174,235,.20);border-radius:12px;background:linear-gradient(180deg,rgba(12,31,51,.78),rgba(7,19,34,.62))}
+.series-directory-title h2{margin:0;color:#eaf3ff;font-size:20px;letter-spacing:.5px}
+.series-directory-title p{margin:4px 0 0;color:#8f9daf;font-size:12px}
+.series-directory-list{display:flex;flex-direction:column;gap:7px}
+.series-directory-group{border:1px solid rgba(113,174,235,.16);border-radius:11px;overflow:hidden;background:rgba(7,19,34,.54)}
+.series-directory-group.open{border-color:rgba(113,174,235,.34);box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.series-directory-row{width:100%;display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:8px;padding:13px 15px;border:0;background:transparent;color:#eaf3ff;text-align:left;cursor:pointer}
+.series-directory-row:hover{background:rgba(113,174,235,.08)}
+.series-directory-chevron{color:#8fc8ff;font-size:16px;font-weight:900;text-align:center}
+.series-directory-name{font-size:14px;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.series-directory-count{color:#8f9daf;font:700 11px var(--font-mono);white-space:nowrap}
+.series-directory-games{border-top:1px solid rgba(113,174,235,.12);background:rgba(3,13,25,.52)}
+.series-directory-games[hidden]{display:none}
+.series-directory-game{padding:10px 16px 10px 54px;border-bottom:1px solid rgba(113,174,235,.08);color:#dceaff;font-size:12px}
+.series-directory-game:last-child{border-bottom:0}
+.series-directory-game:hover{background:rgba(113,174,235,.055)}
+.series-directory-game .game-name-link{color:#dceaff}
+@media(max-width:700px){
+  .series-directory-row{grid-template-columns:25px minmax(0,1fr) auto;padding:12px}
+  .series-directory-name{font-size:13px}
+  .series-directory-count{font-size:10px}
+  .series-directory-game{padding-left:43px}
+}
+
+/* Upcoming Games is optional: keep the picker hidden until a slot is clicked. */
+.upcoming-game-modal[hidden]{display:none!important}
+
+/* ===== Home: four matching game strips ===== */
+.home-planning-row .home-planning-panel{min-width:0;}
+.home-planning-row .home-planning-games{display:grid;width:100%;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;}
+.home-planning-row .home-planning-games .recent-game{height:255px;box-sizing:border-box;}
+.home-planning-row .home-planning-games .recent-game img{height:174px;width:100%;object-fit:cover;}
+.home-planning-row .home-planning-games .rg-name{font-size:12px;}
+.home-planning-row .home-planning-games .rg-date{font-size:10px;}
+
+/* ===== Type-to-search results for Upcoming Games ===== */
+.upcoming-picker-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;max-height:290px;overflow:auto;padding:2px 1px;}
+.upcoming-result{min-width:0;display:grid;grid-template-columns:42px 1fr;grid-template-rows:auto auto;column-gap:9px;align-items:center;text-align:left;padding:6px;border:1px solid rgba(111,163,207,.25);border-radius:9px;background:rgba(4,15,27,.72);color:#eaf3fa;cursor:pointer;}
+.upcoming-result:hover,.upcoming-result.selected{border-color:rgba(84,181,240,.75);background:rgba(20,61,91,.72);}
+.upcoming-result img{grid-row:1/3;width:42px;height:55px;object-fit:cover;border-radius:6px;}
+.upcoming-result span{font-size:11px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.upcoming-result small{font-size:9px;color:#8ca6ba;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.upcoming-no-results{padding:14px;text-align:center;border:1px dashed rgba(111,163,207,.25);border-radius:9px;color:#8299ac;font-size:11px;grid-column:1/-1;}
+
+/* ===== Home: Playing/Installed status circles ===== */
+.home-status-row{display:flex;align-items:center;justify-content:flex-start;gap:7px;min-height:34px;margin-top:4px;}
+.home-status-circle{position:static;width:34px;height:34px;flex:0 0 34px;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:900;line-height:1.05;box-sizing:border-box;z-index:2;}
+.playing-days-circle{flex-direction:column;border:1.5px solid #d3a44a;background:rgba(211,164,74,.16);box-shadow:inset 0 0 8px rgba(211,164,74,.08),0 0 8px rgba(211,164,74,.12);color:#f0c66a;}
+.playing-days-circle strong{font-family:var(--font-mono);font-size:12px;}
+.playing-days-circle span{font-size:5px;letter-spacing:.5px;margin-top:2px;color:#d9bd7b;}
+.installed-circle{border:1.5px solid #5da9e9;background:rgba(55,128,194,.18);box-shadow:inset 0 0 8px rgba(65,140,205,.10),0 0 8px rgba(65,140,205,.10);color:#8fcaff;font-size:6px;letter-spacing:.25px;}
+.installed-game{box-shadow:inset 0 0 20px rgba(65,140,205,.055),0 4px 14px rgba(0,0,0,.12)!important;}
+.installed-game .rg-date{color:#8fcaff!important;}
+
+/* Home Playing Now: full game title + status days badge under cover */
+.home-planning-games .recent-game{overflow:visible;}
+.home-planning-games .home-playing-image-wrap{position:relative;width:100%;height:174px;margin-bottom:8px;}
+.home-planning-games .home-playing-image-wrap img{width:100%;height:174px;margin:0;display:block;object-fit:cover;}
+.home-planning-games .playing-days-circle{position:absolute;right:7px;bottom:7px;width:42px;height:42px;z-index:4;}
+.home-planning-games .rg-name{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.3;min-height:31px;}
+.home-planning-games .rg-date{white-space:normal;line-height:1.25;}
+.home-planning-games .installed-game .rg-date{color:#8fcaff;}
+/* Home Playing Now refinements */
+.home-planning-games .recent-game{overflow:visible;}
+.home-planning-games .home-playing-image-wrap{position:relative;width:100%;height:174px;margin-bottom:8px;}
+.home-planning-games .home-playing-image-wrap img{width:100%;height:174px;margin:0;display:block;object-fit:cover;}
+.home-planning-games .playing-days-circle{position:absolute;right:7px;bottom:7px;width:42px;height:42px;z-index:4;}
+.home-planning-games .rg-name{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.3;min-height:31px;}
+.home-planning-games .rg-date{white-space:normal;line-height:1.25;}
+
+/* Playing Now days circle - solid/readable background */
+.playing-days-circle,
+.home-planning-games .playing-days-circle {
+  background: #0b1f36 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 2px solid #d3a44a !important;
+  color: #f5d27a !important;
+}
+.playing-days-circle *,
+.home-planning-games .playing-days-circle * {
+  opacity: 1 !important;
+  color: #f5d27a !important;
+}
+
+
+/* ===== Series Directory History + Expand/Collapse ===== */
+ .series-directory-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.series-directory-search{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-width:220px;
+  height:34px;
+  padding:0 10px;
+  border:1px solid rgba(113,174,235,.34);
+  border-radius:8px;
+  background:rgba(4,17,30,.82);
+  box-sizing:border-box;
+}
+.series-search-icon{color:#8fc8ff;font-size:18px;line-height:1}
+.series-directory-search input{
+  width:100%;
+  min-width:0;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:#eaf8ff;
+  font:700 11px var(--font-head);
+}
+.series-directory-search input::placeholder{color:#74869a}
+.series-directory-search:focus-within{
+  border-color:#00d1ff;
+  box-shadow:0 0 12px rgba(0,209,255,.18);
+}
+@media(max-width:700px){
+  .series-directory-tools{width:100%}
+  .series-directory-search{flex:1;min-width:180px}
+}
+.series-directory-tool,
+.series-history-btn{
+  border:1px solid rgba(0,209,255,.42);
+  border-radius:8px;
+  background:linear-gradient(145deg,#081a2c,#04111e);
+  color:#eaf8ff;
+  padding:7px 10px;
+  font:800 11px var(--font-head);
+  cursor:pointer;
+  transition:.18s ease;
+  white-space:nowrap;
+}
+.series-directory-tool:hover,
+.series-history-btn:hover{
+  color:#fff;
+  border-color:#00d1ff;
+  background:linear-gradient(145deg,#0e3a5c,#082238);
+  box-shadow:0 0 14px rgba(0,209,255,.35);
+}
+.series-directory-row-wrap{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:stretch;
+}
+.series-directory-row-wrap .series-directory-row{min-width:0}
+.series-directory-game{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:10px;
+  padding:9px 16px 9px 54px;
+}
+.series-game-main{min-width:0}
+.series-game-meta{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.series-last-played-days{
+  color:#9edfff;
+  font:700 10px var(--font-mono);
+  white-space:nowrap;
+}
+.series-last-played-days.never{color:#8996a6}
+.series-history-btn.game-history-btn{padding:5px 9px;font-size:10px}
+.series-history-modal{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px}
+.series-history-modal[hidden]{display:none!important}
+.series-history-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(5px)}
+.series-history-dialog{
+  position:relative;width:min(1200px,96vw);max-height:88vh;display:flex;flex-direction:column;
+  border:1px solid rgba(0,209,255,.48);border-radius:15px;overflow:hidden;
+  background:linear-gradient(180deg,#071a2b,#020b15);
+  box-shadow:0 20px 70px rgba(0,0,0,.55),0 0 30px rgba(0,180,255,.18);
+}
+.series-history-head{
+  display:flex;align-items:center;justify-content:space-between;gap:15px;
+  padding:15px 18px;border-bottom:1px solid rgba(113,174,235,.16);
+}
+.series-history-head h3{margin:0;color:#f1f8ff;font-size:18px}
+.series-history-head p{margin:4px 0 0;color:#8fa5b9;font-size:11px}
+.series-history-close{flex:0 0 auto}
+.series-history-body{overflow:auto;padding:15px}
+.series-history-meta{margin-bottom:9px;color:#9edfff;font-size:11px;font-weight:800}
+.series-history-table-wrap{margin:0}
+.series-history-table{min-width:900px;font-size:15px !important;}
+.series-history-table th{font-size:14px !important;font-weight:900 !important;padding:12px 10px !important;}
+.series-history-table td{font-size:15px !important;font-weight:700 !important;padding:11px 10px !important;}
+.series-history-table .series-history-game-name{color:#dff6ff;font-size:15px !important;font-weight:900 !important;}
+.history-cell-circle{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:5px 13px;border-radius:999px;border:1px solid rgba(113,174,235,.38);background:radial-gradient(circle at 35% 30%,rgba(38,76,112,.9),rgba(6,19,34,.95) 72%);box-shadow:inset 0 0 10px rgba(113,174,235,.08),0 2px 8px rgba(0,0,0,.18);color:#eaf6ff;white-space:nowrap;}
+.history-game-circle{padding:5px 15px;}
+.history-cell-circle .game-name-link{font-size:15px !important;color:#eaf6ff !important;}
+.series-history-empty{
+  padding:35px;text-align:center;color:#8f9daf;
+  border:1px dashed rgba(113,174,235,.22);border-radius:10px;
+}
+body.series-history-open{overflow:hidden}
+@media(max-width:700px){
+  .series-directory-title{align-items:flex-start;flex-direction:column}
+  .series-directory-tools{width:100%}
+  .series-directory-tool{flex:1}
+  .series-directory-game{grid-template-columns:1fr;padding-left:43px}
+  .series-game-meta{justify-content:flex-start}
+  .series-history-modal{padding:8px}
+  .series-history-dialog{max-height:94vh}
+}
+
+/* ===== Series rows: larger text + circular badges ===== */
+.series-directory-game .series-game-main{
+  display:flex;
+  align-items:center;
+  min-width:0;
+}
+.series-directory-game .series-game-main .game-name-link{
+  display:inline-flex;
+  align-items:center;
+  justify-content:flex-start;
+  min-height:42px;
+  max-width:100%;
+  padding:7px 16px;
+  box-sizing:border-box;
+  border:1px solid rgba(113,174,235,.34);
+  border-radius:999px;
+  background:radial-gradient(circle at 35% 30%,rgba(38,76,112,.72),rgba(6,19,34,.95) 72%);
+  box-shadow:inset 0 0 10px rgba(113,174,235,.08),0 2px 8px rgba(0,0,0,.18);
+  color:#eaf6ff !important;
+  font-size:15px !important;
+  font-weight:900 !important;
+  line-height:1.2;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.series-last-played-days{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:58px;
+  min-height:42px;
+  padding:6px 12px;
+  box-sizing:border-box;
+  border-radius:999px;
+  border:1px solid rgba(211,164,74,.55);
+  background:radial-gradient(circle at 35% 30%,rgba(94,72,31,.72),rgba(18,24,31,.96) 72%);
+  color:#f0c66a;
+  font-size:13px !important;
+  font-weight:900 !important;
+  line-height:1.15;
+  text-align:center;
+}
+.series-last-played-days.never{
+  color:#b7c1cd;
+  border-color:rgba(143,157,175,.4);
+  background:radial-gradient(circle at 35% 30%,rgba(63,73,84,.55),rgba(13,20,28,.96) 72%);
+}
+.series-history-btn.game-history-btn{
+  min-height:42px;
+  padding:7px 13px;
+  font-size:12px;
+  border-radius:999px;
+}
+@media(max-width:700px){
+  .series-directory-game .series-game-main .game-name-link{font-size:13px !important;min-height:40px;padding:7px 13px}
+  .series-last-played-days{min-height:40px;font-size:11px !important}
+  .series-history-btn.game-history-btn{min-height:40px;font-size:11px}
+}
+
+/* Final Series History refinements */
+.series-history-body{overflow:hidden;padding:15px 18px 18px}
+.series-history-table-wrap{overflow:hidden!important;width:100%}
+.series-history-table{width:100%!important;min-width:0!important;table-layout:fixed;font-size:16px!important}
+.series-history-table th{font-size:15px!important;padding:12px 8px!important;white-space:normal!important}
+.series-history-table td{font-size:16px!important;font-weight:800!important;padding:12px 8px!important;white-space:normal!important;overflow-wrap:anywhere;word-break:break-word}
+.series-history-table .series-history-game-name{font-size:16px!important;font-weight:900!important;white-space:normal;overflow-wrap:anywhere}
+.series-history-table td .game-name-link{display:inline;color:#dff6ff!important}
+.history-cell-circle{display:contents!important;border:0!important;background:none!important;box-shadow:none!important;padding:0!important;min-height:0!important}
+.series-history-table td:nth-child(1){width:20%}
+.series-history-table td:nth-child(2),.series-history-table td:nth-child(3){width:11%}
+.series-history-table td:nth-child(4){width:10%}
+.series-history-table td:nth-child(5){width:12%}
+.series-history-table td:nth-child(6){width:9%}
+.series-history-table td:nth-child(7){width:13%}
+.series-history-table td:nth-child(8){width:14%}
+.series-last-played-days{min-width:42px!important;width:auto!important;min-height:34px!important;padding:5px 11px!important;font-size:14px!important}
+@media(max-width:900px){
+  .series-history-dialog{width:min(98vw,1200px)}
+  .series-history-body{padding:10px}
+  .series-history-table{font-size:14px!important}
+  .series-history-table th,.series-history-table td{font-size:14px!important;padding:9px 5px!important}
+  .series-history-table .series-history-game-name{font-size:14px!important}
+}
+@media(max-width:700px){
+  .series-history-table{table-layout:auto}
+  .series-history-table th,.series-history-table td{font-size:13px!important;padding:8px 4px!important}
+  .series-history-table .series-history-game-name{font-size:13px!important}
+  .series-history-body{overflow:auto}
+}
+
+/* Fix: Series History must display all records with vertical scrolling on desktop too. */
+.series-history-dialog{min-height:0}
+.series-history-body{flex:1 1 auto;min-height:0;overflow:auto!important;padding:15px 18px 18px}
+.series-history-table-wrap{overflow:auto!important;max-height:none!important;width:100%}
+.series-history-table{height:auto!important}
+
+/* ===== Series header stats: game count + completion ===== */
+.series-directory-stats{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  margin-left:6px;
+}
+.series-stat-circle{
+  width:54px;
+  height:54px;
+  flex:0 0 54px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  box-sizing:border-box;
+  border-radius:50%;
+  border:1px solid rgba(113,174,235,.40);
+  background:radial-gradient(circle at 35% 28%,rgba(48,86,123,.90),rgba(5,17,30,.96) 70%);
+  box-shadow:inset 0 0 12px rgba(113,174,235,.10),0 3px 12px rgba(0,0,0,.22);
+  color:#eaf6ff;
+  line-height:1;
+}
+.series-stat-circle strong{font:900 15px/1 var(--font-head);letter-spacing:.1px}
+.series-stat-circle small{margin-top:4px;color:#91a7bb;font:800 7px/1 var(--font-mono);letter-spacing:.7px}
+.series-stat-circle.completion{
+  border-color:rgba(0,209,255,.48);
+  background:radial-gradient(circle at 35% 28%,rgba(0,108,139,.72),rgba(5,20,31,.96) 70%);
+}
+.series-stat-circle.completion strong{color:#baf2ff}
+.series-stat-circle.completion small{color:#73cfe8}
+@media(max-width:700px){
+  .series-directory-row{grid-template-columns:25px minmax(0,1fr) auto;gap:6px}
+  .series-directory-stats{gap:5px}
+  .series-stat-circle{width:46px;height:46px;flex-basis:46px}
+  .series-stat-circle strong{font-size:13px}
+  .series-stat-circle small{font-size:6px}
+  .series-directory-count{display:none}
 }
