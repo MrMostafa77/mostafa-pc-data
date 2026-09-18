@@ -43,9 +43,11 @@ const pendingCloudWrites = Object.create(null);
 const remoteVersions = Object.create(null); // last version WE fetched/applied per key
 
 function isFirebaseConfigured() {
-  return typeof firebaseConfig !== 'undefined' &&
+  const ok = typeof firebaseConfig !== 'undefined' &&
     firebaseConfig.apiKey &&
     !firebaseConfig.apiKey.includes('ضع_هنا');
+  console.log('[Sync] isFirebaseConfigured =', ok);
+  return ok;
 }
 
 function loadCoreScripts() {
@@ -79,6 +81,9 @@ function patchLocalStorage() {
 
   proto.setItem = function(key, value) {
     nativeSetItem(key, value);
+    if (SYNC_KEYS.includes(key)) {
+      console.log('[Sync] setItem for', key, '— syncReady=', syncReady, 'db=', !!db, 'applyingRemote=', applyingRemote);
+    }
     if (syncReady && db && !applyingRemote && SYNC_KEYS.includes(key)) {
       queueCloudWrite(key, value);
     }
@@ -97,12 +102,14 @@ function showSyncToast(message, isError) {
 
 let cloudWriteTimers = Object.create(null);
 function queueCloudWrite(key, value) {
+  console.log('[Sync] write queued for', key, '(', value.length, 'chars )');
   clearTimeout(cloudWriteTimers[key]);
   const version = Date.now();
   pendingCloudWrites[key] = true;
   cloudWriteTimers[key] = setTimeout(() => {
     uploadKeyToCloud(key, value, version)
       .then(() => {
+        console.log('[Sync] write COMMITTED for', key, 'v=', version);
         // Record this write's own version so the exact-match dedup in
         // reconcileMeta() skips re-fetching our own echo back from the listener.
         remoteVersions[key] = version;
@@ -110,7 +117,7 @@ function queueCloudWrite(key, value) {
       })
       .catch(err => {
         delete pendingCloudWrites[key];
-        console.error('Cloud sync failed for', key, err);
+        console.error('[Sync] write FAILED for', key, err);
         window.SoundFX?.playError();
         showSyncToast(
           'فشلت مزامنة "' + key + '" مع السحابة، هيتم إعادة المحاولة تلقائيًا: ' + (err && err.message ? err.message : err),
@@ -166,7 +173,8 @@ function nativeSetLocal(key, value) {
 // على طول (لأن رقمه هيبان "أقدم") — وده كان السبب الحقيقي إن المزامنة
 // الحية مش بتوصل خالص إلا بعد reload (اللي بيقرا القيمة الحالية مباشرة من
 // غير ما يقارن أرقام خالص).
-async function reconcileMeta(metaByKey) {
+async function reconcileMeta(metaByKey, source) {
+  console.log('[Sync] reconcileMeta from', source, '— keys in payload:', Object.keys(metaByKey));
   const changedKeys = [];
   for (const key of SYNC_KEYS) {
     const meta = metaByKey[key];
@@ -174,37 +182,44 @@ async function reconcileMeta(metaByKey) {
     const remoteVersion = Number(meta.v || meta.updatedAt || 0);
     const knownRemoteVersion = Number(remoteVersions[key] || 0);
 
-    if (pendingCloudWrites[key]) continue; // نستنى الكتابة المحلية تخلص الأول
-    if (remoteVersion && remoteVersion === knownRemoteVersion) continue; // معالجينها قبل كده بالظبط، مفيش داعي نجيبها تاني
+    if (pendingCloudWrites[key]) { console.log('[Sync]', key, '— skip: write still pending on this device'); continue; }
+    if (remoteVersion && remoteVersion === knownRemoteVersion) { console.log('[Sync]', key, '— skip: already applied v=', remoteVersion); continue; }
 
+    console.log('[Sync]', key, '— fetching (remote v=', remoteVersion, 'vs known v=', knownRemoteVersion, ')');
     try {
       const value = await fetchKeyFromCloud(key);
       if (remoteVersion) remoteVersions[key] = remoteVersion;
       const current = localStorage.getItem(key);
       if (current !== value) {
+        console.log('[Sync]', key, '— CONTENT CHANGED, applying to localStorage + dispatching update event');
         applyingRemote = true;
         try { nativeSetLocal(key, value); } finally { applyingRemote = false; }
         changedKeys.push(key);
+      } else {
+        console.log('[Sync]', key, '— fetched but content identical, nothing to apply');
       }
     } catch (e) {
-      console.error('Fetch key failed for', key, e);
+      console.error('[Sync] Fetch key failed for', key, e);
     }
   }
   if (changedKeys.length) {
+    console.log('[Sync] dispatching gamevault:cloud-update for', changedKeys);
     window.dispatchEvent(new CustomEvent('gamevault:cloud-update', { detail: { keys: changedKeys } }));
   }
 }
 
 function subscribeToCloud() {
   if (!db || unsubscribeCore) return;
+  console.log('[Sync] subscribing to realtime listener on', FS_KEYS_COLLECTION);
   unsubscribeCore = db.collection(FS_KEYS_COLLECTION).onSnapshot(
     snap => {
+      console.log('[Sync] onSnapshot FIRED,', snap.size, 'docs, fromCache=', snap.metadata.fromCache);
       const metaByKey = {};
       snap.forEach(docSnap => { metaByKey[docSnap.id] = docSnap.data() || {}; });
-      reconcileMeta(metaByKey);
+      reconcileMeta(metaByKey, 'onSnapshot');
     },
     err => {
-      console.error('Cloud realtime listener failed', err);
+      console.error('[Sync] Cloud realtime listener FAILED', err);
       window.SoundFX?.playError();
     }
   );
@@ -214,20 +229,22 @@ function subscribeToCloud() {
 // (خصوصًا مع WebView أو تغيير الشبكة). الفحص ده بيجيب بس المستندات الصغيرة
 // (metadata) من السيرفر مباشرة كل شوية، وما بيجيبش بيانات المفاتيح الكبيرة
 // (زي Game Dates) إلا لو فعلاً اتغيرت — رخيص وسريع.
-async function pollFromServer() {
+async function pollFromServer(source) {
   if (!syncReady || !db) return;
+  console.log('[Sync] pollFromServer triggered by:', source || 'interval');
   try {
     const snap = await db.collection(FS_KEYS_COLLECTION).get({ source: 'server' });
     const metaByKey = {};
     snap.forEach(docSnap => { metaByKey[docSnap.id] = docSnap.data() || {}; });
-    await reconcileMeta(metaByKey);
+    await reconcileMeta(metaByKey, 'poll:' + (source || 'interval'));
   } catch (e) {
-    console.warn('Realtime fallback poll failed', e);
+    console.warn('[Sync] Realtime fallback poll FAILED', e);
   }
 }
 function startRealtimeFallbackPoll() {
   if (realtimePollTimer || !db) return;
-  realtimePollTimer = setInterval(pollFromServer, 2000);
+  console.log('[Sync] starting 2s fallback poll');
+  realtimePollTimer = setInterval(() => pollFromServer('interval'), 2000);
 }
 
 // شبكة أمان إضافية فوق onSnapshot + الفحص الدوري: لما المتصفح يحط التاب في
@@ -240,10 +257,10 @@ function bindReconnectSafetyNet() {
   if (reconnectBound) return;
   reconnectBound = true;
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') pollFromServer();
+    if (document.visibilityState === 'visible') pollFromServer('visibilitychange');
   });
-  window.addEventListener('focus', pollFromServer);
-  window.addEventListener('online', pollFromServer);
+  window.addEventListener('focus', () => pollFromServer('focus'));
+  window.addEventListener('online', () => pollFromServer('online'));
 }
 
 // ترحيل لمرة واحدة: لو مفيش أي مستندات في gamevault_store لسه (تحديث لأول
@@ -440,6 +457,7 @@ window.GameVaultCloudSync = {
 };
 
 async function init() {
+  console.log('[Sync] init() starting');
   patchLocalStorage();
 
   if (isFirebaseConfigured()) {
@@ -455,22 +473,27 @@ async function init() {
       // before any other Firestore call.
       try {
         db.settings({ experimentalAutoDetectLongPolling: true, merge: true });
+        console.log('[Sync] Firestore settings applied (long-polling auto-detect)');
       } catch (settingsErr) {
-        console.warn('Firestore settings() failed', settingsErr);
+        console.warn('[Sync] Firestore settings() failed', settingsErr);
       }
       await hydrateFromCloud();
       syncReady = true;
+      console.log('[Sync] syncReady = true');
       subscribeToCloud();
       startRealtimeFallbackPoll();
       bindReconnectSafetyNet();
     } catch (e) {
-      console.error('Firebase init failed, continuing with local storage only', e);
+      console.error('[Sync] Firebase init FAILED, continuing with local storage only', e);
     }
+  } else {
+    console.warn('[Sync] Firebase not configured — running local-only');
   }
   // لو مفيش إعدادات Firebase، الموقع هيشتغل زي ما كان بالظبط (حفظ محلي فقط)
 
   await hydrateCovers();
   loadCoreScripts();
+  console.log('[Sync] init() done, loading app.js/data-inline.js');
 }
 
 init();

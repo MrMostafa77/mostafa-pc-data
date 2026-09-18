@@ -3734,6 +3734,7 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
   if(!window.__gameVaultRealtimeBound){
     window.__gameVaultRealtimeBound=true;
     window.addEventListener('gamevault:cloud-update', e=>{
+      console.log('[Sync] app.js received gamevault:cloud-update for keys:', e?.detail?.keys);
       try{
         const keys=new Set(e?.detail?.keys||[]);
         if(keys.has(USERGAMES_KEY)){ userGames=loadJSON(USERGAMES_KEY,[]); }
