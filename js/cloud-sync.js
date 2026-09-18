@@ -60,29 +60,41 @@ function loadCoreScripts() {
 function patchLocalStorage() {
   if (window.__GameVaultLocalStoragePatched) return;
   window.__GameVaultLocalStoragePatched = true;
-  const nativeSetItem = localStorage.setItem.bind(localStorage);
-  const nativeRemoveItem = localStorage.removeItem.bind(localStorage);
+
+  // Patch the Storage prototype, not just the instance. Some mobile/tablet
+  // browsers expose localStorage.setItem as a native non-overridable method.
+  const proto = Storage.prototype;
+  const nativeSetItem = proto.setItem.bind(localStorage);
+  const nativeRemoveItem = proto.removeItem.bind(localStorage);
   window.__GameVaultNativeSetItem = nativeSetItem;
   window.__GameVaultNativeRemoveItem = nativeRemoveItem;
 
-  localStorage.setItem = function (key, value) {
+  proto.setItem = function(key, value) {
     nativeSetItem(key, value);
     if (syncReady && db && !applyingRemote && SYNC_KEYS.includes(key)) {
-      const payload = {};
-      payload[key] = value;
-      db.collection(FS_COLLECTION).doc(FS_DOC).set(payload, { merge: true })
-        .catch(err => {
-          console.error('Cloud sync failed for', key, err);
-          window.SoundFX?.playError();
-        });
+      queueCloudWrite(key, value);
     }
   };
 
-  localStorage.removeItem = function (key) {
+  proto.removeItem = function(key) {
     nativeRemoveItem(key);
-    // Most app settings are represented by setItem; this hook is kept for
-    // future synced keys without changing current behavior.
+    // Keep existing behavior for local-only settings.
+    // Synced stores currently use setItem for persistence.
   };
+}
+
+let cloudWriteTimers = Object.create(null);
+function queueCloudWrite(key, value) {
+  clearTimeout(cloudWriteTimers[key]);
+  cloudWriteTimers[key] = setTimeout(() => {
+    const payload = {};
+    payload[key] = value;
+    db.collection(FS_COLLECTION).doc(FS_DOC).set(payload, { merge: true })
+      .catch(err => {
+        console.error('Cloud sync failed for', key, err);
+        window.SoundFX?.playError();
+      });
+  }, 50);
 }
 
 function applyRemoteCoreData(data) {
