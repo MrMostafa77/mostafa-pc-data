@@ -53,11 +53,18 @@ function isFirebaseConfigured() {
 }
 
 function loadCoreScripts() {
+  // IMPORTANT: these two files are the actual app logic (including the
+  // realtime-refresh listener). Loading them without a cache-busting
+  // version meant some phones/tablets could keep running an OLD cached
+  // copy of app.js indefinitely (even after a manual reload), which looks
+  // exactly like "sync doesn't happen live" or "this one tab never hears
+  // updates" depending on which old copy got stuck. Always version these.
+  const v = window.__APP_VERSION || Date.now();
   const s1 = document.createElement('script');
-  s1.src = 'js/data-inline.js';
+  s1.src = 'js/data-inline.js?v=' + v;
   s1.onload = () => {
     const s2 = document.createElement('script');
-    s2.src = 'js/app.js';
+    s2.src = 'js/app.js?v=' + v;
     document.body.appendChild(s2);
   };
   document.body.appendChild(s1);
@@ -111,34 +118,65 @@ function queueCloudWrite(key, value) {
         delete pendingCloudWrites[key];
         console.error('Cloud sync failed for', key, err);
         window.SoundFX?.playError();
+        // Previously this failure was invisible to the user (console + a
+        // sound effect only). A write can fail silently on a weak
+        // mobile/tablet connection — most likely for the largest store
+        // (Game Dates), which made it look like that tab "never syncs".
+        // Show it, and retry once automatically.
+        if (window.CoverStore) {
+          window.CoverStore.showToast(
+            'فشلت مزامنة "' + key + '" مع السحابة، هيتم إعادة المحاولة تلقائيًا: ' + (err && err.message ? err.message : err),
+            true
+          );
+        }
+        clearTimeout(cloudWriteTimers['retry:' + key]);
+        cloudWriteTimers['retry:' + key] = setTimeout(() => queueCloudWrite(key, value), 4000);
       });
   }, 50);
 }
 
 function applyRemoteCoreData(data) {
   const changedKeys = [];
+  // Ignore duplicate snapshots/polls with identical payloads.
+  try {
+    const fp = JSON.stringify(SYNC_KEYS.map(key => data[key] === undefined ? null : String(data[key])));
+    if (fp === lastRemoteFingerprint) return;
+    lastRemoteFingerprint = fp;
+  } catch (e) {}
   const meta = (data && data._syncMeta && typeof data._syncMeta === 'object') ? data._syncMeta : {};
-  // Firestore snapshot is authoritative. Client clocks are not comparable across devices.
-  // Only protect a key while its local write is still pending.
   applyingRemote = true;
   try {
     SYNC_KEYS.forEach(key => {
       if (data[key] === undefined) return;
+      const remoteVersion = Number(meta[key] || 0);
+      const localVersion = Number(localWriteVersion[key] || 0);
+      const knownRemoteVersion = Number(remoteVersions[key] || 0);
+
+      // A write made locally on this device is authoritative until Firestore
+      // confirms it. This prevents an older snapshot/cache from immediately
+      // deleting a newly-added Game Dates row.
       if (pendingCloudWrites[key]) return;
+      if (remoteVersion && localVersion && remoteVersion < localVersion) return;
+      if (remoteVersion && knownRemoteVersion && remoteVersion < knownRemoteVersion) return;
+      if (remoteVersion) remoteVersions[key] = Math.max(knownRemoteVersion, remoteVersion);
+
       const next = String(data[key]);
       const current = localStorage.getItem(key);
       if (current !== next) {
         nativeSetLocal(key, next);
         changedKeys.push(key);
       }
-      const remoteVersion = Number(meta[key] || 0);
-      if (remoteVersion) remoteVersions[key] = remoteVersion;
     });
-    try { lastRemoteFingerprint = JSON.stringify(SYNC_KEYS.map(key => data[key] === undefined ? null : String(data[key]))); } catch (e) {}
+
+    // Keep applyingRemote=true while the UI refreshes. Several render helpers
+    // normalize their stores and call localStorage.setItem(); those writes
+    // must NOT be sent back to Firestore as if they were a new user edit.
     if (changedKeys.length) {
       window.dispatchEvent(new CustomEvent('gamevault:cloud-update', { detail: { keys: changedKeys } }));
     }
-  } finally { applyingRemote = false; }
+  } finally {
+    applyingRemote = false;
+  }
 }
 
 function nativeSetLocal(key, value) {
@@ -181,6 +219,31 @@ function startRealtimeFallbackPoll() {
       console.warn('Realtime fallback poll failed', e);
     }
   }, 2000);
+}
+
+// Extra safety net on top of subscribeToCloud() + startRealtimeFallbackPoll():
+// when a phone/tablet browser puts the tab to sleep (screen off, app
+// backgrounded, switched networks) the realtime listener and the 2-second
+// poll can both stop firing. Neither one reliably "wakes up" on its own on
+// every device. So the moment the tab becomes visible/focused again, or the
+// device regains network, force one immediate server read — this guarantees
+// the page catches up within a second of being looked at again, without
+// requiring a manual reload.
+function forceResync() {
+  if (!db || !syncReady) return;
+  db.collection(FS_COLLECTION).doc(FS_DOC).get({ source: 'server' })
+    .then(snap => { if (snap.exists) applyRemoteCoreData(snap.data() || {}); })
+    .catch(e => console.warn('Force resync failed', e));
+}
+let reconnectBound = false;
+function bindReconnectSafetyNet() {
+  if (reconnectBound) return;
+  reconnectBound = true;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') forceResync();
+  });
+  window.addEventListener('focus', forceResync);
+  window.addEventListener('online', forceResync);
 }
 
 async function hydrateFromCloud() {
@@ -348,10 +411,24 @@ async function init() {
     try {
       firebase.initializeApp(firebaseConfig);
       db = firebase.firestore();
+      // Firestore's realtime listener uses a long-lived streaming
+      // connection (WebChannel). Many mobile networks, carrier proxies and
+      // some WiFi routers/tablets don't handle that connection well — the
+      // stream silently stalls and no more updates arrive until the page
+      // is fully reloaded (which opens a brand-new connection). Forcing
+      // long-polling avoids that failure mode entirely; it's slightly
+      // heavier per-request but far more reliable on phones/tablets.
+      // MUST be called before any other Firestore call.
+      try {
+        db.settings({ experimentalAutoDetectLongPolling: true, merge: true });
+      } catch (settingsErr) {
+        console.warn('Firestore settings() failed', settingsErr);
+      }
       await hydrateFromCloud();
       syncReady = true;
       subscribeToCloud();
       startRealtimeFallbackPoll();
+      bindReconnectSafetyNet();
     } catch (e) {
       console.error('Firebase init failed, continuing with local storage only', e);
     }
