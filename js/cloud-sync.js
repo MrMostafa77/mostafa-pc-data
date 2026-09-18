@@ -42,6 +42,9 @@ let unsubscribeCore = null;
 let realtimePollTimer = null;
 let lastRemoteFingerprint = '';
 let lastSnapshotAt = 0;
+const localWriteVersion = Object.create(null);
+const pendingCloudWrites = Object.create(null);
+const remoteVersions = Object.create(null);
 
 function isFirebaseConfigured() {
   return typeof firebaseConfig !== 'undefined' &&
@@ -89,11 +92,23 @@ function patchLocalStorage() {
 let cloudWriteTimers = Object.create(null);
 function queueCloudWrite(key, value) {
   clearTimeout(cloudWriteTimers[key]);
+  const version = Date.now();
+  localWriteVersion[key] = version;
+  pendingCloudWrites[key] = true;
   cloudWriteTimers[key] = setTimeout(() => {
     const payload = {};
     payload[key] = value;
+    payload._syncMeta = {};
+    payload._syncMeta[key] = version;
     db.collection(FS_COLLECTION).doc(FS_DOC).set(payload, { merge: true })
+      .then(() => {
+        // Keep the version so an older cached snapshot can never roll this
+        // device back after the write has already reached Firestore.
+        remoteVersions[key] = Math.max(Number(remoteVersions[key] || 0), version);
+        delete pendingCloudWrites[key];
+      })
       .catch(err => {
+        delete pendingCloudWrites[key];
         console.error('Cloud sync failed for', key, err);
         window.SoundFX?.playError();
       });
@@ -108,10 +123,23 @@ function applyRemoteCoreData(data) {
     if (fp === lastRemoteFingerprint) return;
     lastRemoteFingerprint = fp;
   } catch (e) {}
+  const meta = (data && data._syncMeta && typeof data._syncMeta === 'object') ? data._syncMeta : {};
   applyingRemote = true;
   try {
     SYNC_KEYS.forEach(key => {
       if (data[key] === undefined) return;
+      const remoteVersion = Number(meta[key] || 0);
+      const localVersion = Number(localWriteVersion[key] || 0);
+      const knownRemoteVersion = Number(remoteVersions[key] || 0);
+
+      // A write made locally on this device is authoritative until Firestore
+      // confirms it. This prevents an older snapshot/cache from immediately
+      // deleting a newly-added Game Dates row.
+      if (pendingCloudWrites[key]) return;
+      if (remoteVersion && localVersion && remoteVersion < localVersion) return;
+      if (remoteVersion && knownRemoteVersion && remoteVersion < knownRemoteVersion) return;
+      if (remoteVersion) remoteVersions[key] = Math.max(knownRemoteVersion, remoteVersion);
+
       const next = String(data[key]);
       const current = localStorage.getItem(key);
       if (current !== next) {
