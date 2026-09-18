@@ -117,46 +117,28 @@ function queueCloudWrite(key, value) {
 
 function applyRemoteCoreData(data) {
   const changedKeys = [];
-  // Ignore duplicate snapshots/polls with identical payloads.
-  try {
-    const fp = JSON.stringify(SYNC_KEYS.map(key => data[key] === undefined ? null : String(data[key])));
-    if (fp === lastRemoteFingerprint) return;
-    lastRemoteFingerprint = fp;
-  } catch (e) {}
   const meta = (data && data._syncMeta && typeof data._syncMeta === 'object') ? data._syncMeta : {};
+  // Firestore snapshot is authoritative. Client clocks are not comparable across devices.
+  // Only protect a key while its local write is still pending.
   applyingRemote = true;
   try {
     SYNC_KEYS.forEach(key => {
       if (data[key] === undefined) return;
-      const remoteVersion = Number(meta[key] || 0);
-      const localVersion = Number(localWriteVersion[key] || 0);
-      const knownRemoteVersion = Number(remoteVersions[key] || 0);
-
-      // A write made locally on this device is authoritative until Firestore
-      // confirms it. This prevents an older snapshot/cache from immediately
-      // deleting a newly-added Game Dates row.
       if (pendingCloudWrites[key]) return;
-      if (remoteVersion && localVersion && remoteVersion < localVersion) return;
-      if (remoteVersion && knownRemoteVersion && remoteVersion < knownRemoteVersion) return;
-      if (remoteVersion) remoteVersions[key] = Math.max(knownRemoteVersion, remoteVersion);
-
       const next = String(data[key]);
       const current = localStorage.getItem(key);
       if (current !== next) {
         nativeSetLocal(key, next);
         changedKeys.push(key);
       }
+      const remoteVersion = Number(meta[key] || 0);
+      if (remoteVersion) remoteVersions[key] = remoteVersion;
     });
-
-    // Keep applyingRemote=true while the UI refreshes. Several render helpers
-    // normalize their stores and call localStorage.setItem(); those writes
-    // must NOT be sent back to Firestore as if they were a new user edit.
+    try { lastRemoteFingerprint = JSON.stringify(SYNC_KEYS.map(key => data[key] === undefined ? null : String(data[key]))); } catch (e) {}
     if (changedKeys.length) {
       window.dispatchEvent(new CustomEvent('gamevault:cloud-update', { detail: { keys: changedKeys } }));
     }
-  } finally {
-    applyingRemote = false;
-  }
+  } finally { applyingRemote = false; }
 }
 
 function nativeSetLocal(key, value) {
