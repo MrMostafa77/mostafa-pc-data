@@ -39,6 +39,9 @@ let db = null;
 let syncReady = false;
 let applyingRemote = false;
 let unsubscribeCore = null;
+let realtimePollTimer = null;
+let lastRemoteFingerprint = '';
+let lastSnapshotAt = 0;
 
 function isFirebaseConfigured() {
   return typeof firebaseConfig !== 'undefined' &&
@@ -99,6 +102,12 @@ function queueCloudWrite(key, value) {
 
 function applyRemoteCoreData(data) {
   const changedKeys = [];
+  // Ignore duplicate snapshots/polls with identical payloads.
+  try {
+    const fp = JSON.stringify(SYNC_KEYS.map(key => data[key] === undefined ? null : String(data[key])));
+    if (fp === lastRemoteFingerprint) return;
+    lastRemoteFingerprint = fp;
+  } catch (e) {}
   applyingRemote = true;
   try {
     SYNC_KEYS.forEach(key => {
@@ -127,6 +136,7 @@ function subscribeToCloud() {
   if (!db || unsubscribeCore) return;
   unsubscribeCore = db.collection(FS_COLLECTION).doc(FS_DOC).onSnapshot(
     snap => {
+      lastSnapshotAt = Date.now();
       if (!snap.exists) return;
       applyRemoteCoreData(snap.data() || {});
     },
@@ -135,6 +145,25 @@ function subscribeToCloud() {
       window.SoundFX?.playError();
     }
   );
+}
+
+
+// بعض متصفحات التابلت/الموبايل قد تفقد قناة Firestore realtime مؤقتًا
+// (خصوصًا مع WebView أو تغيير الشبكة). نستخدم فحصًا خفيفًا جدًا كشبكة أمان.
+// الـ onSnapshot يظل المسار الأساسي، والفحص لا يعيد معالجة نفس البيانات.
+function startRealtimeFallbackPoll() {
+  if (realtimePollTimer || !db) return;
+  realtimePollTimer = setInterval(async () => {
+    if (!syncReady || !db) return;
+    // لا نحتاج polling متكرر طالما الـ listener شغال بشكل طبيعي.
+    if (Date.now() - lastSnapshotAt < 2500) return;
+    try {
+      const snap = await db.collection(FS_COLLECTION).doc(FS_DOC).get({ source: 'server' });
+      if (snap.exists) applyRemoteCoreData(snap.data() || {});
+    } catch (e) {
+      console.warn('Realtime fallback poll failed', e);
+    }
+  }, 2500);
 }
 
 async function hydrateFromCloud() {
@@ -305,6 +334,7 @@ async function init() {
       await hydrateFromCloud();
       syncReady = true;
       subscribeToCloud();
+      startRealtimeFallbackPoll();
     } catch (e) {
       console.error('Firebase init failed, continuing with local storage only', e);
     }
