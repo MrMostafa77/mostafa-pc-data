@@ -6,6 +6,7 @@
 // 2) بعدين بتحمّل data-inline.js و app.js زي ما كانوا بالظبط
 // 3) من لحظة ما app.js يستخدم localStorage.setItem لأي حفظ جديد،
 //    الطبقة دي بتاخد نسخة وترفعها لنفس قاعدة البيانات تلقائيًا
+// 4) بتشترك في onSnapshot عشان أي تغيير من جهاز/تبويب آخر يظهر لحظيًا
 // ============================================================
 
 const SYNC_KEYS = [
@@ -16,7 +17,10 @@ const SYNC_KEYS = [
   'gameVault_sizeDeleted_v1',
   'gameVault_sizeOverrides_v1',
   'mostafa_pc_date_options_v1',
-  'mostafa_pc_deleted_games_v1'
+  'mostafa_pc_deleted_games_v1',
+  'gameVault_favorites_v1',
+  'gameVault_gameTags_v1',
+  'gameVault_upcomingGames_v1'
 ];
 // ملحوظة: صور الأغلفة (gameVault_coverOverrides_v1 سابقًا) اتشالت من هنا عمدًا.
 // كانت بتترفع كنص base64 ضخم داخل نفس مستند Firestore، اللي حده 1 ميجا فقط،
@@ -33,6 +37,8 @@ const CHUNK_SIZE = 700000; // ~700 ألف حرف لكل جزء — بعيد جد
 
 let db = null;
 let syncReady = false;
+let applyingRemote = false;
+let unsubscribeCore = null;
 
 function isFirebaseConfigured() {
   return typeof firebaseConfig !== 'undefined' &&
@@ -52,10 +58,16 @@ function loadCoreScripts() {
 }
 
 function patchLocalStorage() {
+  if (window.__GameVaultLocalStoragePatched) return;
+  window.__GameVaultLocalStoragePatched = true;
   const nativeSetItem = localStorage.setItem.bind(localStorage);
+  const nativeRemoveItem = localStorage.removeItem.bind(localStorage);
+  window.__GameVaultNativeSetItem = nativeSetItem;
+  window.__GameVaultNativeRemoveItem = nativeRemoveItem;
+
   localStorage.setItem = function (key, value) {
     nativeSetItem(key, value);
-    if (syncReady && db && SYNC_KEYS.includes(key)) {
+    if (syncReady && db && !applyingRemote && SYNC_KEYS.includes(key)) {
       const payload = {};
       payload[key] = value;
       db.collection(FS_COLLECTION).doc(FS_DOC).set(payload, { merge: true })
@@ -65,6 +77,52 @@ function patchLocalStorage() {
         });
     }
   };
+
+  localStorage.removeItem = function (key) {
+    nativeRemoveItem(key);
+    // Most app settings are represented by setItem; this hook is kept for
+    // future synced keys without changing current behavior.
+  };
+}
+
+function applyRemoteCoreData(data) {
+  const changedKeys = [];
+  applyingRemote = true;
+  try {
+    SYNC_KEYS.forEach(key => {
+      if (data[key] === undefined) return;
+      const next = String(data[key]);
+      const current = localStorage.getItem(key);
+      if (current !== next) {
+        nativeSetLocal(key, next);
+        changedKeys.push(key);
+      }
+    });
+  } finally {
+    applyingRemote = false;
+  }
+  if (changedKeys.length) {
+    window.dispatchEvent(new CustomEvent('gamevault:cloud-update', { detail: { keys: changedKeys } }));
+  }
+}
+
+function nativeSetLocal(key, value) {
+  const setter = window.__GameVaultNativeSetItem || localStorage.setItem.bind(localStorage);
+  setter(key, value);
+}
+
+function subscribeToCloud() {
+  if (!db || unsubscribeCore) return;
+  unsubscribeCore = db.collection(FS_COLLECTION).doc(FS_DOC).onSnapshot(
+    snap => {
+      if (!snap.exists) return;
+      applyRemoteCoreData(snap.data() || {});
+    },
+    err => {
+      console.error('Cloud realtime listener failed', err);
+      window.SoundFX?.playError();
+    }
+  );
 }
 
 async function hydrateFromCloud() {
@@ -75,7 +133,7 @@ async function hydrateFromCloud() {
       const data = snap.data();
       SYNC_KEYS.forEach(key => {
         if (data[key] !== undefined) {
-          localStorage.setItem.call(localStorage, key, data[key]);
+          nativeSetLocal(key, data[key]);
         }
       });
     } else {
@@ -234,6 +292,7 @@ async function init() {
       db = firebase.firestore();
       await hydrateFromCloud();
       syncReady = true;
+      subscribeToCloud();
     } catch (e) {
       console.error('Firebase init failed, continuing with local storage only', e);
     }

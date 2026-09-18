@@ -3728,6 +3728,43 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
   }
   ensureGlobalContextMenu();
 
+  // ===== REALTIME CLOUD SYNC =====
+  // Firestore notifies every open copy of the app. Refresh the in-memory
+  // stores from localStorage and redraw the UI without requiring a reload.
+  if(!window.__gameVaultRealtimeBound){
+    window.__gameVaultRealtimeBound=true;
+    window.addEventListener('gamevault:cloud-update', e=>{
+      try{
+        const keys=new Set(e?.detail?.keys||[]);
+        if(keys.has(USERGAMES_KEY)){ userGames=loadJSON(USERGAMES_KEY,[]); }
+        if(keys.has(OVERRIDES_KEY)){ overrides=loadJSON(OVERRIDES_KEY,{}); }
+        if(keys.has(DATE_RECORDS_KEY)){ dateRecords=loadJSON(DATE_RECORDS_KEY,null); }
+        if(keys.has(SIZE_OVERRIDES_KEY)){ sizeOverrides=loadJSON(SIZE_OVERRIDES_KEY,{}); }
+        if(keys.has(SIZE_DELETED_KEY)){ sizeDeleted=new Set(loadJSON(SIZE_DELETED_KEY,[]).map(Number)); }
+        if(keys.has(CAP_KEY)){ capacities=loadJSON(CAP_KEY,{}); }
+        if(keys.has(FAVORITES_KEY)){ favorites=new Set(loadJSON(FAVORITES_KEY,[]).map(Number)); }
+        if(keys.has(TAGS_KEY)){ gameTags=loadJSON(TAGS_KEY,{}); }
+        if(keys.has('mostafa_pc_deleted_games_v1') || keys.has(USERGAMES_KEY)){
+          rebuildGamesArray();
+        }
+        if(keys.has(DATE_RECORDS_KEY)){
+          try{ ensureDateRecords(); }catch(err){ console.warn('Realtime date records refresh failed',err); }
+        }
+        try{ rebuildNormalizedMaps(); }catch(err){}
+        renderHeroStats();
+        renderDashboard();
+        renderDrives();
+        renderFilters();
+        renderResults();
+        try{ renderDatesTab(); }catch(err){}
+        try{ renderSizesTab(); }catch(err){}
+        try{ window.__renderActiveTab?.(); }catch(err){}
+      }catch(err){
+        console.error('Realtime UI refresh failed',err);
+      }
+    });
+  }
+
   renderDashboard();
   renderDrives();
   initTabs();
