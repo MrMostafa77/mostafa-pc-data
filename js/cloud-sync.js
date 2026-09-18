@@ -147,11 +147,15 @@ function applyRemoteCoreData(data) {
         changedKeys.push(key);
       }
     });
+
+    // Keep applyingRemote=true while the UI refreshes. Several render helpers
+    // normalize their stores and call localStorage.setItem(); those writes
+    // must NOT be sent back to Firestore as if they were a new user edit.
+    if (changedKeys.length) {
+      window.dispatchEvent(new CustomEvent('gamevault:cloud-update', { detail: { keys: changedKeys } }));
+    }
   } finally {
     applyingRemote = false;
-  }
-  if (changedKeys.length) {
-    window.dispatchEvent(new CustomEvent('gamevault:cloud-update', { detail: { keys: changedKeys } }));
   }
 }
 
@@ -184,14 +188,17 @@ function startRealtimeFallbackPoll() {
   realtimePollTimer = setInterval(async () => {
     if (!syncReady || !db) return;
     // لا نحتاج polling متكرر طالما الـ listener شغال بشكل طبيعي.
-    if (Date.now() - lastSnapshotAt < 2500) return;
+    // Poll every cycle as a second independent delivery path.
+    // Some browsers/WebViews can keep the Firestore listener alive without
+    // delivering document changes reliably; polling guarantees convergence.
+
     try {
       const snap = await db.collection(FS_COLLECTION).doc(FS_DOC).get({ source: 'server' });
       if (snap.exists) applyRemoteCoreData(snap.data() || {});
     } catch (e) {
       console.warn('Realtime fallback poll failed', e);
     }
-  }, 2500);
+  }, 2000);
 }
 
 async function hydrateFromCloud() {
