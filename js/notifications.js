@@ -28,6 +28,8 @@
     if(!('Notification' in window) || Notification.permission!=='granted') return;
     try{ const n=new Notification(title,{body:msg,icon:'assets/hero-logo-banner.png',tag:'gamevault-update'}); n.onclick=()=>{window.focus();n.close();}; }catch(e){}
   }
+  window.browserNotifyForPush=browserNotify;
+
   function updateBadge(){
     const badge=document.getElementById('notifications-badge');
     if(!badge) return;
@@ -95,7 +97,7 @@
       try{
         const p=await Notification.requestPermission();
         refreshPermissionButton(p);
-        if(p==='granted') browserNotify('GameVault','Browser notifications are enabled.');
+        if(p==='granted'){ browserNotify('GameVault','Browser notifications are enabled.'); window.dispatchEvent(new Event('gamevault:notifications-granted')); }
         else if(p==='denied') alert('Notifications are currently blocked for this site. If Chrome shows Allow in Site settings, refresh the page and open Notifications again.');
       }catch(e){ refreshPermissionButton(); }
     };
