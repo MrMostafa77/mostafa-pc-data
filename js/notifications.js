@@ -44,18 +44,41 @@
   function openPanel(){
     if(!panel) build();
     panel.hidden=!panel.hidden;
-    if(!panel.hidden){try{localStorage.setItem(SEEN,String(items.length));}catch(e){} updateBadge();}
+    if(!panel.hidden){try{localStorage.setItem(SEEN,String(items.length));}catch(e){} updateBadge(); syncPermissionState();}
   }
-  function permissionButtonLabel(){
-    if(!('Notification' in window)) return '🔔 Browser notifications not supported';
-    if(Notification.permission==='granted') return '✅ Browser notifications enabled';
-    if(Notification.permission==='denied') return '🚫 Browser notifications blocked';
+  function currentPermission(){
+    try{ if('Notification' in window) return Notification.permission; }catch(e){}
+    return 'unsupported';
+  }
+  function permissionButtonLabel(state=currentPermission()){
+    if(state==='unsupported') return '🔔 Browser notifications not supported';
+    if(state==='granted') return '✅ Browser notifications enabled';
+    if(state==='denied') return '🚫 Browser notifications blocked';
     return '🔔 Enable browser notifications';
   }
-  function refreshPermissionButton(){
+  function refreshPermissionButton(state){
     if(!panel) return;
     const b=panel.querySelector('#notify-permission');
-    if(b){ b.textContent=permissionButtonLabel(); b.disabled=Notification.permission==='granted' || Notification.permission==='denied'; }
+    if(!b) return;
+    const s=state || currentPermission();
+    b.textContent=permissionButtonLabel(s);
+    b.disabled=(s==='granted' || s==='denied' || s==='unsupported');
+    b.setAttribute('data-permission',s);
+  }
+  async function syncPermissionState(){
+    let state=currentPermission();
+    try{
+      if(navigator.permissions && navigator.permissions.query){
+        const result=await navigator.permissions.query({name:'notifications'});
+        if(result && result.state) state=result.state;
+        if(result && !result.__gamevaultBound){
+          result.__gamevaultBound=true;
+          result.onchange=()=>refreshPermissionButton(result.state);
+        }
+      }
+    }catch(e){}
+    refreshPermissionButton(state);
+    return state;
   }
   function build(){
     panel=document.createElement('div'); panel.className='notify-panel'; panel.hidden=true;
@@ -69,17 +92,18 @@
       if(Notification.permission==='denied'){ alert('Notifications are blocked for this site. Allow them from the browser site settings, then refresh the page.'); refreshPermissionButton(); return; }
       try{
         const p=await Notification.requestPermission();
-        refreshPermissionButton();
+        refreshPermissionButton(p);
         if(p==='granted') browserNotify('GameVault','Browser notifications are enabled.');
+        else if(p==='denied') alert('Notifications are currently blocked for this site. If Chrome shows Allow in Site settings, refresh the page and open Notifications again.');
       }catch(e){ refreshPermissionButton(); }
     };
-    refreshPermissionButton();
+    syncPermissionState();
     render();
   }
   function init(){
-    if('Notification' in window){ document.addEventListener('visibilitychange',refreshPermissionButton); }
+    if('Notification' in window){ document.addEventListener('visibilitychange',()=>syncPermissionState()); window.addEventListener('focus',()=>syncPermissionState()); }
     const btn=document.getElementById('notifications-btn'); if(!btn)return;
-    btn.addEventListener('click',openPanel); build(); updateBadge();
+    btn.addEventListener('click',openPanel); build(); updateBadge(); syncPermissionState();
     window.addEventListener('gamevault:cloud-update',e=>{
       const keys=e&&e.detail&&e.detail.keys||[]; if(!keys.length)return;
       const [title,msg]=titleFor(keys); add(title,msg); browserNotify(title,msg);
