@@ -46,6 +46,17 @@
     panel.hidden=!panel.hidden;
     if(!panel.hidden){try{localStorage.setItem(SEEN,String(items.length));}catch(e){} updateBadge();}
   }
+  function permissionButtonLabel(){
+    if(!('Notification' in window)) return '🔔 Browser notifications not supported';
+    if(Notification.permission==='granted') return '✅ Browser notifications enabled';
+    if(Notification.permission==='denied') return '🚫 Browser notifications blocked';
+    return '🔔 Enable browser notifications';
+  }
+  function refreshPermissionButton(){
+    if(!panel) return;
+    const b=panel.querySelector('#notify-permission');
+    if(b){ b.textContent=permissionButtonLabel(); b.disabled=Notification.permission==='granted' || Notification.permission==='denied'; }
+  }
   function build(){
     panel=document.createElement('div'); panel.className='notify-panel'; panel.hidden=true;
     panel.innerHTML='<div class="notify-head"><h3>Notifications</h3><button class="icon-btn" id="notify-close" type="button">✕</button></div><div class="notify-list"></div><div class="notify-actions"><button id="notify-permission" type="button">🔔 Enable browser notifications</button><button id="notify-clear" type="button">Clear</button></div>';
@@ -53,12 +64,20 @@
     panel.querySelector('#notify-close').onclick=()=>panel.hidden=true;
     panel.querySelector('#notify-clear').onclick=()=>{items=[];save();updateBadge();render();};
     panel.querySelector('#notify-permission').onclick=async()=>{
-      if(!('Notification' in window)){alert('This browser does not support notifications.');return;}
-      try{const p=await Notification.requestPermission(); if(p==='granted'){browserNotify('GameVault','Browser notifications are enabled.');} }catch(e){}
+      if(!('Notification' in window)){alert('This browser does not support notifications.'); refreshPermissionButton(); return;}
+      if(Notification.permission==='granted'){ refreshPermissionButton(); return; }
+      if(Notification.permission==='denied'){ alert('Notifications are blocked for this site. Allow them from the browser site settings, then refresh the page.'); refreshPermissionButton(); return; }
+      try{
+        const p=await Notification.requestPermission();
+        refreshPermissionButton();
+        if(p==='granted') browserNotify('GameVault','Browser notifications are enabled.');
+      }catch(e){ refreshPermissionButton(); }
     };
+    refreshPermissionButton();
     render();
   }
   function init(){
+    if('Notification' in window){ document.addEventListener('visibilitychange',refreshPermissionButton); }
     const btn=document.getElementById('notifications-btn'); if(!btn)return;
     btn.addEventListener('click',openPanel); build(); updateBadge();
     window.addEventListener('gamevault:cloud-update',e=>{
