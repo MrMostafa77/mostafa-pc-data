@@ -10,8 +10,8 @@
 
 
 
-<script>window.__APP_VERSION='20260919-10-notify';</script>
-<link href="css/style.css?v=20260919-10-notify" rel="stylesheet"/><style>.report-year-games{display:grid;gap:6px;margin-top:12px}.report-year-game{padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.06)}.report-year-game.empty{opacity:.6}</style><link rel="icon" href="favicon.svg" type="image/svg+xml">
+<script>window.__APP_VERSION='20260919-11-auth';</script>
+<link href="css/style.css?v=20260919-11-auth" rel="stylesheet"/><style>.report-year-games{display:grid;gap:6px;margin-top:12px}.report-year-game{padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.06)}.report-year-game.empty{opacity:.6}.wrap{visibility:hidden}</style><link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body><div hidden="" id="boot-error">Unable to load project data. Run the website through a local server (not file://).</div>
 <div aria-hidden="true" id="dynamic-bg"></div>
@@ -42,6 +42,7 @@
 <button class="ui-btn" id="backup-project-btn" type="button" title="Backup Project">💾 Backup</button>
 <button class="ui-btn" id="notifications-btn" type="button" title="Notifications">🔔 <span id="notifications-badge" hidden>0</span></button>
 <button class="ui-btn" id="theme-toggle" type="button">☀️ / 🌙</button>
+<button class="ui-btn" id="logout-btn" type="button" title="Sign out" onclick="GameVaultSignOut()">🚪</button>
 </div>
 <div class="hero-stats" id="hero-stats"></div>
 </header></div>
@@ -205,13 +206,15 @@
 
 
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="js/sound-effects.js?v=20260919-8"></script>
 <script src="js/cover-store.js?v=20260919-8"></script>
 <script src="firebase-config.js?v=20260919-8"></script>
-<script src="js/cloud-sync.js?v=20260919-10-notify"></script>
+<script src="js/auth-gate.js?v=20260919-11-auth"></script>
+<script src="js/cloud-sync.js?v=20260919-11-auth"></script>
 <script src="js/notifications.js?v=20260919-16-fcmfix"></script>
 <script src="js/push-notifications.js?v=20260919-5"></script>
 

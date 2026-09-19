@@ -444,7 +444,9 @@ async function init() {
 
   if (isFirebaseConfigured()) {
     try {
-      firebase.initializeApp(firebaseConfig);
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
       db = firebase.firestore();
       // Firestore's realtime listener uses a long-lived streaming
       // connection (WebChannel). Many mobile networks, carrier proxies and
@@ -473,4 +475,11 @@ async function init() {
   loadCoreScripts();
 }
 
-init();
+// لو auth-gate.js متحمّل، ننتظر تسجيل الدخول الأول قبل ما نبدأ فعليًا
+// (تحميل البيانات، الاتصال بـ Firestore، تحميل app.js...). لو مش
+// متحمّل (تم حذفه لأي سبب) نشتغل عادي زي الأول.
+if (window.GameVaultAuthReady) {
+  window.GameVaultAuthReady.then(init);
+} else {
+  init();
+}

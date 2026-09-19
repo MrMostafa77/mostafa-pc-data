@@ -3075,3 +3075,35 @@ body.series-history-open{overflow:hidden}
 .notify-panel[hidden]{display:none}
 .notify-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.notify-head h3{margin:0;color:#eaf3ff}.notify-list{display:flex;flex-direction:column;gap:8px}.notify-item{padding:11px 12px;border-radius:11px;background:rgba(255,255,255,.045);border:1px solid rgba(113,174,235,.14)}.notify-item strong{display:block;color:#eaf3ff}.notify-item span{display:block;margin-top:4px;color:#9fb1c5;font-size:12px}.notify-empty{padding:22px 8px;text-align:center;color:#8f9daf}.notify-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.notify-actions button{border:1px solid rgba(113,174,235,.28);background:#10243a;color:#dbeaff;border-radius:9px;padding:9px 11px;cursor:pointer}.notify-actions button:hover{border-color:#d9a64f;color:#ffd77e}
 @media(max-width:900px){.notify-panel{right:10px;top:62px}}
+
+/* ============================================================
+   شاشة الدخول (Auth Gate) — Firebase Authentication
+   ============================================================ */
+#auth-gate-overlay{
+  position:fixed; inset:0; z-index:5000; display:flex; align-items:center; justify-content:center;
+  padding:20px; background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(201,150,63,0.10), transparent 60%),
+    radial-gradient(900px 500px at 5% 10%, rgba(92,140,119,0.08), transparent 55%),
+    var(--ink);
+}
+.auth-gate-card{
+  width:100%; max-width:360px; background:var(--panel); border:1px solid var(--line-strong);
+  border-radius:14px; padding:32px 28px; text-align:center; box-shadow:0 20px 50px rgba(0,0,0,.45);
+}
+.auth-gate-logo{width:56px; height:56px; object-fit:contain; margin-bottom:10px;}
+.auth-gate-title{font-family:var(--font-head); font-size:19px; color:var(--parchment); margin:0 0 4px;}
+.auth-gate-sub{font-size:13px; color:var(--muted); margin:0 0 22px;}
+.auth-gate-label{display:block; text-align:start; font-size:12px; color:var(--parchment-dim); margin:0 0 6px;}
+.auth-gate-input{
+  width:100%; background:var(--panel-2); border:1.5px solid var(--line-strong); color:var(--parchment);
+  padding:12px 14px; font-size:15px; border-radius:8px; font-family:var(--font-body); outline:none;
+  margin-bottom:16px; box-sizing:border-box;
+}
+.auth-gate-input:focus{border-color:var(--brass);}
+.auth-gate-error{
+  background:rgba(181,80,47,.15); border:1px solid var(--rust); color:#f2b8a5;
+  font-size:12.5px; border-radius:8px; padding:9px 12px; margin-bottom:14px; text-align:start;
+}
+.auth-gate-submit{width:100%; padding:12px; font-size:14.5px; margin-top:2px;}
+.auth-gate-submit:disabled{opacity:.6; cursor:default;}
+body.light .auth-gate-input{background:var(--panel-2);}
