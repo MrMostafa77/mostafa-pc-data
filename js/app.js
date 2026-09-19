@@ -3757,9 +3757,9 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
         renderDrives();
         renderFilters();
         renderResults();
-        try{ renderDatesTab(); }catch(err){}
-        try{ renderSizesTab(); }catch(err){}
-        try{ window.__renderActiveTab?.(); }catch(err){}
+       try{ renderDatesTab(); }catch(err){console.error('[Sync] renderDatesTab FAILED:', err);}
+       try{ renderSizesTab(); }catch(err){console.error('[Sync] renderSizesTab FAILED:', err);}
+        try{ window.__renderActiveTab?.(); }catch(err){console.error('[Sync] renderActiveTab FAILED:', err);}
       }catch(err){
         console.error('Realtime UI refresh failed',err);
       }
