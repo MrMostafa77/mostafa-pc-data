@@ -1,336 +1,178 @@
 // ============================================================
-// music-player.js — مشغل ساوند تراك (YouTube IFrame API)
+// GameVault local soundtrack player
+// Local MP3 files only — no YouTube, no ads, no external player.
+// Starts on the login screen after the first user interaction and
+// continues while the single-page app is used.
 // ============================================================
-// - الموسيقى بتبدأ بعد تسجيل الدخول (مش على شاشة الدخول).
-// - زرار 🎵 في الهيدر بيفتح لوحة تحكم: تشغيل/إيقاف، السابق/التالي، الصوت، كتم.
-// - بيفتكر: مستوى الصوت، الكتم، الإيقاف، وآخر مقطوعة (localStorage).
-// - لو فيديو مش مسموح بتضمينه أو اتشال، بيتخطاه لوحده.
-// - لازم الموقع يتفتح من سيرفر (http/https) مش file:// — زي باقي المشروع.
-//
-// عشان تغيّر/تضيف مقطوعات: عدّل المصفوفة MUSIC_TRACKS تحت
-// (الـ ID هو الحروف اللي بعد v= في رابط اليوتيوب).
-// ============================================================
-
 (function () {
   'use strict';
 
-  var MUSIC_TRACKS = [
-    'TNhBXdAe7dk',
-    'e59IINeIXk8',
-    'Cv0y0On8ZGQ',
-    'u116HbMOF_Y',
-    'SGQhtPW3FU8',
-    '9ZEhqORSfNg',
-    'jS-p7BvMRMg'
+  var TRACKS = [
+    { file: 'The First Departure.mp3', title: 'The First Departure' },
+    { file: 'The Human League - (Keep Feeling) Fascination.mp3', title: 'The Human League - (Keep Feeling) Fascination' },
+    { file: "Assassin's Creed 2 OST - Dreams of Venice.mp3", title: "Assassin's Creed 2 — Dreams of Venice" },
+    { file: "Assassin's Creed Brotherhood OST - City of Rome (Track 02).mp3", title: "Assassin's Creed Brotherhood — City of Rome (Track 02)" },
+    { file: "Assassin's Creed Brotherhood OST - City of Rome.mp3", title: "Assassin's Creed Brotherhood — City of Rome" },
+    { file: "Assassin's Creed Revelations (The Complete Recordings) OST - Istanbul (Track 29).mp3", title: "Assassin's Creed Revelations — Istanbul" },
+    { file: 'Max Payne - Main Theme.mp3', title: 'Max Payne — Main Theme' },
+    { file: 'Mirage Theme  Assassin\'s Creed Mirage Original Game Soundtrack  Brendan Angelides.mp3', title: "Assassin's Creed Mirage — Mirage Theme" },
+    { file: 'Odin’s Plunder.mp3', title: 'Odin’s Plunder' },
+    { file: 'Ravensthorpe.mp3', title: 'Ravensthorpe' }
   ];
-  var DEFAULT_VOLUME = 35; // من 0 لـ 100
 
-  var LS = {
-    vol: 'gv_music_volume',
-    muted: 'gv_music_muted',
-    paused: 'gv_music_paused',
-    idx: 'gv_music_track'
+  var BASE = 'assets/music/';
+  var LS = { index: 'gv_local_music_index', volume: 'gv_local_music_volume', muted: 'gv_local_music_muted', playing: 'gv_local_music_playing' };
+  var audio, idx = 0, volume = 35, muted = false, ui;
+  var initialized = false;
+
+  function get(k, fallback) { try { var v = localStorage.getItem(k); return v == null ? fallback : v; } catch (e) { return fallback; } }
+  function set(k, v) { try { localStorage.setItem(k, String(v)); } catch (e) {} }
+  function clamp(v) { return Math.max(0, Math.min(100, parseInt(v, 10) || 0)); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]); }); }
+  function srcFor(track) { return BASE + encodeURIComponent(track.file).replace(/%2F/g, '/'); }
+
+  function buildUI() {
+    if (document.getElementById('gv-local-music')) return;
+    var root = document.createElement('div');
+    root.id = 'gv-local-music';
+    root.innerHTML =
+      '<button type="button" class="gv-music-toggle" aria-label="Open music player" title="Music">♫</button>' +
+      '<section class="gv-music-panel" aria-label="Music player" hidden>' +
+        '<div class="gv-music-head"><div><div class="gv-music-label">GAMEVAULT MUSIC</div><div class="gv-music-track"></div></div><button type="button" class="gv-music-close" aria-label="Close">×</button></div>' +
+        '<div class="gv-music-progress"><span class="gv-music-time gv-time-current">0:00</span><input class="gv-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek"><span class="gv-music-time gv-time-total">0:00</span></div>' +
+        '<div class="gv-music-controls">' +
+          '<button type="button" data-act="prev" title="Previous">⏮</button>' +
+          '<button type="button" data-act="stop" title="Stop">■</button>' +
+          '<button type="button" data-act="play" class="gv-play" title="Play / Pause">▶</button>' +
+          '<button type="button" data-act="next" title="Next">⏭</button>' +
+          '<button type="button" data-act="mute" class="gv-mute" title="Mute / Unmute">🔊</button>' +
+        '</div>' +
+        '<div class="gv-music-volume"><span>VOL</span><input class="gv-volume" type="range" min="0" max="100" value="35" step="1" aria-label="Volume"><span class="gv-volume-value">35%</span></div>' +
+        '<div class="gv-music-status"></div>' +
+      '</section>';
+    document.body.appendChild(root);
+    ui = root;
+    ui.querySelector('.gv-music-toggle').addEventListener('click', function (e) { e.stopPropagation(); togglePanel(); });
+    ui.querySelector('.gv-music-close').addEventListener('click', function () { closePanel(); });
+    ui.querySelector('[data-act="prev"]').addEventListener('click', previous);
+    ui.querySelector('[data-act="stop"]').addEventListener('click', stop);
+    ui.querySelector('[data-act="play"]').addEventListener('click', togglePlay);
+    ui.querySelector('[data-act="next"]').addEventListener('click', next);
+    ui.querySelector('[data-act="mute"]').addEventListener('click', toggleMute);
+    ui.querySelector('.gv-volume').addEventListener('input', function (e) { setVolume(e.target.value); });
+    ui.querySelector('.gv-seek').addEventListener('input', function (e) {
+      if (!audio || !isFinite(audio.duration) || !audio.duration) return;
+      audio.currentTime = (Number(e.target.value) / 1000) * audio.duration;
+    });
+    ui.querySelector('.gv-music-panel').addEventListener('click', function (e) { e.stopPropagation(); });
+    render();
+  }
+
+  function formatTime(sec) {
+    if (!isFinite(sec) || sec < 0) return '0:00';
+    sec = Math.floor(sec); var m = Math.floor(sec / 60), s = sec % 60;
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  function render() {
+    if (!ui) return;
+    var track = TRACKS[idx];
+    ui.querySelector('.gv-music-track').textContent = track ? track.title : 'No track';
+    ui.querySelector('.gv-volume').value = volume;
+    ui.querySelector('.gv-volume-value').textContent = volume + '%';
+    ui.querySelector('.gv-mute').textContent = muted ? '🔇' : '🔊';
+    ui.querySelector('.gv-play').textContent = audio && !audio.paused ? '❚❚' : '▶';
+    ui.querySelector('.gv-music-toggle').classList.toggle('is-playing', !!(audio && !audio.paused));
+    ui.querySelector('.gv-music-status').textContent = audio && !audio.paused ? 'Playing' : 'Paused';
+    ui.querySelector('.gv-time-current').textContent = formatTime(audio && audio.currentTime);
+    ui.querySelector('.gv-time-total').textContent = formatTime(audio && audio.duration);
+  }
+
+  function load(index, autoplay) {
+    if (!TRACKS.length) return;
+    idx = (index + TRACKS.length) % TRACKS.length;
+    set(LS.index, idx);
+    if (!audio) return;
+    audio.src = srcFor(TRACKS[idx]);
+    audio.load();
+    render();
+    if (autoplay) {
+      audio.play().then(function () { set(LS.playing, '1'); render(); }).catch(function () { render(); });
+    }
+  }
+
+  function startFromGesture() {
+    if (!audio || get(LS.playing, '1') !== '1') return;
+    audio.play().then(function () { set(LS.playing, '1'); render(); }).catch(function () {});
+  }
+
+  function togglePlay() {
+    if (!audio) return;
+    if (audio.paused) { audio.play().then(function () { set(LS.playing, '1'); render(); }).catch(function () {}); }
+    else { audio.pause(); set(LS.playing, '0'); render(); }
+  }
+  function stop() { if (!audio) return; audio.pause(); audio.currentTime = 0; set(LS.playing, '0'); render(); }
+  function previous() { load(idx - 1, true); }
+  function next() { load(idx + 1, true); }
+  function setVolume(v) {
+    volume = clamp(v); set(LS.volume, volume);
+    if (audio) audio.volume = muted ? 0 : volume / 100;
+    if (volume > 0 && muted) { muted = false; set(LS.muted, '0'); }
+    render();
+  }
+  function toggleMute() {
+    muted = !muted; set(LS.muted, muted ? '1' : '0');
+    if (audio) audio.volume = muted ? 0 : volume / 100;
+    render();
+  }
+  function togglePanel() {
+    var p = ui.querySelector('.gv-music-panel'); p.hidden = !p.hidden;
+  }
+  function closePanel() { ui.querySelector('.gv-music-panel').hidden = true; }
+
+  function init() {
+    if (initialized) return; initialized = true;
+    idx = clamp(get(LS.index, 0)); if (idx >= TRACKS.length) idx = 0;
+    volume = clamp(get(LS.volume, 35)); if (volume === 0) volume = 35;
+    muted = get(LS.muted, '0') === '1';
+    audio = new Audio();
+    audio.preload = 'auto';
+    audio.loop = false;
+    audio.volume = muted ? 0 : volume / 100;
+    audio.addEventListener('ended', next);
+    audio.addEventListener('timeupdate', render);
+    audio.addEventListener('loadedmetadata', render);
+    audio.addEventListener('play', function () { set(LS.playing, '1'); render(); });
+    audio.addEventListener('pause', render);
+    audio.addEventListener('error', function () { if (ui) ui.querySelector('.gv-music-status').textContent = 'Unable to load this track'; });
+    load(idx, false);
+    buildUI();
+
+    // The first user interaction anywhere on the login page (or app) starts audio.
+    var gesture = function () {
+      startFromGesture();
+      document.removeEventListener('pointerdown', gesture, true);
+      document.removeEventListener('keydown', gesture, true);
+      document.removeEventListener('touchstart', gesture, true);
+    };
+    document.addEventListener('pointerdown', gesture, true);
+    document.addEventListener('keydown', gesture, true);
+    document.addEventListener('touchstart', gesture, true);
+  }
+
+  window.GameVaultMusic = {
+    play: function () { if (audio) audio.play().catch(function () {}); },
+    pause: function () { if (audio) audio.pause(); },
+    stop: stop,
+    next: next,
+    previous: previous,
+    setVolume: setVolume,
+    mute: function () { if (!muted) toggleMute(); },
+    unmute: function () { if (muted) toggleMute(); },
+    toggle: togglePlay,
+    getTracks: function () { return TRACKS.slice(); }
   };
 
-  function lsGet(k, d) {
-    try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; }
-  }
-  function lsSet(k, v) {
-    try { localStorage.setItem(k, String(v)); } catch (e) {}
-  }
-
-  var started = false;
-  var player = null;
-  var ready = false;
-  var idx = 0;
-  var wantPlay = true;
-  var errorStreak = 0;
-  var pausedBySignOut = false;
-  var els = {};
-
-  function $(id) { return document.getElementById(id); }
-
-  // ---------------- UI ----------------
-  function buildUI() {
-    var btn = document.createElement('button');
-    btn.className = 'ui-btn music-btn';
-    btn.id = 'music-btn';
-    btn.type = 'button';
-    btn.title = 'Soundtrack';
-    btn.setAttribute('aria-haspopup', 'dialog');
-    btn.setAttribute('aria-expanded', 'false');
-    btn.textContent = '🎵';
-    var anchor = $('theme-toggle');
-    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(btn, anchor);
-    else { btn.className += ' music-btn-floating'; document.body.appendChild(btn); }
-
-    var pop = document.createElement('div');
-    pop.className = 'music-popup';
-    pop.id = 'music-popup';
-    pop.setAttribute('role', 'dialog');
-    pop.setAttribute('aria-label', 'Soundtrack player');
-    pop.innerHTML =
-      '<div class="music-popup-head"><strong>Soundtrack</strong>' +
-        '<button type="button" class="music-popup-close" id="music-close" aria-label="Close">×</button></div>' +
-      '<div class="music-video"><div id="music-yt"></div></div>' +
-      '<div class="music-title" id="music-title">Loading…</div>' +
-      '<div class="music-count" id="music-count"></div>' +
-      '<div class="music-controls">' +
-        '<button type="button" id="music-prev" aria-label="Previous track" title="Previous">⏮</button>' +
-        '<button type="button" id="music-play" aria-label="Play" title="Play / Pause">▶</button>' +
-        '<button type="button" id="music-next" aria-label="Next track" title="Next">⏭</button>' +
-        '<button type="button" id="music-mute" aria-label="Mute" title="Mute">🔊</button>' +
-        '<input type="range" id="music-vol" min="0" max="100" step="1" aria-label="Volume">' +
-      '</div>' +
-      '<div class="music-note" id="music-note" hidden></div>';
-    document.body.appendChild(pop);
-
-    els = {
-      btn: btn, pop: pop,
-      title: $('music-title'), count: $('music-count'), note: $('music-note'),
-      play: $('music-play'), mute: $('music-mute'), vol: $('music-vol')
-    };
-
-    var vol = parseInt(lsGet(LS.vol, DEFAULT_VOLUME), 10);
-    if (isNaN(vol)) vol = DEFAULT_VOLUME;
-    els.vol.value = Math.max(0, Math.min(100, vol));
-    updateMuteIcon(lsGet(LS.muted, '0') === '1');
-    updateCount();
-
-    btn.addEventListener('click', function (e) { e.stopPropagation(); togglePopup(); });
-    $('music-close').addEventListener('click', function () { togglePopup(false); });
-    pop.addEventListener('click', function (e) { e.stopPropagation(); });
-    document.addEventListener('click', function () { togglePopup(false); });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') togglePopup(false); });
-
-    els.play.addEventListener('click', onPlayPause);
-    $('music-prev').addEventListener('click', function () { go(idx - 1); });
-    $('music-next').addEventListener('click', function () { go(idx + 1); });
-    els.mute.addEventListener('click', onMute);
-    els.vol.addEventListener('input', onVolume);
-  }
-
-  function togglePopup(force) {
-    if (!els.pop) return;
-    var open = typeof force === 'boolean' ? force : !els.pop.classList.contains('is-open');
-    els.pop.classList.toggle('is-open', open);
-    els.btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-  }
-
-  function showNote(msg) {
-    if (!els.note) return;
-    if (msg) { els.note.textContent = msg; els.note.hidden = false; }
-    else { els.note.hidden = true; }
-  }
-
-  function updateCount() {
-    if (els.count) els.count.textContent = (idx + 1) + ' / ' + MUSIC_TRACKS.length;
-  }
-
-  function setPlayingUI(isPlaying) {
-    if (!els.play) return;
-    els.play.textContent = isPlaying ? '⏸' : '▶';
-    els.play.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
-    els.btn.classList.toggle('is-playing', isPlaying);
-  }
-
-  function updateMuteIcon(muted) {
-    if (!els.mute) return;
-    els.mute.textContent = muted ? '🔇' : '🔊';
-    els.mute.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
-  }
-
-  function updateTitle() {
-    if (!player || !ready) return;
-    try {
-      var d = player.getVideoData && player.getVideoData();
-      if (d && d.title) els.title.textContent = d.title;
-    } catch (e) {}
-  }
-
-  // ---------------- Controls ----------------
-  function onPlayPause() {
-    if (!ready) return;
-    var state = player.getPlayerState();
-    var playing = state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING;
-    if (playing) {
-      wantPlay = false; lsSet(LS.paused, '1');
-      player.pauseVideo();
-    } else {
-      wantPlay = true; lsSet(LS.paused, '0');
-      showNote('');
-      player.playVideo();
-    }
-  }
-
-  function onMute() {
-    if (!ready) return;
-    var nowMuted = !player.isMuted();
-    if (nowMuted) player.mute(); else player.unMute();
-    lsSet(LS.muted, nowMuted ? '1' : '0');
-    updateMuteIcon(nowMuted);
-  }
-
-  function onVolume() {
-    var v = parseInt(els.vol.value, 10) || 0;
-    lsSet(LS.vol, v);
-    if (!ready) return;
-    player.setVolume(v);
-    if (v > 0 && player.isMuted()) { player.unMute(); lsSet(LS.muted, '0'); updateMuteIcon(false); }
-  }
-
-  function go(i) {
-    var n = MUSIC_TRACKS.length;
-    idx = ((i % n) + n) % n;
-    lsSet(LS.idx, idx);
-    updateCount();
-    wantPlay = true; lsSet(LS.paused, '0');
-    showNote('');
-    if (ready) player.loadVideoById(MUSIC_TRACKS[idx]);
-  }
-
-  // ---------------- Autoplay fallback ----------------
-  var gestureArmed = false;
-  function armGesture() {
-    if (gestureArmed) return;
-    gestureArmed = true;
-    showNote('Click anywhere to start the music');
-    var fire = function () {
-      document.removeEventListener('click', fire, true);
-      document.removeEventListener('keydown', fire, true);
-      document.removeEventListener('touchend', fire, true);
-      gestureArmed = false;
-      if (ready && wantPlay) { showNote(''); player.playVideo(); }
-    };
-    document.addEventListener('click', fire, true);
-    document.addEventListener('keydown', fire, true);
-    document.addEventListener('touchend', fire, true);
-  }
-
-  // ---------------- YouTube player ----------------
-  function loadYT(cb) {
-    if (window.YT && window.YT.Player) { cb(); return; }
-    var prev = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = function () {
-      if (typeof prev === 'function') prev();
-      cb();
-    };
-    var s = document.createElement('script');
-    s.src = 'https://www.youtube.com/iframe_api';
-    s.async = true;
-    s.onerror = function () { els.title.textContent = 'Soundtrack unavailable'; showNote('Could not reach YouTube (check your internet).'); };
-    document.head.appendChild(s);
-  }
-
-  function createPlayer() {
-    var vars = {
-      autoplay: wantPlay ? 1 : 0, controls: 0, disablekb: 1, fs: 0,
-      modestbranding: 1, rel: 0, playsinline: 1, iv_load_policy: 3
-    };
-    if (/^https?:$/.test(location.protocol)) vars.origin = location.origin;
-    player = new YT.Player('music-yt', {
-      width: 200, height: 200,
-      videoId: MUSIC_TRACKS[idx],
-      playerVars: vars,
-      events: {
-        onReady: onReady,
-        onStateChange: onState,
-        onError: onError,
-        onAutoplayBlocked: function () { if (wantPlay) armGesture(); }
-      }
-    });
-  }
-
-  function onReady() {
-    ready = true;
-    player.setVolume(parseInt(els.vol.value, 10) || 0);
-    if (lsGet(LS.muted, '0') === '1') player.mute();
-    updateTitle();
-    if (wantPlay) {
-      // لو المتصفح منع التشغيل التلقائي، بنستنى أول ضغطة
-      setTimeout(function () {
-        if (!wantPlay) return;
-        var s = player.getPlayerState();
-        if (s !== YT.PlayerState.PLAYING && s !== YT.PlayerState.BUFFERING) armGesture();
-      }, 2500);
-    } else {
-      els.title.textContent = els.title.textContent || 'Paused';
-    }
-  }
-
-  function onState(e) {
-    var S = YT.PlayerState;
-    if (e.data === S.PLAYING) {
-      errorStreak = 0;
-      setPlayingUI(true);
-      showNote('');
-      updateTitle();
-    } else if (e.data === S.PAUSED) {
-      setPlayingUI(false);
-    } else if (e.data === S.ENDED) {
-      go(idx + 1);
-    } else if (e.data === S.CUED || e.data === S.BUFFERING) {
-      updateTitle();
-    }
-  }
-
-  function onError() {
-    errorStreak++;
-    if (errorStreak >= MUSIC_TRACKS.length) {
-      setPlayingUI(false);
-      els.title.textContent = 'No playable tracks';
-      showNote('None of the tracks could be played here (embedding disabled or removed).');
-      return;
-    }
-    var bad = idx + 1;
-    var keep = wantPlay;
-    go(idx + 1);
-    wantPlay = keep;
-    showNote('Track ' + bad + ' can’t be played here — skipped.');
-  }
-
-  // ---------------- Sign-out handling ----------------
-  function hookSignOut() {
-    var orig = window.GameVaultSignOut;
-    if (typeof orig === 'function') {
-      window.GameVaultSignOut = function () {
-        pausedBySignOut = true;
-        togglePopup(false);
-        try { if (ready) player.pauseVideo(); } catch (e) {}
-        return orig.apply(this, arguments);
-      };
-    }
-    try {
-      if (window.firebase && firebase.auth) {
-        firebase.auth().onAuthStateChanged(function (user) {
-          if (user && pausedBySignOut) {
-            pausedBySignOut = false;
-            if (ready && wantPlay) { try { player.playVideo(); } catch (e) {} armGesture(); }
-          }
-        });
-      }
-    } catch (e) {}
-  }
-
-  // ---------------- Init ----------------
-  function init() {
-    if (started || !MUSIC_TRACKS.length) return;
-    started = true;
-    var saved = parseInt(lsGet(LS.idx, 0), 10);
-    idx = (isNaN(saved) || saved < 0 || saved >= MUSIC_TRACKS.length) ? 0 : saved;
-    wantPlay = lsGet(LS.paused, '0') !== '1';
-    buildUI();
-    setPlayingUI(false);
-    loadYT(createPlayer);
-    hookSignOut();
-  }
-
-  // ما نبدأش غير بعد تسجيل الدخول (نفس البوابة اللي بيستناها cloud-sync.js)
-  if (window.GameVaultAuthReady && typeof window.GameVaultAuthReady.then === 'function') {
-    window.GameVaultAuthReady.then(init);
-  } else if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
