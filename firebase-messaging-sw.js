@@ -1,4 +1,4 @@
-/* GameVault Firebase Cloud Messaging service worker v21. */
+/* GameVault Firebase Cloud Messaging service worker v22. */
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 
@@ -11,28 +11,34 @@ firebase.initializeApp({
   appId: '1:658582821260:web:672788aca447dc5def1ea9'
 });
 
-const messaging=firebase.messaging();
+const messaging = firebase.messaging();
 
-messaging.onBackgroundMessage(function(payload){
-  const n=payload && payload.notification || {};
-  const title=n.title || 'GameVault';
-  const options={
-    body:n.body || 'GameVault was updated on another device.',
-    icon:n.icon || 'assets/hero-logo-icon.png',
-    badge:'assets/hero-logo-icon.png',
-    data:(payload && payload.data) || {}
+/* Notification payloads are displayed automatically by Firebase Messaging
+   when the page is in the background. Data-only messages are displayed here. */
+messaging.onBackgroundMessage(function(payload) {
+  const notification = payload && payload.notification;
+  if (notification) return;
+
+  const data = (payload && payload.data) || {};
+  const title = data.title || 'GameVault';
+  const options = {
+    body: data.body || 'GameVault was updated on another device.',
+    icon: data.icon || 'assets/hero-logo-icon.png',
+    badge: data.badge || 'assets/hero-logo-icon.png',
+    data: data
   };
-  return self.registration.showNotification(title,options);
+
+  return self.registration.showNotification(title, options);
 });
 
-self.addEventListener('notificationclick',function(event){
+self.addEventListener('notificationclick', function(event) {
   event.notification.close();
   event.waitUntil(
-    clients.matchAll({type:'window',includeUncontrolled:true}).then(function(list){
-      for(const client of list){
-        if('focus' in client) return client.focus();
+    clients.matchAll({type: 'window', includeUncontrolled: true}).then(function(list) {
+      for (const client of list) {
+        if ('focus' in client) return client.focus();
       }
-      if(clients.openWindow) return clients.openWindow('/');
+      if (clients.openWindow) return clients.openWindow('/mostafa-pc-data/');
     })
   );
 });
