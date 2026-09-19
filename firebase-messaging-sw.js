@@ -1,4 +1,14 @@
-/* GameVault Firebase Cloud Messaging service worker v20. */
+/* GameVault Firebase Cloud Messaging service worker v21. */
+self.addEventListener('notificationclick',function(event){
+  event.notification.close();
+  event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(function(list){
+    for(const client of list){
+      if('focus' in client) return client.focus();
+    }
+    if(clients.openWindow) return clients.openWindow('/');
+  }));
+});
+
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 
@@ -25,12 +35,4 @@ messaging.onBackgroundMessage(function(payload){
   return self.registration.showNotification(title,options);
 });
 
-self.addEventListener('notificationclick',function(event){
-  event.notification.close();
-  event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(function(list){
-    for(const client of list){
-      if('focus' in client) return client.focus();
-    }
-    if(clients.openWindow) return clients.openWindow('/');
-  }));
-});
+
