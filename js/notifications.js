@@ -66,19 +66,21 @@
     b.setAttribute('data-permission',s);
   }
   async function syncPermissionState(){
-    let state=currentPermission();
+    // Notification.permission is the authoritative value for this UI.
+    // Do not let Permissions API return a different state and overwrite it.
+    const state=currentPermission();
+    refreshPermissionButton(state);
     try{
       if(navigator.permissions && navigator.permissions.query){
         const result=await navigator.permissions.query({name:'notifications'});
-        if(result && result.state) state=result.state;
         if(result && !result.__gamevaultBound){
           result.__gamevaultBound=true;
-          result.onchange=()=>refreshPermissionButton(result.state);
+          result.onchange=()=>refreshPermissionButton(currentPermission());
         }
       }
     }catch(e){}
-    refreshPermissionButton(state);
-    return state;
+    refreshPermissionButton(currentPermission());
+    return currentPermission();
   }
   function build(){
     panel=document.createElement('div'); panel.className='notify-panel'; panel.hidden=true;
