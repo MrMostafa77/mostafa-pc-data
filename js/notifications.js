@@ -82,7 +82,7 @@
   }
   function build(){
     panel=document.createElement('div'); panel.className='notify-panel'; panel.hidden=true;
-    panel.innerHTML='<div class="notify-head"><h3>Notifications</h3><button class="icon-btn" id="notify-close" type="button">✕</button></div><div class="notify-list"></div><div class="notify-actions"><button id="notify-permission" type="button">🔔 Enable browser notifications</button><button id="notify-clear" type="button">Clear</button></div>';
+    panel.innerHTML='<div class="notify-head"><h3>Notifications</h3><button class="icon-btn" id="notify-close" type="button">✕</button></div><div class="notify-list"></div><div class="notify-actions"><button id="notify-permission" type="button"></button><button id="notify-clear" type="button">Clear</button></div>';
     document.body.appendChild(panel);
     panel.querySelector('#notify-close').onclick=()=>panel.hidden=true;
     panel.querySelector('#notify-clear').onclick=()=>{items=[];save();updateBadge();render();};
@@ -103,7 +103,7 @@
   function init(){
     if('Notification' in window){ document.addEventListener('visibilitychange',()=>syncPermissionState()); window.addEventListener('focus',()=>syncPermissionState()); }
     const btn=document.getElementById('notifications-btn'); if(!btn)return;
-    btn.addEventListener('click',openPanel); build(); updateBadge(); syncPermissionState();
+    btn.addEventListener('click',()=>{ openPanel(); syncPermissionState(); }); build(); updateBadge(); syncPermissionState();
     window.addEventListener('gamevault:cloud-update',e=>{
       const keys=e&&e.detail&&e.detail.keys||[]; if(!keys.length)return;
       const [title,msg]=titleFor(keys); add(title,msg); browserNotify(title,msg);
