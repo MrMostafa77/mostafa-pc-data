@@ -3114,3 +3114,24 @@ body.light .auth-gate-input{background:var(--panel-2);}
 }
 .logout-btn{display:inline-flex; align-items:center; gap:7px;}
 .logout-btn svg{flex:none;}
+
+/* ============ USERS PRESENCE POPUP ============ */
+.users-btn{display:inline-flex;align-items:center;gap:5px;}
+.users-popup{position:absolute;top:62px;inset-inline-end:18px;width:300px;max-width:calc(100vw - 28px);background:var(--panel-2);border:1px solid var(--line-strong);border-radius:12px;box-shadow:0 18px 45px rgba(0,0,0,.45);z-index:5000;overflow:hidden;backdrop-filter:blur(12px);}
+.users-popup[hidden]{display:none;}
+.users-popup-head{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid var(--line);font-family:var(--font-head);color:var(--parchment);}
+.users-popup-close{border:0;background:transparent;color:var(--muted);font-size:24px;line-height:1;cursor:pointer;padding:0 3px;}
+.users-popup-close:hover{color:var(--parchment);}
+.users-list{max-height:330px;overflow:auto;padding:7px;}
+.presence-user{display:flex;align-items:center;gap:10px;padding:10px 9px;border-radius:9px;}
+.presence-user:hover{background:rgba(255,255,255,.045);}
+.presence-dot{width:9px;height:9px;border-radius:50%;background:#7d8995;box-shadow:0 0 0 3px rgba(125,137,149,.10);flex:0 0 9px;}
+.presence-user.is-online .presence-dot{background:#39d98a;box-shadow:0 0 0 3px rgba(57,217,138,.13),0 0 9px rgba(57,217,138,.35);}
+.presence-info{min-width:0;flex:1;}
+.presence-name{font-weight:700;font-size:13px;color:var(--parchment);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.presence-status{font-size:11px;color:var(--muted);margin-top:2px;}
+.presence-user.is-online .presence-status{color:#62e0a0;}
+.presence-me{font-size:9px;padding:2px 5px;border-radius:5px;background:rgba(227,177,92,.14);color:var(--brass-bright);vertical-align:middle;margin-inline-start:4px;}
+.users-empty{padding:18px 12px;text-align:center;color:var(--muted);font-size:12px;}
+@media(max-width:900px){.users-popup{position:fixed;top:74px;inset-inline-end:10px;}}
+@media(max-width:600px){.users-btn-label{display:none;}.users-popup{width:280px;top:120px;}}

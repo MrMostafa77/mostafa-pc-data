@@ -9,5 +9,6 @@ const firebaseConfig = {
   projectId: "pc-data-mostafa",
   storageBucket: "pc-data-mostafa.firebasestorage.app",
   messagingSenderId: "658582821260",
-  appId: "1:658582821260:web:672788aca447dc5def1ea9"
+  appId: "1:658582821260:web:672788aca447dc5def1ea9",
+  databaseURL: "https://pc-data-mostafa-default-rtdb.asia-southeast1.firebasedatabase.app"
 };
