@@ -3744,7 +3744,13 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
         if(keys.has(CAP_KEY)){ capacities=loadJSON(CAP_KEY,{}); }
         if(keys.has(FAVORITES_KEY)){ favorites=new Set(loadJSON(FAVORITES_KEY,[]).map(Number)); }
         if(keys.has(TAGS_KEY)){ gameTags=loadJSON(TAGS_KEY,{}); }
-        if(keys.has('mostafa_pc_deleted_games_v1') || keys.has(USERGAMES_KEY)){
+        // Library is built from BASE_GAMES + userGames + overrides.
+        // A remote edit to an existing/base game lands in OVERRIDES_KEY,
+        // so OVERRIDES must also trigger a rebuild; otherwise the new data
+        // sits in localStorage but the in-memory GAMES array stays stale
+        // until a full page reload.
+        if(keys.has('mostafa_pc_deleted_games_v1') || keys.has(USERGAMES_KEY) ||
+           keys.has(OVERRIDES_KEY) || keys.has(SIZE_OVERRIDES_KEY)){
           rebuildGamesArray();
         }
         if(keys.has(DATE_RECORDS_KEY)){
