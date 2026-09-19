@@ -3135,3 +3135,13 @@ body.light .auth-gate-input{background:var(--panel-2);}
 .users-empty{padding:18px 12px;text-align:center;color:var(--muted);font-size:12px;}
 @media(max-width:900px){.users-popup{position:fixed;top:74px;inset-inline-end:10px;}}
 @media(max-width:600px){.users-btn-label{display:none;}.users-popup{width:280px;top:120px;}}
+
+
+/* Login background slideshow */
+#game-login-bg{position:fixed;inset:0;z-index:299;overflow:hidden;background:#03070d;pointer-events:none;}
+.game-login-bg-layer{position:absolute;inset:-2%;background:center/cover no-repeat;opacity:0;transform:scale(1.02);transition:opacity 1.25s ease,transform 7s ease;}
+.game-login-bg-layer.is-active{opacity:1;transform:scale(1.06);}
+.game-login-bg-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.76),rgba(0,0,0,.48) 50%,rgba(0,0,0,.68)),linear-gradient(180deg,rgba(0,0,0,.28),rgba(0,0,0,.62));}
+#auth-gate-overlay{z-index:301!important;background:transparent!important;}
+#auth-gate-overlay .auth-gate-card{backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);background:rgba(4,12,21,.78)!important;border-color:rgba(255,255,255,.16)!important;box-shadow:0 25px 90px rgba(0,0,0,.65)!important;}
+@media(max-width:600px){.game-login-bg-layer{inset:-4%;}.game-login-bg-shade{background:linear-gradient(180deg,rgba(0,0,0,.52),rgba(0,0,0,.76));}}

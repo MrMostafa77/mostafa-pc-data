@@ -86,7 +86,114 @@
     });
   }
 
+
+
+  // ============================================================
+  // Game background slideshow for the login screen
+  // Uses Wikipedia's public page-image endpoint to resolve artwork
+  // from the game titles, so no image files are required in the app.
+  // ============================================================
+  var GAME_LOGIN_BACKGROUNDS = [
+    'Resident Evil 2','Max Payne','Max Payne 2: The Fall of Max Payne',
+    'A Plague Tale: Innocence','Resident Evil 4','Need for Speed: Most Wanted',
+    'Call of Juarez: Gunslinger','Assassin\'s Creed II','Mafia II','BioShock Infinite',
+    'Assassin\'s Creed Brotherhood','Assassin\'s Creed Revelations','Max Payne 3',
+    'Condemned: Criminal Origins','Hitman: Absolution','Outlast','Assassin\'s Creed IV: Black Flag',
+    'Ryse: Son of Rome','Knights of the Temple: Infernal Crusade','Alien: Isolation',
+    'Assassin\'s Creed Unity','Grand Theft Auto V','Grand Theft Auto: Vice City',
+    'Rise of the Tomb Raider','Layers of Fear','Inside','Mad Max','Resident Evil 7: Biohazard',
+    'Hellblade: Senua\'s Sacrifice','The Evil Within 2','Assassin\'s Creed Origins','Metro Exodus',
+    'Call of Juarez: Bound in Blood','Sekiro: Shadows Die Twice','Control','Visage',
+    'Assassin\'s Creed Odyssey','The Witcher 3: Wild Hunt','Grand Theft Auto IV',
+    'Middle-earth: Shadow of Mordor','Batman: Arkham Knight','F.E.A.R.','Oxenfree',
+    'Middle-earth: Shadow of War','Ori and the Blind Forest','Red Dead Redemption 2',
+    'Ori and the Will of the Wisps','Horizon Zero Dawn','Titanfall 2','Doom Eternal',
+    'NieR:Automata','Mafia','Call of Duty 4: Modern Warfare','Return of the Obra Dinn',
+    'Cyberpunk 2077','Hitman 3','Resident Evil Village','Alan Wake','God of War',
+    'Marvel\'s Spider-Man','A Plague Tale: Requiem','Uncharted 4: A Thief\'s End','Elden Ring',
+    'BioShock','Hogwarts Legacy','The Last of Us Part I','Need for Speed: Porsche Unleashed',
+    'Resident Evil 4','Yakuza 0','Deathloop','The Walking Dead: Season One','Horizon Forbidden West',
+    'Marvel\'s Spider-Man 2','Ghost of Tsushima','God of War Ragnarök','Senua\'s Saga: Hellblade II',
+    'Alan Wake 2','Until Dawn','Star Wars Jedi: Survivor','Assassin\'s Creed Mirage',
+    'The Last of Us Part II','Mandragora','Clair Obscur: Expedition 33','Days Gone',
+    'Indiana Jones and the Great Circle','Hollow Knight','Hollow Knight: Silksong','Black Myth: Wukong',
+    'Prince of Persia: The Lost Crown','Doom: The Dark Ages','Mortal Kombat 1','Uncharted: The Lost Legacy',
+    'Shinobi: Art of Vengeance','Stellar Blade','Resident Evil Requiem','Pragmata','007 First Light',
+    'Assassin\'s Creed IV: Black Flag Resynced'
+  ];
+
+  var GAME_LOGIN_ALIASES = {
+    'Resident Evil Requiem': 'Resident Evil Requiem',
+    'Resident Evil 4': 'Resident Evil 4',
+    'Resident Evil 7: Biohazard': 'Resident Evil 7: Biohazard',
+    'Resident Evil Village': 'Resident Evil Village',
+    'Assassin\'s Creed IV: Black Flag Resynced': 'Assassin\'s Creed IV: Black Flag Resynced',
+    'Senua\'s Saga: Hellblade II': 'Senua\'s Saga: Hellblade II'
+  };
+
+  function startGameBackgrounds() {
+    if (document.getElementById('game-login-bg')) return;
+
+    var bg = document.createElement('div');
+    bg.id = 'game-login-bg';
+    bg.setAttribute('aria-hidden', 'true');
+    bg.innerHTML = '<div class="game-login-bg-layer is-active"></div><div class="game-login-bg-layer"></div><div class="game-login-bg-shade"></div>';
+    document.body.prepend(bg);
+
+    var layers = bg.querySelectorAll('.game-login-bg-layer');
+    var active = 0;
+    var current = 0;
+    var images = [];
+
+    function showNext() {
+      if (!images.length) return;
+      var next = (current + 1) % images.length;
+      var nextLayer = layers[1 - active];
+      nextLayer.style.backgroundImage = 'url("' + images[next].replace(/"/g, '%22') + '")';
+      nextLayer.classList.add('is-active');
+      layers[active].classList.remove('is-active');
+      active = 1 - active;
+      current = next;
+    }
+
+    function resolveTitle(title) {
+      var query = GAME_LOGIN_ALIASES[title] || title;
+      var url = 'https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=pageimages&piprop=thumbnail&pithumbsize=1600&titles=' + encodeURIComponent(query);
+      return fetch(url, { credentials: 'omit' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data || !data.query || !data.query.pages) return null;
+          var pages = Object.keys(data.query.pages);
+          if (!pages.length || pages[0] === '-1') return null;
+          return data.query.pages[pages[0]].thumbnail && data.query.pages[pages[0]].thumbnail.source || null;
+        })
+        .catch(function () { return null; });
+    }
+
+    // Resolve in small batches so the login screen remains lightweight.
+    var batchSize = 8;
+    var cursor = 0;
+    function loadBatch() {
+      var batch = GAME_LOGIN_BACKGROUNDS.slice(cursor, cursor + batchSize);
+      cursor += batchSize;
+      if (!batch.length) {
+        if (images.length) {
+          layers[0].style.backgroundImage = 'url("' + images[0].replace(/"/g, '%22') + '")';
+          setInterval(showNext, 6500);
+        }
+        return;
+      }
+      Promise.all(batch.map(resolveTitle)).then(function (urls) {
+        urls.forEach(function (u) { if (u && images.indexOf(u) === -1) images.push(u); });
+        if (images.length === 1) layers[0].style.backgroundImage = 'url("' + images[0].replace(/"/g, '%22') + '")';
+        loadBatch();
+      });
+    }
+    loadBatch();
+  }
+
   function init() {
+    startGameBackgrounds();
     // لو مفيش إعدادات Firebase حقيقية أصلاً، سيبي التطبيق يشتغل عادي
     // من غير حماية (بالظبط زي ما كان قبل كده).
     if (typeof firebaseConfig === 'undefined' || !firebaseConfig.apiKey ||
