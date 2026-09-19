@@ -3066,3 +3066,12 @@ body.series-history-open{overflow:hidden}
   .series-stat-circle small{font-size:6px}
   .series-directory-count{display:none}
 }
+
+/* ===== Notifications Center ===== */
+#notifications-btn{position:relative}
+#notifications-badge{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#d9a64f;color:#08111d;font-size:10px;font-weight:900}
+#notifications-badge[hidden]{display:none}
+.notify-panel{position:fixed;right:22px;top:76px;width:min(390px,calc(100vw - 28px));max-height:72vh;overflow:auto;z-index:7000;background:linear-gradient(180deg,#0d1c31,#07111f);border:1px solid rgba(113,174,235,.35);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.45);padding:16px}
+.notify-panel[hidden]{display:none}
+.notify-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.notify-head h3{margin:0;color:#eaf3ff}.notify-list{display:flex;flex-direction:column;gap:8px}.notify-item{padding:11px 12px;border-radius:11px;background:rgba(255,255,255,.045);border:1px solid rgba(113,174,235,.14)}.notify-item strong{display:block;color:#eaf3ff}.notify-item span{display:block;margin-top:4px;color:#9fb1c5;font-size:12px}.notify-empty{padding:22px 8px;text-align:center;color:#8f9daf}.notify-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.notify-actions button{border:1px solid rgba(113,174,235,.28);background:#10243a;color:#dbeaff;border-radius:9px;padding:9px 11px;cursor:pointer}.notify-actions button:hover{border-color:#d9a64f;color:#ffd77e}
+@media(max-width:900px){.notify-panel{right:10px;top:62px}}
