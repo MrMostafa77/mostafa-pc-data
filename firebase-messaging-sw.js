@@ -1,4 +1,4 @@
-/* GameVault Firebase Cloud Messaging service worker. */
+/* GameVault Firebase Cloud Messaging service worker v20. */
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 

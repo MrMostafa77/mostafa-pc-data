@@ -2,7 +2,8 @@
 (function(){
   'use strict';
   const VAPID_KEY='BHdWivFiBhUhLV7nXWiuOPcyMXZpKM5MyR9ctRVNtqNmrpF2VekNm3wHbPQ-Yyg6KBW9a0FGS4rmhgAalz8ecp4';
-  const TOKEN_KEY='gameVault_fcm_token_v1';
+  const TOKEN_KEY='gameVault_fcm_token_v2';
+  const PUSH_SW='./firebase-messaging-sw.js?v=20260919-20';
   let messaging=null;
 
   function supported(){
@@ -14,7 +15,11 @@
     try{
       if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig);
       messaging=firebase.messaging();
-      const sw=await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+      const sw=await navigator.serviceWorker.register(PUSH_SW,{scope:'./'});
+      await sw.update();
+      // Force a fresh FCM registration so an old token cannot keep pointing at a stale service worker.
+      try{ await messaging.deleteToken(); }catch(_e){}
+      localStorage.removeItem(TOKEN_KEY);
       const token=await messaging.getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:sw});
       if(token){
         localStorage.setItem(TOKEN_KEY,token);
