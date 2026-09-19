@@ -30,14 +30,14 @@
     overlay.id = 'auth-gate-overlay';
     overlay.innerHTML =
       '<div class="auth-gate-card">' +
-        '<img src="assets/hero-logo-icon.png" alt="" class="auth-gate-logo" onerror="this.style.display=\'none\'">' +
+        '<div class="auth-gate-controller-icon" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M18 21h28c7 0 12 5 13 12l2 12c1 7-8 10-12 4l-5-7H20l-5 7c-4 6-13 3-12-4l2-12c1-7 6-12 13-12Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M19 33h10M24 28v10M43 31h.1M49 36h.1" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></svg></div>' +
         '<h1 class="auth-gate-title">Mostafa\'s PC Data</h1>' +
         '<p class="auth-gate-sub" id="auth-gate-sub">Sign in to continue</p>' +
         '<form id="auth-gate-form" autocomplete="on">' +
           '<label class="auth-gate-label" for="auth-gate-user">Username</label>' +
-          '<input class="auth-gate-input" id="auth-gate-user" type="text" autocomplete="username" required>' +
+          '<div class="auth-gate-input-wrap"><svg class="auth-gate-field-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-3.5 3.1-5.5 7-5.5s6.3 2 7 5.5"/></svg><input class="auth-gate-input" id="auth-gate-user" type="text" autocomplete="username" required></div>' +
           '<label class="auth-gate-label" for="auth-gate-pass">Password</label>' +
-          '<input class="auth-gate-input" id="auth-gate-pass" type="password" autocomplete="current-password" required>' +
+          '<div class="auth-gate-input-wrap"><svg class="auth-gate-field-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><input class="auth-gate-input" id="auth-gate-pass" type="password" autocomplete="current-password" required></div>' +
           '<div id="auth-gate-error" class="auth-gate-error" hidden></div>' +
           '<button type="submit" class="ui-btn auth-gate-submit" id="auth-gate-submit">Sign In</button>' +
         '</form>' +
@@ -137,7 +137,7 @@
     var bg = document.createElement('div');
     bg.id = 'game-login-bg';
     bg.setAttribute('aria-hidden', 'true');
-    bg.innerHTML = '<div class="game-login-bg-layer is-active"></div><div class="game-login-bg-layer"></div><div class="game-login-bg-shade"></div>';
+    bg.innerHTML = '<div class="game-login-bg-layer is-active"></div><div class="game-login-bg-layer"></div>';
     document.body.prepend(bg);
 
     var layers = bg.querySelectorAll('.game-login-bg-layer');
@@ -179,7 +179,7 @@
       if (!batch.length) {
         if (images.length) {
           layers[0].style.backgroundImage = 'url("' + images[0].replace(/"/g, '%22') + '")';
-          setInterval(showNext, 6500);
+          setInterval(showNext, 2000);
         }
         return;
       }
