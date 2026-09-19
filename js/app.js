@@ -3734,7 +3734,6 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
   if(!window.__gameVaultRealtimeBound){
     window.__gameVaultRealtimeBound=true;
     window.addEventListener('gamevault:cloud-update', e=>{
-      console.log('[Sync] app.js received gamevault:cloud-update for keys:', e?.detail?.keys);
       try{
         const keys=new Set(e?.detail?.keys||[]);
         if(keys.has(USERGAMES_KEY)){ userGames=loadJSON(USERGAMES_KEY,[]); }
@@ -3745,9 +3744,8 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
         if(keys.has(CAP_KEY)){ capacities=loadJSON(CAP_KEY,{}); }
         if(keys.has(FAVORITES_KEY)){ favorites=new Set(loadJSON(FAVORITES_KEY,[]).map(Number)); }
         if(keys.has(TAGS_KEY)){ gameTags=loadJSON(TAGS_KEY,{}); }
-        if(keys.has('mostafa_pc_deleted_games_v1') || keys.has(USERGAMES_KEY) || keys.has(OVERRIDES_KEY)){
-  rebuildGamesArray();
-}
+        if(keys.has('mostafa_pc_deleted_games_v1') || keys.has(USERGAMES_KEY)){
+          rebuildGamesArray();
         }
         if(keys.has(DATE_RECORDS_KEY)){
           try{ ensureDateRecords(); }catch(err){ console.warn('Realtime date records refresh failed',err); }
@@ -3758,9 +3756,9 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
         renderDrives();
         renderFilters();
         renderResults();
-       try{ renderDatesTab(); }catch(err){console.error('[Sync] renderDatesTab FAILED:', err);}
-       try{ renderSizesTab(); }catch(err){console.error('[Sync] renderSizesTab FAILED:', err);}
-        try{ window.__renderActiveTab?.(); }catch(err){console.error('[Sync] renderActiveTab FAILED:', err);}
+        try{ renderDatesTab(); }catch(err){}
+        try{ renderSizesTab(); }catch(err){}
+        try{ window.__renderActiveTab?.(); }catch(err){}
       }catch(err){
         console.error('Realtime UI refresh failed',err);
       }
