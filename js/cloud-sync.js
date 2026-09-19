@@ -39,10 +39,8 @@ let applyingRemote = false;
 let unsubscribeCore = null;
 let realtimePollTimer = null;
 let legacyMigrationChecked = false;
-const localWriteVersion = Object.create(null);
 const pendingCloudWrites = Object.create(null);
 const remoteVersions = Object.create(null); // last version WE fetched/applied per key
-const knownMetaVersions = Object.create(null); // last version seen in metadata (may not be fetched yet)
 
 function isFirebaseConfigured() {
   return typeof firebaseConfig !== 'undefined' &&
@@ -56,7 +54,7 @@ function loadCoreScripts() {
   // تفضل شغالة بنسخة قديمة متكاشة من app.js للأبد (حتى بعد reload يدوي)،
   // وده بيظهر بالظبط كأن المزامنة "مش بتوصل لحظيًا" أو إن تبويب معين "مش
   // بيسمع خالص". لازم النسخة دي تتزود مع كل تحديث كود (راجع index.html).
-  const v = window.__APP_VERSION || Date.now();
+  const v = window.__APP_VERSION || '1';
   const s1 = document.createElement('script');
   s1.src = 'js/data-inline.js?v=' + v;
   s1.onload = () => {
@@ -101,15 +99,13 @@ let cloudWriteTimers = Object.create(null);
 function queueCloudWrite(key, value) {
   clearTimeout(cloudWriteTimers[key]);
   const version = Date.now();
-  localWriteVersion[key] = version;
   pendingCloudWrites[key] = true;
   cloudWriteTimers[key] = setTimeout(() => {
     uploadKeyToCloud(key, value, version)
       .then(() => {
-        // Keep the version so an older cached snapshot can never roll this
-        // device back after the write has already reached Firestore.
-        remoteVersions[key] = Math.max(Number(remoteVersions[key] || 0), version);
-        knownMetaVersions[key] = Math.max(Number(knownMetaVersions[key] || 0), version);
+        // Record this write's own version so the exact-match dedup in
+        // reconcileMeta() skips re-fetching our own echo back from the listener.
+        remoteVersions[key] = version;
         delete pendingCloudWrites[key];
       })
       .catch(err => {
@@ -161,22 +157,29 @@ function nativeSetLocal(key, value) {
 
 // بتاخد قايمة {key: {v, totalChunks}} (من onSnapshot أو من get عادي)، تقارنها
 // بآخر نسخة عارفينها، وتجيب بس المفاتيح اللي فعلاً اتغيرت من جهاز/تبويب تاني.
+//
+// ملحوظة مهمة: مقارنة الأرقام دي بتستخدم "هل الرقم مختلف عن اللي عندنا؟"
+// مش "هل الرقم أكبر من اللي عندنا؟". الفرق ده مهم جدًا: الأرقام دي أصلاً
+// مبنية على ساعة كل جهاز (Date.now())، وساعات الأجهزة (خصوصًا التابلت
+// والموبايل) ممكن تكون مش مظبوطة أو فيها فرق توقيت عن بعض. لو استخدمنا
+// "أكبر من" وساعة جهاز معين قدّام بدقايق، أي تحديث جاي من جهاز تاني هيتجاهل
+// على طول (لأن رقمه هيبان "أقدم") — وده كان السبب الحقيقي إن المزامنة
+// الحية مش بتوصل خالص إلا بعد reload (اللي بيقرا القيمة الحالية مباشرة من
+// غير ما يقارن أرقام خالص).
 async function reconcileMeta(metaByKey) {
   const changedKeys = [];
   for (const key of SYNC_KEYS) {
     const meta = metaByKey[key];
     if (!meta) continue;
     const remoteVersion = Number(meta.v || meta.updatedAt || 0);
-    const localVersion = Number(localWriteVersion[key] || 0);
     const knownRemoteVersion = Number(remoteVersions[key] || 0);
 
     if (pendingCloudWrites[key]) continue; // نستنى الكتابة المحلية تخلص الأول
-    if (remoteVersion && localVersion && remoteVersion < localVersion) continue;
-    if (remoteVersion && remoteVersion <= knownRemoteVersion) continue; // نفس النسخة اللي عندنا بالظبط
+    if (remoteVersion && remoteVersion === knownRemoteVersion) continue; // معالجينها قبل كده بالظبط، مفيش داعي نجيبها تاني
 
     try {
       const value = await fetchKeyFromCloud(key);
-      remoteVersions[key] = remoteVersion || Date.now();
+      if (remoteVersion) remoteVersions[key] = remoteVersion;
       const current = localStorage.getItem(key);
       if (current !== value) {
         applyingRemote = true;
@@ -283,7 +286,6 @@ async function hydrateFromCloud() {
         const metaDoc = snap.docs.find(d => d.id === key);
         const v = Number((metaDoc && metaDoc.data() && metaDoc.data().v) || Date.now());
         remoteVersions[key] = v;
-        knownMetaVersions[key] = v;
       } catch (e) {
         console.error('Hydrate fetch failed for', key, e);
       }
@@ -299,7 +301,6 @@ async function hydrateFromCloud() {
         const version = Date.now();
         await uploadKeyToCloud(key, v, version);
         remoteVersions[key] = version;
-        knownMetaVersions[key] = version;
       } catch (e) {
         console.error('Initial upload failed for', key, e);
       }
