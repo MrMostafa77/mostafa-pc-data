@@ -138,7 +138,13 @@
   // متاحة عشان تقدر تضيف زرار "تسجيل خروج" في أي مكان في الواجهة:
   // onclick="GameVaultSignOut()"
   window.GameVaultSignOut = function () {
-    if (window.firebase && firebase.auth) firebase.auth().signOut();
+    // Presence must be marked offline before auth is cleared.
+    var markOffline = (typeof window.GameVaultPresenceSignOut === 'function')
+      ? window.GameVaultPresenceSignOut()
+      : Promise.resolve();
+    Promise.resolve(markOffline).finally(function () {
+      if (window.firebase && firebase.auth) firebase.auth().signOut();
+    });
   };
 
   if (document.readyState === 'loading') {

@@ -145,6 +145,19 @@
     });
   }
 
+  // Explicit logout: mark the current session offline BEFORE Firebase signs out.
+  // onDisconnect() still handles tab/browser/network disconnects.
+  window.GameVaultPresenceSignOut = function () {
+    if (!currentUid || !db) return Promise.resolve();
+    var ref = db.ref('presence/' + currentUid);
+    return ref.update({
+      online: false,
+      lastSeen: firebase.database.ServerValue.TIMESTAMP
+    }).catch(function (err) {
+      console.warn('Presence logout update failed:', err);
+    });
+  };
+
   function start() {
     initPopup();
     if (typeof firebase === 'undefined' || !firebase.database || typeof firebaseConfig === 'undefined') return;
