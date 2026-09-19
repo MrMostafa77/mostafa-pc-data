@@ -149,13 +149,24 @@
   // onDisconnect() still handles tab/browser/network disconnects.
   window.GameVaultPresenceSignOut = function () {
     if (!currentUid || !db) return Promise.resolve();
-    var ref = db.ref('presence/' + currentUid);
-    return ref.update({
-      online: false,
-      lastSeen: firebase.database.ServerValue.TIMESTAMP
-    }).catch(function (err) {
-      console.warn('Presence logout update failed:', err);
-    });
+    var uid = currentUid;
+    var ref = db.ref('presence/' + uid);
+
+    // Cancel the pending disconnect write first, then explicitly persist
+    // the offline state while the user is still authenticated. This makes
+    // the Sign out button deterministic instead of relying on onDisconnect.
+    return ref.onDisconnect().cancel()
+      .catch(function () {})
+      .then(function () {
+        return ref.set({
+          username: usernameFromUser(firebase.auth().currentUser),
+          online: false,
+          lastSeen: Date.now()
+        });
+      })
+      .catch(function (err) {
+        console.warn('Presence logout update failed:', err);
+      });
   };
 
   function start() {
