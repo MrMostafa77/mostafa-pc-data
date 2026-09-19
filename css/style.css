@@ -3239,3 +3239,61 @@ a.auth-contact-icon:hover{border-color:#8fb4ff;background:#2f6bff;}
 .gv-music-controls{display:flex;justify-content:center;align-items:center;gap:7px;margin:8px 0 11px}.gv-music-controls button{width:36px;height:34px;border:1px solid #31475e;border-radius:9px;background:rgba(255,255,255,.045);color:#e9eef4;cursor:pointer;font-size:14px}.gv-music-controls button:hover{border-color:#e3b15c;background:rgba(227,177,92,.08)}
 .gv-music-controls .gv-play{width:42px;background:rgba(65,130,190,.18);border-color:#4d8fd3}.gv-music-volume{display:grid;grid-template-columns:30px 1fr 38px;gap:7px;align-items:center}.gv-music-volume span{font-size:9px;color:#91a4b7}.gv-volume-value{text-align:right;font-variant-numeric:tabular-nums}.gv-music-status{text-align:center;font-size:9px;color:#6f879e;margin-top:8px}
 @media(max-width:600px){#gv-local-music{right:10px;bottom:10px}.gv-music-panel{width:300px}.gv-music-toggle{width:40px;height:40px}}
+
+/* ===== Floating top-right utility controls =====
+   Keep every existing control/function intact; only move the controls
+   from the hero row into a vertical stack, matching the music button side. */
+.hero-actions{
+  position:fixed !important;
+  top:16px !important;
+  right:16px !important;
+  left:auto !important;
+  width:auto !important;
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:stretch !important;
+  justify-content:flex-start !important;
+  gap:7px !important;
+  flex-wrap:nowrap !important;
+  direction:ltr !important;
+  z-index:10000 !important;
+}
+.hero-actions > .ui-btn{
+  width:max-content;
+  align-self:flex-end;
+}
+.hero-actions .auth-current-user{
+  align-self:flex-end;
+}
+/* Keep popups clear of the new vertical button column. */
+.hero-actions .users-popup{
+  position:fixed !important;
+  top:16px !important;
+  right:78px !important;
+  inset-inline-end:auto !important;
+}
+.notify-panel{
+  right:78px !important;
+  top:16px !important;
+}
+.backup-status{
+  right:78px !important;
+  top:16px !important;
+}
+@media(max-width:900px){
+  .hero-actions{
+    position:fixed !important;
+    top:10px !important;
+    right:10px !important;
+    left:auto !important;
+    margin:0 !important;
+    align-items:stretch !important;
+    justify-content:flex-start !important;
+  }
+  .hero-actions .users-popup{right:68px !important;top:10px !important;}
+  .notify-panel{right:68px !important;top:10px !important;}
+  .backup-status{right:68px !important;top:10px !important;}
+}
+@media print{
+  .hero-actions{display:none !important;}
+}
