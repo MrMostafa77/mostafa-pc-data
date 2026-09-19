@@ -153,13 +153,7 @@
     'assets/login-bg/game-11.jpg',
     'assets/login-bg/game-12.jpg',
     'assets/login-bg/game-13.jpg',
-    'assets/login-bg/game-14.jpg',
-    'assets/login-bg/game-15.jpg',
-    'assets/login-bg/game-16.jpg',
-    'assets/login-bg/game-17.jpg',
-    'assets/login-bg/game-18.jpg',
-    'assets/login-bg/game-19.jpg',
-    'assets/login-bg/game-20.jpg'
+    'assets/login-bg/game-14.jpg'
   ];
   var LOGIN_BG_INTERVAL_MS = 4000;
   var loginBgTimer = null;
