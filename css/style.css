@@ -3107,3 +3107,10 @@ body.series-history-open{overflow:hidden}
 .auth-gate-submit{width:100%; padding:12px; font-size:14.5px; margin-top:2px;}
 .auth-gate-submit:disabled{opacity:.6; cursor:default;}
 body.light .auth-gate-input{background:var(--panel-2);}
+.auth-current-user{
+  display:inline-flex; align-items:center; padding:6px 12px; border-radius:10px;
+  background:rgba(255,255,255,.06); border:1px solid var(--line-strong); color:var(--parchment-dim);
+  font-size:12.5px; font-weight:600;
+}
+.logout-btn{display:inline-flex; align-items:center; gap:7px;}
+.logout-btn svg{flex:none;}
