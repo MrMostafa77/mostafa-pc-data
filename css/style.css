@@ -3143,7 +3143,9 @@ body.light .auth-gate-input{background:var(--panel-2);}
 #auth-gate-overlay{z-index:301!important;background:transparent!important;flex-direction:column;padding-bottom:96px;}
 #auth-gate-overlay .auth-gate-card{
   width:100%;max-width:380px;padding:30px 28px 24px;border-radius:16px;text-align:center;
-  background:transparent!important;
+  /* شفافية الكارت 60% = تعبئة كحلي بنسبة 40%. غيّر --auth-card-alpha لو عايز أغمق/أشفّ (0 = شفاف تمامًا، 1 = مصمت) */
+  --auth-card-alpha:.40;
+  background:rgba(15,27,55,var(--auth-card-alpha))!important;
   backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
   border:1px solid rgba(255,255,255,.22)!important;
   box-shadow:none!important;
