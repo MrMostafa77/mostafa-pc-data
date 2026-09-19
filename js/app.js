@@ -3745,8 +3745,9 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
         if(keys.has(CAP_KEY)){ capacities=loadJSON(CAP_KEY,{}); }
         if(keys.has(FAVORITES_KEY)){ favorites=new Set(loadJSON(FAVORITES_KEY,[]).map(Number)); }
         if(keys.has(TAGS_KEY)){ gameTags=loadJSON(TAGS_KEY,{}); }
-        if(keys.has('mostafa_pc_deleted_games_v1') || keys.has(USERGAMES_KEY)){
-          rebuildGamesArray();
+        if(keys.has('mostafa_pc_deleted_games_v1') || keys.has(USERGAMES_KEY) || keys.has(OVERRIDES_KEY)){
+  rebuildGamesArray();
+}
         }
         if(keys.has(DATE_RECORDS_KEY)){
           try{ ensureDateRecords(); }catch(err){ console.warn('Realtime date records refresh failed',err); }
