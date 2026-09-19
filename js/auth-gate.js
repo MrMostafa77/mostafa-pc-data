@@ -78,8 +78,12 @@
   }
 
   function revealApp(show) {
-    var wrap = document.querySelector('.wrap');
-    if (wrap) wrap.style.visibility = show ? 'visible' : 'hidden';
+    // ملحوظة: index.html فيه <div class="wrap"> جوه <div class="wrap">
+    // تانية (الشعار والساعة وأزرار الهيدر جوه الـ wrap الداخلية)، فلازم
+    // نظبط كل عناصر .wrap مش بس أول واحد، وإلا الداخلية تفضل مخفية.
+    document.querySelectorAll('.wrap').forEach(function (el) {
+      el.style.visibility = show ? 'visible' : 'hidden';
+    });
   }
 
   function init() {
