@@ -44,7 +44,7 @@
     overlay.innerHTML =
       '<div class="auth-gate-card">' +
         '<div class="auth-gate-controller-icon" aria-hidden="true">' + ICON_GAMEPAD_BIG + '</div>' +
-        '<h1 class="auth-gate-title"><span>GAME</span> <span class="auth-gate-title-accent">VAULT</span></h1>' +
+        '<h1 class="auth-gate-title"><span>MOSTAFA&#39;S PC</span> <span class="auth-gate-title-accent">GAMING</span></h1>' +
         '<p class="auth-gate-sub" id="auth-gate-sub">Play<i>•</i>Connect<i>•</i>Enjoy</p>' +
         '<form id="auth-gate-form" autocomplete="on">' +
           '<div class="auth-gate-input-wrap"><svg class="auth-gate-field-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-3.5 3.1-5.5 7-5.5s6.3 2 7 5.5"/></svg><input class="auth-gate-input" id="auth-gate-user" type="text" placeholder="Username" aria-label="Username" autocomplete="username" required></div>' +
