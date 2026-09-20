@@ -121,6 +121,10 @@
     document.querySelectorAll('.wrap').forEach(function (el) {
       el.style.visibility = show ? 'visible' : 'hidden';
     });
+    // أزرار الأدوات العايمة (.hero-actions) خرجت برا الـ wrap، فبنظبطها معاهم
+    document.querySelectorAll('.hero-actions').forEach(function (el) {
+      el.style.visibility = show ? 'visible' : 'hidden';
+    });
   }
 
 
@@ -137,7 +141,7 @@
 
   // ============================================================
   // Login background slideshow — صور محلية من assets/backgrounds
-  // بتتغير كل 4 ثواني، بدون أي تأثير انتقال (تبديل مباشر).
+  // بتتغير كل 10 ثواني، بدون أي تأثير انتقال (تبديل مباشر).
   // ============================================================
   var LOGIN_BG_IMAGES = [
     'assets/login-bg/game-01.jpg',
@@ -155,7 +159,7 @@
     'assets/login-bg/game-13.jpg',
     'assets/login-bg/game-14.jpg'
   ];
-  var LOGIN_BG_INTERVAL_MS = 4000;
+  var LOGIN_BG_INTERVAL_MS = 10000;
   var loginBgTimer = null;
 
   function startGameBackgrounds() {

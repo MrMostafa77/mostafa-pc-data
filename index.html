@@ -11,7 +11,7 @@
 
 
 <script>window.__APP_VERSION='20260919-22-local-music';</script>
-<link href="css/style.css?v=20260920-utility-stack" rel="stylesheet"/><style>.report-year-games{display:grid;gap:6px;margin-top:12px}.report-year-game{padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.06)}.report-year-game.empty{opacity:.6}.wrap{visibility:hidden}</style><link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link href="css/style.css?v=20260920-dock" rel="stylesheet"/><style>.report-year-games{display:grid;gap:6px;margin-top:12px}.report-year-game{padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.06)}.report-year-game.empty{opacity:.6}.wrap{visibility:hidden}</style><link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body><div hidden="" id="boot-error">Unable to load project data. Run the website through a local server (not file://).</div>
 <div aria-hidden="true" id="dynamic-bg"></div>
@@ -36,19 +36,6 @@
 <h1 class="hero-title">Mostafa's PC Data</h1>
 <div class="hero-sub">My Games Catalog And Dates Played</div>
 </div>
-</div>
-<div class="hero-actions">
-<button class="ui-btn" id="lang-toggle" type="button">English</button>
-<button class="ui-btn" id="backup-project-btn" type="button" title="Backup Project">💾 Backup</button>
-<button class="ui-btn" id="notifications-btn" type="button" title="Notifications">🔔 <span id="notifications-badge" hidden>0</span></button>
-<button class="ui-btn users-btn" id="users-btn" type="button" title="Users" aria-haspopup="dialog" aria-expanded="false">👥 <span class="users-btn-label">Users</span></button>
-<div id="users-popup" class="users-popup" hidden role="dialog" aria-label="Users online status">
-  <div class="users-popup-head"><strong>Users</strong><button type="button" class="users-popup-close" id="users-popup-close" aria-label="Close">×</button></div>
-  <div id="users-list" class="users-list"><div class="users-empty">Loading...</div></div>
-</div>
-<button class="ui-btn" id="theme-toggle" type="button">☀️ / 🌙</button>
-<span class="auth-current-user" id="auth-current-user" hidden></span>
-<button class="ui-btn logout-btn" id="logout-btn" type="button" title="Sign out" onclick="GameVaultSignOut()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M15 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg><span>Sign out</span></button>
 </div>
 <div class="hero-stats" id="hero-stats"></div>
 </header></div>
@@ -211,6 +198,21 @@
 
 
 
+<!-- Floating utility dock: moved out of the header so it can be fixed to the viewport, above the music button -->
+<div class="hero-actions">
+<button class="ui-btn" id="lang-toggle" type="button" title="Language / اللغة" aria-label="Language">English</button>
+<button class="ui-btn" id="backup-project-btn" type="button" title="Backup Project">💾 Backup</button>
+<button class="ui-btn" id="notifications-btn" type="button" title="Notifications">🔔 <span id="notifications-badge" hidden>0</span></button>
+<button class="ui-btn users-btn" id="users-btn" type="button" title="Users" aria-haspopup="dialog" aria-expanded="false">👥 <span class="users-btn-label">Users</span></button>
+<div id="users-popup" class="users-popup" hidden role="dialog" aria-label="Users online status">
+  <div class="users-popup-head"><strong>Users</strong><button type="button" class="users-popup-close" id="users-popup-close" aria-label="Close">×</button></div>
+  <div id="users-list" class="users-list"><div class="users-empty">Loading...</div></div>
+</div>
+<button class="ui-btn" id="theme-toggle" type="button" title="Theme / الوضع" aria-label="Theme">☀️ / 🌙</button>
+<span class="auth-current-user" id="auth-current-user" hidden></span>
+<button class="ui-btn logout-btn" id="logout-btn" type="button" title="Sign out" onclick="GameVaultSignOut()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M15 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg><span>Sign out</span></button>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
@@ -220,7 +222,7 @@
 <script src="js/sound-effects.js?v=20260919-8"></script>
 <script src="js/cover-store.js?v=20260919-8"></script>
 <script src="firebase-config.js?v=20260919-8"></script>
-<script src="js/auth-gate.js?v=20260919-21-music"></script>
+<script src="js/auth-gate.js?v=20260920-10s"></script>
 <script src="js/user-presence.js?v=20260919-4"></script>
 <script src="js/cloud-sync.js?v=20260919-12-auth"></script>
 <script src="js/notifications.js?v=20260919-16-fcmfix"></script>
