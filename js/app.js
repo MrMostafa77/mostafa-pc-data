@@ -1147,9 +1147,7 @@
   function ratingEmblem(g,extraClass=''){
     const n=numericGameRating(g);
     return `<div class="rating-emblem ${extraClass}" aria-label="Game rating ${n!=null?n:'not set'}">
-      <img class="rating-wing rating-wing-left" src="assets/rating-wing-left.svg" alt="" aria-hidden="true">
       <span class="rating-circle">${n!=null?String(n).replace(/\.0$/,''):'—'}</span>
-      <img class="rating-wing rating-wing-right" src="assets/rating-wing-right.svg" alt="" aria-hidden="true">
     </div>`;
   }
 
@@ -3739,7 +3737,7 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
       <button type="button" data-context-action="game-edit">🎮 <span>${tr('التعديل على اللعبة')}</span></button>
       <div class="context-menu-sep"></div>
       <button type="button" data-context-action="add-play-date">▶️ <span>${tr('إضافة تاريخ لعب')}</span></button>
-      <button type="button" data-context-action="history">📜 <span>${tr('السجل')}</span></button>
+      <button type="button" data-context-action="history">📜 <span>History</span></button>
       <button type="button" data-context-action="edit-rating">⭐ <span>${tr('تعديل التقييم (1-10)')}</span></button>
       <button type="button" data-context-action="add-upcoming">📅 <span>${tr('إضافة للألعاب القادمة')}</span></button>
       <div class="context-menu-sep"></div>
