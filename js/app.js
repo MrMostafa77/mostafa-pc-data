@@ -837,10 +837,16 @@
   }
 
   /* ================= SEARCH ================= */
-  function searchMatch(g, nameQ, seriesQ){
+  // Name search prefers "starts with" matches (typing the first letter shows
+  // every game whose name begins with it). Only when that yields nothing do
+  // we fall back to a "contains anywhere" match, so a query never comes up
+  // empty as long as the letter appears somewhere in a name.
+  function searchMatch(g, nameQ, seriesQ, nameMode){
     nameQ=(nameQ||'').toLowerCase().trim();
     seriesQ=(seriesQ||'').toLowerCase().trim();
-    return (!nameQ || (g.name||'').toLowerCase().startsWith(nameQ)) && (!seriesQ || (g.series||'').toLowerCase().startsWith(seriesQ));
+    const name=(g.name||'').toLowerCase();
+    const nameOk = !nameQ || (nameMode==='contains' ? name.includes(nameQ) : name.startsWith(nameQ));
+    return nameOk && (!seriesQ || (g.series||'').toLowerCase().startsWith(seriesQ));
   }
 
   function updateSuggestions(activeInput){
@@ -850,7 +856,9 @@
     const isSeries = searchInput.id === 'search-series-input';
     const q = ((isSeries ? state.searchSeries : state.searchName)||'').toLowerCase();
     if(!q){ suggBox.classList.remove('open'); return; }
-    const matches = GAMES.filter(g=>((isSeries ? (g.series||'') : (g.name||'')).toLowerCase().startsWith(q)));
+    const field=g=>(isSeries ? (g.series||'') : (g.name||'')).toLowerCase();
+    let matches = GAMES.filter(g=>field(g).startsWith(q));
+    if(!matches.length) matches = GAMES.filter(g=>field(g).includes(q));
     const seen = new Set();
     if(!matches.length){ suggBox.classList.remove('open'); return; }
     suggBox.innerHTML = matches.map(g=>{
@@ -909,9 +917,9 @@
   }
 
   /* ================= FILTERING + RENDER RESULTS ================= */
-  function getFiltered(){
+  function getFiltered(nameMode){
     return GAMES.filter(g=>{
-      if(!searchMatch(g, state.searchName, state.searchSeries)) return false;
+      if(!searchMatch(g, state.searchName, state.searchSeries, nameMode)) return false;
       if(state.genres.size && !state.genres.has(g._genreKey)) return false;
       if(state.series.size && !state.series.has(g._seriesKey)) return false;
       if(state.hdds.size && !state.hdds.has(g.hdd)) return false;
@@ -1259,6 +1267,9 @@
 
   function renderResults(){
     let list = getFiltered();
+    // Nothing starts with the typed letters? Fall back to matching it anywhere
+    // in the name instead of showing an empty list.
+    if(!list.length && (state.searchName||'').trim()) list = getFiltered('contains');
     document.getElementById('result-count').innerHTML = `<b>${fmt(list.length)}</b> لعبة من أصل ${fmt(GAMES.length)}`;
     list = sortList(list);
     const totalPages = Math.max(1, Math.ceil(list.length / state.pageSize));
@@ -2552,7 +2563,7 @@
     "طباعة":"Print",
     "Expand all":"فرد الكل",
     "Collapse all":"طي الكل",
-    "History":"السجل",
+    "السجل":"History",
     "سجل":"record",
     "سجل لعب":"play records",
     "كل سجلات اللعب":"All play records",
