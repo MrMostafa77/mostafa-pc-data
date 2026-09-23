@@ -2234,21 +2234,25 @@ header.hero .home-eagle-logo{width:62px;height:62px;flex-basis:62px;object-fit:c
 /* Global right-click context menu */
 .global-context-menu{
   position:fixed;z-index:100000;min-width:235px;padding:7px;
-  background:#0a2354!important;border:1px solid #d7b33f;border-radius:10px;
-  box-shadow:0 10px 28px rgba(0,0,0,.5),0 0 16px rgba(215,179,63,.14);
+  background:linear-gradient(180deg,#0d1c31,#07111f)!important;
+  border:1px solid rgba(113,174,235,.34);border-radius:10px;
+  box-shadow:0 10px 28px rgba(0,0,0,.5),0 0 16px rgba(113,174,235,.14);
   direction:rtl;
 }
 .global-context-menu[hidden]{display:none!important}
 .global-context-menu button{
   width:100%;display:flex;align-items:center;gap:10px;padding:9px 11px;
-  border:0;border-radius:7px;background:transparent;color:#e3b15c;
+  border:1px solid transparent;border-radius:7px;background:rgba(14,35,58,.55);color:#dceaff;
   font:inherit;font-weight:800;text-align:right;cursor:pointer;white-space:nowrap;
+  transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease,color .15s ease;
+  margin-bottom:3px;
 }
-.global-context-menu button:hover:not(:disabled){background:#163d62;color:#f8d77b;box-shadow:inset 0 0 0 1px rgba(227,177,92,.3)}
+.global-context-menu button:last-child{margin-bottom:0}
+.global-context-menu button:hover:not(:disabled){background:#163d62;color:#f8d77b;border-color:#d9a64f;box-shadow:0 0 14px rgba(217,166,79,.25);transform:translateX(-2px)}
 .global-context-menu button:disabled{opacity:.38;cursor:not-allowed}
-.global-context-menu .context-menu-sep{height:1px;margin:5px 3px;background:rgba(227,177,92,.25)}
-.global-context-menu button.danger{color:#ff8a8a}
-.global-context-menu button.danger:hover:not(:disabled){background:#5a1a1a;color:#ffb3b3;box-shadow:inset 0 0 0 1px rgba(255,138,138,.35)}
+.global-context-menu .context-menu-sep{height:1px;margin:5px 3px;background:rgba(113,174,235,.25)}
+.global-context-menu button.danger{color:#ff9d9d;background:rgba(58,14,14,.4)}
+.global-context-menu button.danger:hover:not(:disabled){background:#5a1a1a;color:#ffb3b3;border-color:#ff8a8a;box-shadow:0 0 14px rgba(255,138,138,.3)}
 
 /* Main Character "add new" button */
 .game-edit-field .add-field-value-btn{background:var(--ink-2);color:var(--parchment);border:1px solid var(--line-strong);border-radius:7px;font-weight:900;font-size:16px;cursor:pointer;}
@@ -2552,36 +2556,36 @@ header.hero .home-clock-dual::before{display:none}
 /* ===== Game Rating Winged Emblem — navy/gold eagle wings ===== */
 .rating-emblem{
   display:flex!important;align-items:center!important;justify-content:center!important;
-  position:relative!important;height:78px!important;min-width:190px!important;
+  position:relative!important;height:64px!important;min-width:64px!important;
   gap:0!important;pointer-events:none!important;
 }
 .rating-circle{
   position:relative!important;z-index:2!important;
-  width:66px!important;height:66px!important;border-radius:50%!important;
+  width:52px!important;height:52px!important;border-radius:50%!important;
   display:flex!important;align-items:center!important;justify-content:center!important;
   box-sizing:border-box!important;
   background:linear-gradient(145deg,#102a45 0%,#071a2e 72%,#061322 100%)!important;
   border:2px solid #d4af37!important;color:#e7bd61!important;
-  font-family:var(--font-head)!important;font-size:24px!important;font-weight:1000!important;
+  font-family:var(--font-head)!important;font-size:19px!important;font-weight:1000!important;
   line-height:1!important;text-shadow:0 1px 2px rgba(0,0,0,.65)!important;
   box-shadow:0 0 0 2px rgba(212,175,55,.12),0 5px 16px rgba(0,0,0,.45),0 0 16px rgba(212,175,55,.18)!important;
+  pointer-events:auto!important;cursor:default!important;
+  transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease,background .18s ease!important;
 }
-.rating-wing{
-  position:relative!important;z-index:1!important;width:72px!important;height:42px!important;
-  display:block!important;object-fit:contain!important;
-  filter:drop-shadow(0 2px 2px rgba(0,0,0,.5)) drop-shadow(0 0 3px rgba(212,175,55,.16))!important;
+.rating-circle:hover{
+  transform:scale(1.1)!important;border-color:#ffd76e!important;
+  background:linear-gradient(145deg,#183a5c 0%,#0a2438 72%,#081a2b 100%)!important;
+  box-shadow:0 0 0 2px rgba(212,175,55,.3),0 6px 20px rgba(0,0,0,.5),0 0 26px rgba(212,175,55,.4)!important;
 }
-.rating-wing-left{margin-right:-10px!important;}
-.rating-wing-right{margin-left:-10px!important;}
+.rating-wing{display:none!important;}
 .g-rating .rating-emblem-collapsed{
   margin-top:6px!important;transform:none!important;transform-origin:center top!important;
-  height:68px!important;min-width:160px!important;
+  height:56px!important;min-width:56px!important;
 }
-.g-rating .rating-emblem-collapsed .rating-circle{width:56px!important;height:56px!important;font-size:20px!important;}
-.g-rating .rating-emblem-collapsed .rating-wing{width:62px!important;height:37px!important;}
+.g-rating .rating-emblem-collapsed .rating-circle{width:44px!important;height:44px!important;font-size:16px!important;}
 .rating-emblem-expanded{
   display:none!important;position:absolute!important;inset-inline-end:20px!important;bottom:4px!important;z-index:5!important;
-  transform:none!important;transform-origin:center bottom!important;height:92px!important;min-width:210px!important;
+  transform:none!important;transform-origin:center bottom!important;height:72px!important;min-width:72px!important;
 }
 .g-row.open .rating-emblem-expanded{display:flex!important;}
 .g-row.open .g-rating .rating-emblem-collapsed{display:none!important;}
