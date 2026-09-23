@@ -1017,6 +1017,7 @@
   }
   function editGameHtml(g){
     const fields=EDIT_GAME_FIELDS.map(([key,label,type],idx)=>{
+      if(key==='mainChar') return `<div class="game-edit-field"><label>${esc(label)}</label><div class="side-select"><select data-edit-field="${key}" disabled>${editFieldOptions(key,g)}</select><button type="button" class="add-field-value-btn" data-add-field="${key}" disabled title="${tr('إضافة شخصية جديدة')}" aria-label="${tr('إضافة شخصية جديدة')}">＋</button></div></div>`;
       if(type==='select') return `<div class="game-edit-field"><label>${esc(label)}</label><select data-edit-field="${key}" disabled>${editFieldOptions(key,g)}</select></div>`;
       return `<div class="game-edit-field"><label>${esc(label)}</label><input data-edit-field="${key}" type="${type}" value="${esc(g[key]??'')}" readonly ${key==='rating'?'step="0.1" min="1" max="10" inputmode="decimal"':type==='number'?'step="0.01" min="0"':''}></div>`;
     }).join('');
@@ -1028,6 +1029,7 @@
       if(el.tagName==='SELECT') el.disabled=!editing;
       else el.readOnly=!editing;
     });
+    row.querySelectorAll('.add-field-value-btn').forEach(b=>b.disabled=!editing);
     const save=row.querySelector('.save-edit');
     const cancel=row.querySelector('.cancel-edit');
     if(save) save.disabled=!editing;
@@ -1166,7 +1168,7 @@
     const modal=document.getElementById('game-tools-modal'), body=document.getElementById('game-tools-body'), title=document.getElementById('game-tools-title');
     if(!modal||!body||!g)return;
     const d=gameToolData(g);
-    title.textContent=`${g.name} — ${mode==='history'?'Game Session History':mode==='tags'?'Tags & Collections':'Quick Actions'}`;
+    title.textContent=`${g.name} — ${mode==='history'?'Game Session History':mode==='tags'?'Tags & Collections':mode==='rating'?'Edit Game Rating (1-10)':'Quick Actions'}`;
     const icons={favorite:'⭐',tags:'🏷️',history:'📜',play:'▶️',size:'💽'};
     const quick=`<div class="game-quick-actions">
       <button type="button" class="game-quick-btn ${d.favorite?'is-active':''}" data-tool="favorite"><span>${icons.favorite}</span><b>Favorite</b></button>
@@ -1187,6 +1189,12 @@
         <label class="tool-label">Collection</label><input id="tool-collection-input" class="tool-input" value="${esc(g.collection||'')}" placeholder="My Collection">
         <button type="button" class="tool-save-btn" id="tool-tags-save">💾 Save Tags & Collection</button>
       </div>`;
+    } else if(mode==='rating'){
+      const n=numericGameRating(g);
+      body.innerHTML=quick+`<div class="game-tool-section"><div class="game-tool-section-title">Edit Game Rating (1-10)</div>
+        <label class="tool-label">Rating</label><input id="tool-rating-input" class="tool-input" type="number" inputmode="decimal" min="1" max="10" step="0.1" value="${n!=null?n:''}" placeholder="1 - 10">
+        <button type="button" class="tool-save-btn" id="tool-rating-save">💾 Save Rating</button>
+      </div>`;
     } else {
       body.innerHTML=quick+`<div class="game-tool-section"><div class="game-tool-section-title">Quick Actions</div><p class="tool-hint">Use the buttons above to manage this game.</p></div>`;
     }
@@ -1206,6 +1214,14 @@
       if(userGames.some(x=>Number(x.id)===d.id)){const ug=userGames.find(x=>Number(x.id)===d.id);ug.collection=collection||null;saveJSON(USERGAMES_KEY,userGames);}
       else {overrides[d.id]=Object.assign({},overrides[d.id]||{}, {collection:collection||null});saveJSON(OVERRIDES_KEY,overrides);}
       saveGameToolsState(); rebuildGamesArray(); renderResults(); openGameTools(GAMES.find(x=>Number(x.id)===d.id),'tags');
+    });
+    body.querySelector('#tool-rating-save')?.addEventListener('click',()=>{
+      let n=Number(body.querySelector('#tool-rating-input')?.value);
+      n=Number.isFinite(n)?Math.min(10,Math.max(1,Math.round(n*10)/10)):null;
+      if(userGames.some(x=>Number(x.id)===d.id)){const ug=userGames.find(x=>Number(x.id)===d.id);ug.rating=n;saveJSON(USERGAMES_KEY,userGames);}
+      else{overrides[d.id]=Object.assign({},overrides[d.id]||{},{rating:n});saveJSON(OVERRIDES_KEY,overrides);}
+      rebuildGamesArray(); renderResults();
+      showLibrarySaveSuccess(); openGameTools(GAMES.find(x=>Number(x.id)===d.id),'quick');
     });
   }
   function closeGameTools(){const m=document.getElementById('game-tools-modal');if(m)m.hidden=true;}
@@ -1304,6 +1320,19 @@
         const action=btn.dataset.toolInline;
         if(action==='favorite'){favorites.has(Number(g.id))?favorites.delete(Number(g.id)):favorites.add(Number(g.id));saveGameToolsState();renderResults();return;}
         openGameTools(g,action==='history'?'history':action==='tags'?'tags':'quick');
+      }));
+      container.querySelectorAll('[data-add-field]').forEach(btn=>btn.addEventListener('click',e=>{
+        e.stopPropagation();
+        const key=btn.dataset.addField;
+        const val=prompt(tr('أدخل شخصية رئيسية جديدة:'));
+        if(!val||!val.trim())return;
+        const trimmed=val.trim();
+        const select=btn.closest('.game-edit-field')?.querySelector(`select[data-edit-field="${key}"]`);
+        if(!select)return;
+        if(![...select.options].some(o=>o.value===trimmed)){
+          const opt=document.createElement('option'); opt.value=trimmed; opt.textContent=trimmed; select.appendChild(opt);
+        }
+        select.value=trimmed;
       }));
       container.querySelectorAll('.cancel-edit').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');restoreGameEditRow(row);setGameEditMode(row,false);renderResults();}));
       container.querySelectorAll('.save-edit').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');saveGameEdits(Number(row.dataset.id),row);}));
@@ -3681,6 +3710,23 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
       alert(tr('لا توجد نافذة إضافة مستقلة في هذا التبويب.'));
     }
   }
+  function contextAddToUpcoming(g){
+    if(!g)return;
+    const ids=loadJSON(UPCOMING_GAMES_KEY,[null,null,null,null,null]);
+    if(ids.some(x=>Number(x)===Number(g.id))){
+      alert(tr('اللعبة موجودة بالفعل في قائمة الألعاب القادمة.'));
+      return;
+    }
+    const slot=ids.findIndex(x=>x==null);
+    if(slot===-1){
+      alert(tr('كل خانات الألعاب القادمة الخمسة ممتلئة. احذف واحدة أولًا.'));
+      return;
+    }
+    ids[slot]=Number(g.id);
+    saveJSON(UPCOMING_GAMES_KEY,ids.slice(0,5));
+    renderDashboard();
+    showLibrarySaveSuccess();
+  }
   function ensureGlobalContextMenu(){
     if(document.getElementById('global-context-menu'))return;
     const menu=document.createElement('div');
@@ -3691,6 +3737,13 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
       <button type="button" data-context-action="location">📁 <span>${tr('فتح مكان اللعبة')}</span></button>
       <button type="button" data-context-action="row-edit">✏️ <span>${tr('التعديل على السطر')}</span></button>
       <button type="button" data-context-action="game-edit">🎮 <span>${tr('التعديل على اللعبة')}</span></button>
+      <div class="context-menu-sep"></div>
+      <button type="button" data-context-action="add-play-date">▶️ <span>${tr('إضافة تاريخ لعب')}</span></button>
+      <button type="button" data-context-action="history">📜 <span>${tr('السجل')}</span></button>
+      <button type="button" data-context-action="edit-rating">⭐ <span>${tr('تعديل التقييم (1-10)')}</span></button>
+      <button type="button" data-context-action="add-upcoming">📅 <span>${tr('إضافة للألعاب القادمة')}</span></button>
+      <div class="context-menu-sep"></div>
+      <button type="button" class="danger" data-context-action="delete-game">🗑️ <span>${tr('حذف اللعبة')}</span></button>
       <div class="context-menu-sep"></div>
       <button type="button" data-context-action="add">＋ <span>${tr('إضافة')}</span></button>`;
     document.body.appendChild(menu);
@@ -3705,6 +3758,11 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
       menu.querySelector('[data-context-action="location"]').disabled=!info?.game;
       menu.querySelector('[data-context-action="row-edit"]').disabled=!info?.row;
       menu.querySelector('[data-context-action="game-edit"]').disabled=!info?.game;
+      menu.querySelector('[data-context-action="add-play-date"]').disabled=!info?.game;
+      menu.querySelector('[data-context-action="history"]').disabled=!info?.game;
+      menu.querySelector('[data-context-action="edit-rating"]').disabled=!info?.game;
+      menu.querySelector('[data-context-action="add-upcoming"]').disabled=!info?.game;
+      menu.querySelector('[data-context-action="delete-game"]').disabled=!info?.game;
       const rect=menu.getBoundingClientRect();
       const x=Math.min(e.clientX,window.innerWidth-rect.width-8);
       const y=Math.min(e.clientY,window.innerHeight-rect.height-8);
@@ -3720,6 +3778,11 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
       if(action==='location')openGameLocation(selectedInfo?.game);
       else if(action==='row-edit')contextEditRow(selectedInfo);
       else if(action==='game-edit')contextEditGame(selectedInfo);
+      else if(action==='add-play-date'){if(selectedInfo?.game)quickAddPlayDate(selectedInfo.game);}
+      else if(action==='history'){if(selectedInfo?.game)openGameTools(selectedInfo.game,'history');}
+      else if(action==='edit-rating'){if(selectedInfo?.game)openGameTools(selectedInfo.game,'rating');}
+      else if(action==='add-upcoming'){if(selectedInfo?.game)contextAddToUpcoming(selectedInfo.game);}
+      else if(action==='delete-game'){if(selectedInfo?.game)deleteGameCompletely(Number(selectedInfo.game.id));}
       else if(action==='add')contextAdd(selectedTabId);
     });
     document.addEventListener('mousedown',e=>{if(!menu.hidden&&!menu.contains(e.target))hide();});
