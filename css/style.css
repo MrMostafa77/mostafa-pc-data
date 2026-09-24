@@ -1669,18 +1669,9 @@ header.hero{
 
 /* Add New Game modal: navy + silver theme */
 .library-add-game-modal{
-  position:fixed !important;inset:0 !important;
-  background:transparent !important;
-  padding:18px !important;
-  display:flex !important;align-items:flex-end !important;justify-content:flex-end !important;
-  pointer-events:none !important;
-  z-index:1000;
+  background:linear-gradient(135deg,rgba(4,13,26,.94),rgba(10,24,43,.96)) !important;
 }
 .library-add-game-card{
-  pointer-events:auto !important;
-  width:min(560px,94vw) !important;max-width:560px !important;
-  max-height:min(78vh,720px) !important;overflow:auto !important;
-  margin:0 !important;
   background:linear-gradient(145deg,#0b1b31 0%,#152a43 58%,#4f5c69 100%) !important;
   border:1px solid rgba(190,202,214,.55) !important;
   box-shadow:0 24px 70px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.08) !important;
@@ -1691,7 +1682,6 @@ header.hero{
   border-color:rgba(185,198,211,.34) !important;
 }
 .library-add-game-card .ag-field label{color:#d5dde5 !important;}
-.floating-panel-hint{font-size:12px;opacity:.72;margin:0 0 12px;line-height:1.5;}
 
 /* v15 — Dynamic gold sci-fi Library filters inspired by the approved concept */
 #library-section aside#filters.filters{
@@ -2633,10 +2623,9 @@ header.hero .home-clock-dual{top:10px !important;left:10px !important;}
 .game-quick-inline{min-height:40px;padding:8px 13px;border-radius:10px;border:1px solid rgba(110,180,255,.30);background:rgba(8,28,50,.78);color:#8fc8ff;font-weight:800;display:inline-flex;align-items:center;gap:6px;cursor:pointer;transition:.18s ease;box-shadow:0 4px 12px rgba(0,0,0,.12)}
 .game-quick-inline:hover,.game-quick-inline.is-favorite{transform:translateY(-1px);border-color:rgba(227,177,92,.72);color:#ffd77e}
 .library-card-actions{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap}
-.game-tools-modal{position:fixed;inset:0;z-index:5000;background:transparent;display:flex;align-items:flex-end;justify-content:flex-end;padding:18px;pointer-events:none;}
-.game-tools-modal .game-tools-card{pointer-events:auto;}
+.game-tools-modal{position:fixed;inset:0;z-index:5000;background:rgba(1,7,16,.78);backdrop-filter:blur(5px);display:grid;place-items:center;padding:22px}
 .game-tools-modal[hidden]{display:none}
-.game-tools-card{width:min(440px,94vw);max-height:min(78vh,680px);overflow:auto;background:linear-gradient(180deg,#0d1c31,#07111f);border:1px solid rgba(113,174,235,.34);border-radius:18px;box-shadow:0 20px 70px rgba(0,0,0,.55);padding:20px}
+.game-tools-card{width:min(920px,96vw);max-height:88vh;overflow:auto;background:linear-gradient(180deg,#0d1c31,#07111f);border:1px solid rgba(113,174,235,.34);border-radius:18px;box-shadow:0 20px 70px rgba(0,0,0,.5);padding:20px}
 .game-tools-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .game-tools-head h3{margin:0;color:#e8f1ff;font-size:22px}
 .game-quick-actions{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:10px;margin-bottom:16px}
@@ -2717,9 +2706,8 @@ html[dir="rtl"] .hero-actions{right:22px;left:auto;direction:ltr}
 .upcoming-add-slot .upcoming-plus{opacity:0;transition:opacity .16s ease;}
 .upcoming-add-slot:hover .upcoming-plus,.upcoming-add-slot:focus-visible .upcoming-plus,.upcoming-add-slot:focus-within .upcoming-plus{opacity:1;}
 .upcoming-empty{min-height:255px;display:flex;align-items:center;justify-content:center;border:1px dashed rgba(105,158,204,.25);border-radius:12px;color:#8299ac;font-size:11px;text-align:center;padding:15px;}
-.upcoming-game-modal{position:fixed;inset:0;z-index:2000;background:transparent;padding:18px;display:flex;align-items:flex-end;justify-content:flex-end;pointer-events:none;}
-.upcoming-game-modal .upcoming-game-card{pointer-events:auto;}
-.upcoming-game-card{width:min(460px,94vw);max-height:min(78vh,680px);overflow:auto;border:1px solid rgba(115,165,210,.4);border-radius:18px;padding:20px;background:linear-gradient(145deg,#071525,#0d243b 62%,#162f49);box-shadow:0 28px 80px rgba(0,0,0,.55),inset 0 1px rgba(255,255,255,.06);}
+.upcoming-game-modal{position:fixed;inset:0;z-index:2000;background:rgba(2,8,16,.78);backdrop-filter:blur(7px);padding:28px;display:flex;align-items:center;justify-content:center;}
+.upcoming-game-card{width:min(680px,100%);max-height:min(760px,calc(100vh - 56px));overflow:auto;border:1px solid rgba(115,165,210,.4);border-radius:18px;padding:20px;background:linear-gradient(145deg,#071525,#0d243b 62%,#162f49);box-shadow:0 28px 80px rgba(0,0,0,.55),inset 0 1px rgba(255,255,255,.06);}
 .upcoming-game-head{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;margin-bottom:15px;}
 .upcoming-game-head h2{margin:0;color:#eef5fb;font-size:19px;}
 .upcoming-game-head p{margin:4px 0 0;color:#8da7bc;font-size:11px;}
@@ -3384,4 +3372,58 @@ body.light .hero-actions #theme-toggle{--dock-ico:url("data:image/svg+xml,%3Csvg
 }
 @media print{
   .hero-actions{display:none !important;}
+}
+
+/* =========================================================
+   TAB PAGE MODE
+   Home keeps its original Hero exactly as-is. Every other
+   tab removes the Hero/background and uses the full viewport.
+   ========================================================= */
+html.tab-fullscreen-mode,
+body.tab-fullscreen-mode{
+  width:100%;
+  min-width:100%;
+}
+body.tab-fullscreen-mode #dynamic-bg{
+  display:none !important;
+}
+body.tab-fullscreen-mode .wrap{
+  width:100%;
+  max-width:none !important;
+  margin:0;
+  padding-left:0;
+  padding-right:0;
+}
+body.tab-fullscreen-mode header.hero{
+  display:none !important;
+}
+body.tab-fullscreen-mode nav#tabnav{
+  width:100%;
+  margin-top:0 !important;
+  border-radius:0;
+  position:sticky;
+  top:0;
+  z-index:50;
+}
+body.tab-fullscreen-mode .tab-page.active{
+  width:100%;
+  min-height:calc(100vh - 104px);
+  padding-left:24px;
+  padding-right:24px;
+}
+body.tab-fullscreen-mode footer{
+  width:100%;
+  padding-left:24px;
+  padding-right:24px;
+}
+
+@media(max-width:760px){
+  body.tab-fullscreen-mode .tab-page.active{
+    padding-left:14px;
+    padding-right:14px;
+  }
+  body.tab-fullscreen-mode footer{
+    padding-left:14px;
+    padding-right:14px;
+  }
 }
