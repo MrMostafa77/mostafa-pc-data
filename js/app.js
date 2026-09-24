@@ -396,7 +396,8 @@
     document.getElementById('upcoming-game-cancel')?.addEventListener('click',()=>{modal.hidden=true;},{once:true});
     document.getElementById('upcoming-game-close')?.addEventListener('click',()=>{modal.hidden=true;},{once:true});
     modal.hidden=false;
-    modal.onclick=ev=>{if(ev.target===modal) modal.hidden=true;};
+    // Floating, non-blocking panel: the tab nav and rest of the page stay clickable
+    // while it's open, so ✕ / Cancel / Escape are the only ways to dismiss it now.
     if(!window.__upcomingPickerEsc){
       window.__upcomingPickerEsc=true;
       document.addEventListener('keydown',ev=>{
@@ -1261,8 +1262,9 @@
     });}
   }
   function installGameToolModal(){
+    // Floating, non-blocking panel: ✕ is the only way to close it now, so clicking
+    // the tab nav or anything else behind the panel works normally while it's open.
     document.getElementById('game-tools-close')?.addEventListener('click',closeGameTools);
-    document.getElementById('game-tools-modal')?.addEventListener('click',e=>{if(e.target.id==='game-tools-modal')closeGameTools();});
   }
 
   function renderResults(){
@@ -3860,16 +3862,24 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
       document.querySelectorAll('.tab-page').forEach(p=>p.classList.toggle('active',p.id==='library-section'));
     }
   };
-  document.getElementById('library-add-game-btn')?.addEventListener('click',()=>{const m=document.getElementById('library-add-game-modal');m.style.display='block';renderAddGameForm();if(lang==='en')applyLanguage();});
-  document.getElementById('close-library-add')?.addEventListener('click',()=>{closeLibraryAddGame();goToLibraryTab();});
-  document.getElementById('library-add-game-modal')?.addEventListener('click',e=>{if(e.target.id==='library-add-game-modal'){closeLibraryAddGame();goToLibraryTab();}});
+  document.getElementById('library-add-game-btn')?.addEventListener('click',()=>{
+    const m=document.getElementById('library-add-game-modal');
+    const wrap=document.getElementById('library-add-game-wrap');
+    m.style.display='block';
+    // Only (re)build the form if it isn't already open with data in progress —
+    // this is what lets the panel stay open across tab switches without losing entries.
+    if(!wrap || !wrap.innerHTML.trim()) renderAddGameForm();
+    if(lang==='en')applyLanguage();
+  });
+  // The panel is now a floating, non-blocking window: ✕ is the only way to close it,
+  // and the main tabs stay clickable (and the form data stays intact) while it's open.
+  document.getElementById('close-library-add')?.addEventListener('click',()=>{closeLibraryAddGame();});
   document.addEventListener('keydown',e=>{
     if(e.key!=='Escape') return;
     const modal=document.getElementById('library-add-game-modal');
     if(!modal || modal.style.display==='none') return;
     e.preventDefault();
     closeLibraryAddGame();
-    goToLibraryTab();
   });
   if(lang==='en') applyLanguage();
 })();

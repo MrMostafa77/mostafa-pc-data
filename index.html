@@ -165,7 +165,7 @@
 <div id="upcoming-game-modal" class="upcoming-game-modal" hidden>
   <div class="upcoming-game-card" role="dialog" aria-modal="true" aria-labelledby="upcoming-game-title">
     <div class="upcoming-game-head">
-      <div><h2 id="upcoming-game-title">Select Upcoming Game</h2><p>Choose any game already in your Library.</p></div>
+      <div><h2 id="upcoming-game-title">Select Upcoming Game</h2><p>Choose any game already in your Library.</p><p class="floating-panel-hint">تقدر تتنقل بين التابات وهي مفتوحة من غير ما تفقد بياناتك.</p></div>
       <button class="icon-btn" id="upcoming-game-close" type="button" aria-label="Close">✕</button>
     </div>
     <div class="upcoming-picker-preview" id="upcoming-game-preview">
@@ -182,11 +182,12 @@
     </div>
   </div>
 </div>
-<div id="library-add-game-modal" class="library-add-game-modal" style="display:none;position:fixed;inset:0;background:rgba(3,10,20,.82);z-index:1000;padding:30px;overflow:auto"><div class="library-add-game-card" style="max-width:1100px;margin:0 auto;border-radius:12px;padding:20px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Add Game جديدة</h2><button class="icon-btn" id="close-library-add" type="button">✕</button></div><div id="library-add-game-wrap"></div></div></div>
+<div id="library-add-game-modal" class="library-add-game-modal" style="display:none;"><div class="library-add-game-card" style="border-radius:12px;padding:20px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><h2 style="margin:0">Add Game جديدة</h2><button class="icon-btn" id="close-library-add" type="button">✕</button></div><p class="floating-panel-hint">تقدر تتنقل بين التابات وهي مفتوحة، وبياناتك هتفضل محفوظة لحد ما تضغط حفظ أو ✕.</p><div id="library-add-game-wrap"></div></div></div>
 </div>
 <div id="game-tools-modal" class="game-tools-modal" hidden>
   <div class="game-tools-card" role="dialog" aria-modal="true" aria-labelledby="game-tools-title">
     <div class="game-tools-head"><h3 id="game-tools-title">Game Tools</h3><button type="button" class="icon-btn" id="game-tools-close">✕</button></div>
+    <p class="floating-panel-hint">تقدر تتنقل بين التابات وهي مفتوحة من غير ما تفقد بياناتك.</p>
     <div id="game-tools-body"></div>
   </div>
 </div>
