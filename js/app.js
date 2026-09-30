@@ -2230,6 +2230,38 @@
       search.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();renderSizesTab();}});
     }
     if(filter && !filter.dataset.bound){filter.dataset.bound='1';filter.addEventListener('change',renderSizesTab);}
+    bindSizesImport();
+  }
+  function normSizeName(x){return String(x||'').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,'');}
+  function bindSizesImport(){
+    const btn=document.getElementById('sizes-import-btn'), file=document.getElementById('sizes-import-file');
+    if(!btn||!file||btn.dataset.bound)return; btn.dataset.bound='1';
+    btn.addEventListener('click',()=>file.click());
+    file.addEventListener('change',async()=>{
+      const f=file.files&&file.files[0]; if(!f)return;
+      let list; try{ list=JSON.parse((await f.text()).replace(/^\uFEFF/,'')); }catch(e){ alert('ملف JSON غير صالح'); file.value=''; return; }
+      if(!Array.isArray(list)){ alert('الملف لازم يكون قائمة (array)'); file.value=''; return; }
+      const byNorm=new Map(); GAMES.forEach(g=>{ const k=normSizeName(g.name); if(k&&!byNorm.has(k))byNorm.set(k,g); });
+      const done=new Set(); let matched=0, fuzzy=0; const missed=[], pending=[];
+      const apply=(g,bytes)=>{ sizeOverrides[g.id]=gbFromBytes(bytes); g.sizeGB=sizeOverrides[g.id]; sizeDeleted.delete(Number(g.id)); done.add(Number(g.id)); matched++; };
+      // Pass 1: exact name matches (any level)
+      list.forEach(it=>{
+        const key=normSizeName(it.name), bytes=parseBytes(it.bytes); if(!key||!bytes)return;
+        const g=byNorm.get(key);
+        if(g&&!done.has(Number(g.id))) apply(g,bytes); else if(!g) pending.push({it,key,bytes});
+      });
+      // Pass 2: approximate match only when exactly ONE game fits and it wasn't already set
+      pending.forEach(({it,key,bytes})=>{
+        if(key.length<6){ return; }
+        const cands=[]; byNorm.forEach((gg,k)=>{ if(k.length>=6&&(key.includes(k)||k.includes(key))&&!done.has(Number(gg.id)))cands.push(gg); });
+        if(cands.length===1){ apply(cands[0],bytes); fuzzy++; }
+        else if(Number(it.level||1)===1) missed.push(it.name);
+      });
+      saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides); saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]);
+      file.value='';
+      renderSizesTab(); try{renderHeroStats();renderDashboard();renderResults();}catch(e){}
+      alert(`تم تحديث ${matched} لعبة (منها ${fuzzy} بتطابق تقريبي).\n`+(missed.length?`لم يتم إيجاد ${missed.length} مجلد في المكتبة:\n`+missed.slice(0,25).join('\n')+(missed.length>25?'\n...':''):'كل المجلدات اتطابقت.'));
+    });
   }
 
   /* ================= REQUESTED UPGRADES ================= */
