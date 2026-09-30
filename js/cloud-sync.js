@@ -18,7 +18,6 @@ const SYNC_KEYS = [
   'gameVault_fieldOverrides_v1',
   'gameVault_sizeDeleted_v1',
   'gameVault_sizeOverrides_v1',
-  'gameVault_sizeBytesOverrides_v1',
   'mostafa_pc_date_options_v1',
   'mostafa_pc_deleted_games_v1',
   'gameVault_favorites_v1',

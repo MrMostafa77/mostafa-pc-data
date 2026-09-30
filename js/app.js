@@ -11,7 +11,6 @@
   const ONLINE_COVER_CACHE_KEY = 'gameVault_onlineCoverCache_v1'; // كاش لصور الأغلفة المجلوبة أونلاين للألعاب التي لا تملك صورة محلية
   const DATE_RECORDS_KEY = 'gameVault_dateRecords_v4';
   const SIZE_OVERRIDES_KEY = 'gameVault_sizeOverrides_v1';
-  const SIZE_BYTES_OVERRIDES_KEY = 'gameVault_sizeBytesOverrides_v1';
   const SIZE_DELETED_KEY = 'gameVault_sizeDeleted_v1';
   const CAP_KEY = 'gameVault_driveCapacities_v1';
   const FAVORITES_KEY = 'gameVault_favorites_v1';
@@ -81,7 +80,6 @@
   let onlineCoverCache = loadJSON(ONLINE_COVER_CACHE_KEY, {}); // id(string) -> url مكتشف | false غير موجود
   let dateRecords = loadJSON(DATE_RECORDS_KEY, null);
   let sizeOverrides = loadJSON(SIZE_OVERRIDES_KEY, {});
-  let sizeBytesOverrides = loadJSON(SIZE_BYTES_OVERRIDES_KEY, {});
   let sizeDeleted = new Set(loadJSON(SIZE_DELETED_KEY, []).map(Number));
   let capacities = loadJSON(CAP_KEY, {});
   let favorites = new Set(loadJSON(FAVORITES_KEY, []).map(Number));
@@ -642,13 +640,9 @@
     const driveStats = {};
     GAMES.forEach(g=>{
       const h = g.hdd || 'غير محدد';
-      if(!driveStats[h]) driveStats[h] = {count:0, size:0, bytes:0};
-      // Always use the canonical saved byte value. This keeps Drives in sync
-      // with manual edits and local scans instead of using a stale base sizeGB.
-      const bytes = sizeValueBytes(g);
+      if(!driveStats[h]) driveStats[h] = {count:0, size:0};
       driveStats[h].count++;
-      driveStats[h].bytes += bytes;
-      driveStats[h].size += gbFromBytes(bytes);
+      driveStats[h].size += (g.sizeGB||0);
     });
     return driveStats;
   }
@@ -666,13 +660,7 @@
       </div>`+
       all.map(([name,st])=>{
         const cap=capacities[name]; const isDeleted=name==='Deleted'; let barHtml='',remainHtml='';
-        if(cap&&cap>0){
-          // Capacity and game usage both use decimal GB (1 GB = 1,000,000,000 bytes).
-          const pct=Math.min(100,Math.max(0,st.size/cap*100)),warn=pct>88;
-          const remaining=Math.max(0,cap-st.size);
-          barHtml=`<div class="drive-bar-track"><div class="drive-bar-fill ${warn?'warn':''}" style="width:${pct.toFixed(1)}%"></div></div>`;
-          remainHtml=`<div class="drive-remain">${pct.toFixed(1)}% مستخدمة · المتبقي ${fmt(remaining,1)} GB</div>`;
-        }
+        if(cap&&cap>0){const pct=Math.min(100,st.size/cap*100),warn=pct>88;barHtml=`<div class="drive-bar-track"><div class="drive-bar-fill ${warn?'warn':''}" style="width:${pct.toFixed(1)}%"></div></div>`;remainHtml=`<div class="drive-remain">${pct.toFixed(1)}% مستخدمة · المتبقي ${fmt(Math.max(0,cap-st.size),1)} GB</div>`;}
         return `<div class="drive-card ${isDeleted?'is-deleted':''}"><div class="drive-name">${esc(name)} <span class="cnt">${st.count} لعبة</span></div><div class="drive-used">${fmt(st.size,1)} GB مستخدمة</div>${!isDeleted?`<div class="drive-cap-row"><label>السعة:</label><input type="number" min="1" step="1" data-drive="${esc(name)}" class="cap-input" value="${cap||''}" readonly><button type="button" class="icon-action drive-edit" title="تعديل السعة">✏️</button><button type="button" class="icon-action drive-save" title="حفظ السعة" disabled>💾</button></div>`:''}${barHtml}${remainHtml}</div>`;
       }).join('');
     document.getElementById('add-drive-btn').addEventListener('click',()=>{const n=document.getElementById('new-drive-name').value.trim();const c=parseFloat(document.getElementById('new-drive-cap').value);if(!n||!(c>0)){alert('اكتب اسم الهارد والسعة أولاً.');return;}capacities[n]=c;saveJSON(CAP_KEY,capacities);renderDrives();});
@@ -1257,12 +1245,8 @@
     const inp=body.querySelector('#tool-size-bytes'), out=body.querySelector('#tool-size-gb');
     inp?.addEventListener('input',()=>{inp.value=inp.value.replace(/\D/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,','); if(out)out.textContent=gbFromBytes(inp.value).toFixed(2)+' GB';});
     body.querySelector('#tool-size-save')?.addEventListener('click',()=>{
-      const bytes=parseBytes(inp?.value||0);
-      const gb=gbFromBytes(bytes);
-      sizeBytesOverrides[g.id]=bytes;
-      sizeOverrides[g.id]=gb;
-      saveJSON(SIZE_BYTES_OVERRIDES_KEY,sizeBytesOverrides);
-      saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides);
+      const gb=gbFromBytes(inp?.value||0);
+      sizeOverrides[g.id]=gb; saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides);
       const gg=GAMES.find(x=>Number(x.id)===Number(g.id)); if(gg)gg.sizeGB=gb;
       renderResults(); try{renderSizesTab();}catch(e){}
       showLibrarySaveSuccess(); openGameTools(g,'quick');
@@ -2136,25 +2120,14 @@
   }
 
   /* ================= SIZES TAB ================= */
-  function bytesFromGB(gb){return Number.isFinite(Number(gb)) ? Math.round(Number(gb)*1000*1000*1000) : 0;}
+  function bytesFromGB(gb){return Number.isFinite(Number(gb)) ? Math.round(Number(gb)*1024*1024*1024) : 0;}
   function parseBytes(value){
     const n=Number(String(value??'').replace(/,/g,'').replace(/\s/g,''));
     return Number.isFinite(n)&&n>=0 ? Math.round(n) : 0;
   }
   function fmtBytes(value){return parseBytes(value).toLocaleString('en-US');}
-  function gbFromBytes(bytes){const n=parseBytes(bytes);return Number.isFinite(n)&&n>=0 ? n/1000000000 : 0;}
-  function sizeValueBytes(g){
-    const id=Number(g?.id);
-    if(sizeBytesOverrides[id]!=null){
-      const n=parseBytes(sizeBytesOverrides[id]);
-      if(n>0) return n;
-    }
-    if(sizeOverrides[id]!=null) return bytesFromGB(sizeOverrides[id]);
-    return bytesFromGB(g?.sizeGB);
-  }
-  function sizeValueGB(g){ return gbFromBytes(sizeValueBytes(g)); }
-  function bytesToKB(bytes){ const n=parseBytes(bytes); return n/1000; }
-  function fmtKB(bytes){ return bytesToKB(bytes).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function gbFromBytes(bytes){const n=parseBytes(bytes);return Number.isFinite(n)&&n>=0 ? n/(1024*1024*1024) : 0;}
+  function sizeValueGB(g){return sizeOverrides[g.id]!=null ? Number(sizeOverrides[g.id]) : (g.sizeGB!=null?Number(g.sizeGB):0);}
   function renderSizesTab(){
     const wrap=document.getElementById('sizes-wrap'); if(!wrap)return;
     const search=document.getElementById('sizes-search-input');
@@ -2174,12 +2147,12 @@
     const iconEdit='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17.25V20h2.75L18.81 7.94l-2.75-2.75L4 17.25Zm15.71-10.46c.39-.39.39-1.03 0-1.42l-1.08-1.08a1.003 1.003 0 0 0-1.42 0l-1.07 1.07 2.75 2.75 1.07-1.07Z"/></svg>';
     const iconSave='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4Zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6ZM6 5h8v4H6V5Z"/></svg>';
     const iconDelete='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12ZM8 9h8v10H8V9Zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5Z"/></svg>';
-    wrap.innerHTML=`<div class="result-count" style="margin-bottom:10px">${fmt(rows.length)} لعبة</div><div class="dt-table-wrap"><table class="dt-table sizes-table"><thead><tr><th>اللعبة</th><th>الهارد</th><th>الحجم (KB)</th><th>الحجم (GB)</th><th>إجراءات</th></tr></thead><tbody>${rows.map(g=>{
-      const bytes=sizeValueBytes(g), gb=gbFromBytes(bytes);
+    wrap.innerHTML=`<div class="result-count" style="margin-bottom:10px">${fmt(rows.length)} لعبة</div><div class="dt-table-wrap"><table class="dt-table sizes-table"><thead><tr><th>اللعبة</th><th>الهارد</th><th>الحجم (Byte)</th><th>الحجم (GB)</th><th>إجراءات</th></tr></thead><tbody>${rows.map(g=>{
+      const gb=sizeValueGB(g), bytes=bytesFromGB(gb);
       return `<tr data-size-id="${esc(g.id)}">
         <td class="dt-name">${gameNameLink(g.name)}</td>
         <td>${esc(g.hdd||'—')}</td>
-        <td><input class="size-kb-input" type="text" inputmode="numeric" autocomplete="off" data-size-bytes data-editable-lock="1" value="${fmtKB(bytes)}" readonly></td>
+        <td><input class="size-kb-input" type="text" inputmode="numeric" autocomplete="off" data-size-bytes data-editable-lock="1" value="${fmtBytes(bytes)}" readonly></td>
         <td class="size-gb-cell"><input class="size-gb-output" type="text" data-size-gb value="${gb.toFixed(2)} GB" readonly></td>
         <td><div class="size-actions">
           <button type="button" class="icon-action size-edit" title="تعديل بيانات الحجم" aria-label="تعديل بيانات الحجم">${iconEdit}</button>
@@ -2191,10 +2164,8 @@
     wrap.querySelectorAll('.size-kb-input').forEach(inp=>{
       inp.addEventListener('input',()=>{
         const row=inp.closest('tr'), out=row?.querySelector('[data-size-gb]');
-        const kb=Number(String(inp.value||'').replace(/,/g,''));
-        const bytes=Number.isFinite(kb)&&kb>=0 ? Math.round(kb*1024) : 0;
-        if(out) out.value=gbFromBytes(bytes).toFixed(2)+' GB';
-        if(inp.value!=='') inp.value=String(inp.value).replace(/[^0-9.]/g,'');
+        if(out) out.value=gbFromBytes(inp.value).toFixed(2)+' GB';
+        inp.value=inp.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',');
       });
     });
     wrap.querySelectorAll('.size-edit').forEach(btn=>btn.addEventListener('click',()=>{
@@ -2234,13 +2205,9 @@
     wrap.querySelectorAll('.size-save').forEach(btn=>btn.addEventListener('click',()=>{
       const row=btn.closest('tr'); const id=Number(row?.dataset.sizeId); const inp=row?.querySelector('[data-size-bytes]');
       if(!id||!inp||btn.disabled)return;
-      const kb=Number(String(inp.value||'').replace(/,/g,''));
-      const bytes=Number.isFinite(kb)&&kb>=0 ? Math.round(kb*1024) : 0;
-      const gb=gbFromBytes(bytes);
-      sizeBytesOverrides[id]=bytes;
+      const gb=gbFromBytes(inp.value);
       sizeOverrides[id]=gb;
       sizeDeleted.delete(id);
-      saveJSON(SIZE_BYTES_OVERRIDES_KEY,sizeBytesOverrides);
       saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides);
       saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]);
       const g=GAMES.find(x=>Number(x.id)===id); if(g) g.sizeGB=gb;
@@ -2264,33 +2231,17 @@
     }
     if(filter && !filter.dataset.bound){filter.dataset.bound='1';filter.addEventListener('change',renderSizesTab);}
     bindSizesImport();
-    const scanBtn=document.getElementById('sizes-local-scan-btn');
-    if(scanBtn && !scanBtn.dataset.bound){ scanBtn.dataset.bound='1'; scanBtn.addEventListener('click',scanLocalGameSizes); }
   }
-  function normSizeName(x){
-  return sizeTokens(x).join('');
-}
+  function normSizeName(x){return String(x||'').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,'');}
 function sizeTokens(raw){
-  let s=String(raw||'').trim();
-  // Remove common release/repack suffixes without touching the actual game title.
-  s=s.replace(/\[[^\]]*\]/g,' ');
-  s=s.replace(/\([^)]*\)/g,' ');
-  s=s.replace(/\b(?:dodi|repack|fitgirl|plaza|codex|skidrow|gog|steam|epic|multi\d*|\bwww\b|gamestorrents|win(?:32|64)?|portable|crack|installer|setup|iso)\b/gi,' ');
-  // Remove version/build/release-number tails such as v1.0, v1.2.3, Build 123, etc.
-  s=s.replace(/\b(?:v|ver|version|build)\s*\d+(?:[._-]\d+)*\b.*$/i,' ');
-  s=s.replace(/\b\d+\.\d+(?:\.\d+){1,}\b.*$/i,' ');
-  s=s.replace(/\b(?:goty|game\s+of\s+the\s+year|complete|definitive|deluxe|ultimate|gold|standard|edition|enhanced|remastered|remake|director'?s\s+cut)\b/gi,' ');
+  let s=String(raw||'');
+  s=s.replace(/\[[^\]]*\]|\([^)]*\)/g,' ');
+  s=s.replace(/[ _.\-]v?\d+(?:\.\d+){2,}.*$/i,' ');
   s=s.toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,' ').trim();
-  const junk=new Set(['repack','dodi','fitgirl','plaza','gog','multi','www','gamestorrents','com','win','win32','win64','codex','skidrow','the','a','an','series','edition','goty','complete','definitive','deluxe','ultimate','gold','standard','enhanced','remastered','remake','portable','crack','installer','setup','iso']);
+  const junk=new Set(['repack','dodi','fitgirl','plaza','gog','multi','www','gamestorrents','com','win','win64','codex','skidrow','the','a','an','series','edition','goty']);
   const nums={one:'1',two:'2',three:'3',four:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10',ii:'2',iii:'3',iv:'4',vi:'6',vii:'7',viii:'8',ix:'9'};
   const out=[];
-  s.split(' ').forEach(t=>{
-    if(!t || junk.has(t)) return;
-    if(/^multi\d*$/.test(t)) return;
-    // Ignore release-only numeric/build tokens, but keep sequel numbers (e.g. 2, 3, IV).
-    if(/^\d{4,}$/.test(t)) return;
-    out.push(nums[t]||t);
-  });
+  s.split(' ').forEach(t=>{ if(!t)return; if(/^multi\d*$/.test(t))return; if(junk.has(t))return; out.push(nums[t]||t); });
   return out;
 }
 function sizeScore(a,b){
@@ -2298,149 +2249,27 @@ function sizeScore(a,b){
   const A=new Set(a),B=new Set(b); let ov=0; A.forEach(x=>{if(B.has(x))ov++;});
   const dA=[...A].filter(x=>/^\d+$/.test(x)), dB=[...B].filter(x=>/^\d+$/.test(x));
   if(dA.length&&dB.length&&!dA.some(x=>B.has(x)))return 0;
-  // Exact token equality gets a perfect score. Also allow one side to contain
-  // only harmless extra release words (DODI/Repack/etc.) after normalization.
-  const exact=(A.size===B.size&&ov===A.size);
-  if(exact)return 1;
-  const contained=(ov===Math.min(A.size,B.size));
-  if(contained)return 0.94;
   return 2*ov/(A.size+B.size);
 }
 function matchSizes(list,games,minScore){
-  const G=games.map(g=>({g,t:sizeTokens(g.name),key:normSizeName(g.name)}));
-  const items=list.map((it,i)=>({it,i,t:sizeTokens(it.name),key:normSizeName(it.name),lvl:Number(it.level||1),bytes:Number(it.bytes)||0,path:String(it.path||'').toLowerCase()})).filter(x=>x.bytes>0&&x.t.length);
-  const pairs=[];
-  items.forEach(x=>G.forEach(y=>{
-    let sc=sizeScore(x.t,y.t);
-    if(x.key && y.key && x.key===y.key) sc=1;
-    if(sc>=minScore)pairs.push({x,y,sc});
-  }));
-  pairs.sort((p,q)=>q.sc-p.sc || q.x.lvl-p.x.lvl);
+  const G=games.map(g=>({g,t:sizeTokens(g.name)}));
+  const items=list.map((it,i)=>({it,i,t:sizeTokens(it.name),lvl:Number(it.level||1),bytes:Number(it.bytes)||0,path:String(it.path||'').toLowerCase()})).filter(x=>x.bytes>0&&x.t.length);
+  const pairs=[]; items.forEach(x=>G.forEach(y=>{const sc=sizeScore(x.t,y.t); if(sc>=minScore)pairs.push({x,y,sc});}));
+  pairs.sort((p,q)=>q.sc-p.sc);
   const usedItem=new Set(), usedGame=new Set(), res=[];
-  // Deepest matching folders win. This is important when a Series folder contains
-  // several independent game folders: each child game gets its own size instead
-  // of assigning the whole Series folder to one game.
-  const levels=[...new Set(pairs.map(p=>p.x.lvl))].sort((a,b)=>b-a);
-  levels.forEach(level=>{
-    pairs.forEach(p=>{
-      if(p.x.lvl!==level||usedItem.has(p.x.i)||usedGame.has(p.y.g.id))return;
-      usedItem.add(p.x.i); usedGame.add(p.y.g.id);
-      res.push({folder:p.x.it.name,path:p.x.path,level:p.x.lvl,game:p.y.g,bytes:p.x.bytes,score:p.sc});
-    });
-  });
+  // pass 1: level-2 folders first (they are the real games inside series folders)
+  [2,1].forEach(level=>pairs.forEach(p=>{
+    if(p.x.lvl!==level||usedItem.has(p.x.i)||usedGame.has(p.y.g.id))return;
+    if(level===1){
+      const isSeries=/series\s*$/i.test(String(p.x.it.name))||items.some(o=>o.lvl===2&&usedItem.has(o.i)&&o.path.startsWith(p.x.path));
+      if(isSeries&&p.sc<1)return;
+    }
+    usedItem.add(p.x.i); usedGame.add(p.y.g.id); res.push({folder:p.x.it.name,game:p.y.g,bytes:p.x.bytes,score:p.sc});
+  }));
   const missed=items.filter(x=>x.lvl===1&&!usedItem.has(x.i)&&!/series\s*$/i.test(String(x.it.name))).map(x=>x.it.name);
   return {res,missed};
 }
 
-  async function scanLocalGameSizes(){
-    const status=document.getElementById('sizes-scan-status');
-    const btn=document.getElementById('sizes-local-scan-btn');
-    if(!window.showDirectoryPicker){
-      alert('متصفحك لا يدعم اختيار مجلد محلي بهذه الطريقة. استخدم أحدث إصدار من Google Chrome أو Microsoft Edge.');
-      return;
-    }
-    let root;
-    try{
-      root=await window.showDirectoryPicker({mode:'read'});
-    }catch(e){
-      if(e?.name!=='AbortError') alert('تعذر فتح مجلد الألعاب: '+(e?.message||e));
-      return;
-    }
-    btn?.setAttribute('disabled','disabled');
-    const oldText=btn?.textContent;
-    if(btn) btn.textContent='⏳ جاري الفحص...';
-    const setStatus=(s)=>{if(status)status.textContent=s;};
-
-    // Build one directory tree in a single pass. Each directory receives the
-    // total bytes of everything below it, while level-2/3 directories can be
-    // matched as individual games inside a Series folder.
-    const dirs=[];
-    let fileCount=0;
-    async function walkDir(dir, level, parentPath){
-      const node={dir,name:dir.name,level,path:parentPath?parentPath+'/'+dir.name:dir.name,bytes:0};
-      dirs.push(node);
-      try{
-        for await(const entry of dir.values()){
-          if(entry.kind==='file'){
-            try{
-              const f=await entry.getFile();
-              const b=Number(f.size)||0;
-              node.bytes+=b; fileCount++;
-            }catch(e){}
-          }else if(entry.kind==='directory'){
-            const child=await walkDir(entry,level+1,node.path);
-            node.bytes+=child.bytes;
-          }
-        }
-      }catch(e){}
-      return node;
-    }
-
-    let rootNode;
-    try{ rootNode=await walkDir(root,0,''); }
-    catch(e){
-      btn?.removeAttribute('disabled'); if(btn)btn.textContent=oldText||'📁 Scan Local Games';
-      alert('تعذر قراءة مجلد الألعاب: '+(e?.message||e)); return;
-    }
-    const folders=dirs.filter(d=>d.level>=1 && d.bytes>0);
-    if(!folders.length){
-      btn?.removeAttribute('disabled'); if(btn)btn.textContent=oldText||'📁 Scan Local Games';
-      alert('لم يتم العثور على ملفات ألعاب داخل المجلد المختار.'); return;
-    }
-
-    setStatus(`تم فحص ${folders.length} مجلد و ${fileCount} ملف — جاري المطابقة...`);
-    const activeGames=GAMES.filter(g=>!sizeDeleted.has(Number(g.id)));
-    const {res,missed}=matchSizes(folders,activeGames,0.6);
-
-    // If both a parent Series folder and its child game folders match, discard
-    // the parent match. A Series folder is a container, not the size of one game.
-    const childPaths=res.map(r=>String(r.path||r.folderPath||'').toLowerCase()).filter(Boolean);
-    const selected=[];
-    const usedGames=new Set();
-    res.sort((a,b)=>{
-      const la=Number(a.level||0),lb=Number(b.level||0);
-      return lb-la || b.score-a.score;
-    }).forEach(r=>{
-      const rp=String(r.path||r.folderPath||'').toLowerCase();
-      const hasMatchedDescendant=res.some(x=>{
-        if(x===r) return false;
-        const xp=String(x.path||x.folderPath||'').toLowerCase();
-        return xp && rp && xp.startsWith(rp+'/');
-      });
-      // A directory is a container when a deeper matched game directory exists.
-      // Never assign the container's total size to a single game. This works at
-      // any nesting depth (not only level 1), so Series/Game/Edition trees are safe.
-      if(hasMatchedDescendant) return;
-      const gid=Number(r.game?.id);
-      if(!gid || usedGames.has(gid)) return;
-      usedGames.add(gid); selected.push(r);
-    });
-
-    const sure=selected.filter(r=>r.score>=0.85), maybe=selected.filter(r=>r.score<0.85);
-    let take=sure.slice();
-    if(maybe.length){
-      const txt=maybe.map(r=>`• ${r.folder}  ←→  ${r.game.name} (${fmtKB(r.bytes)} KB)`).join('\n');
-      if(confirm(`${maybe.length} تطابق تحتاج مراجعة:\n\n${txt.slice(0,3500)}\n\nموافق = حفظها كلها، إلغاء = حفظ التطابقات المؤكدة فقط.`)){
-        take=take.concat(maybe);
-      }
-    }
-    take.forEach(r=>{
-      const bytes=parseBytes(r.bytes), gb=gbFromBytes(bytes), id=Number(r.game.id);
-      sizeBytesOverrides[id]=bytes;
-      sizeOverrides[id]=gb;
-      r.game.sizeGB=gb;
-      sizeDeleted.delete(id);
-    });
-    saveJSON(SIZE_BYTES_OVERRIDES_KEY,sizeBytesOverrides);
-    saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides);
-    saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]);
-    renderSizesTab();
-    try{renderHeroStats();renderDashboard();renderResults();renderDrives();}catch(e){}
-    setStatus(`تم الفحص: ${take.length} لعبة — ${folders.length} مجلد — ${fileCount} ملف`);
-    if(btn){btn.removeAttribute('disabled');btn.textContent=oldText||'📁 Scan Local Games';}
-    alert(`تم فحص ${folders.length} مجلد و ${fileCount} ملف.\nتم تحديث ${take.length} لعبة بالحجم الدقيق.`+
-      (missed.length?`\n\nلم يتم العثور على تطابق لبعض المجلدات/الحاويات (${missed.length}).\nيمكنك مراجعتها يدويًا من تبويب Sizes.`:''));
-  }
   function bindSizesImport(){
     const btn=document.getElementById('sizes-import-btn'), file=document.getElementById('sizes-import-file');
     if(!btn||!file||btn.dataset.bound)return; btn.dataset.bound='1';
@@ -2456,8 +2285,7 @@ function matchSizes(list,games,minScore){
         const txt=maybe.map(r=>`• ${r.folder}  ←→  ${r.game.name}`).join('\n');
         if(confirm(`${maybe.length} تطابق مش مؤكد 100%، راجعهم:\n\n${txt.slice(0,1500)}\n\nموافق = طبّقهم كلهم، إلغاء = تجاهلهم (وتقدر تعدّلهم يدوي).`)) take=take.concat(maybe);
       }
-      take.forEach(r=>{ const bytes=parseBytes(r.bytes); const gb=gbFromBytes(bytes); sizeBytesOverrides[r.game.id]=bytes; sizeOverrides[r.game.id]=gb; r.game.sizeGB=gb; sizeDeleted.delete(Number(r.game.id)); });
-      saveJSON(SIZE_BYTES_OVERRIDES_KEY,sizeBytesOverrides);
+      take.forEach(r=>{ const gb=gbFromBytes(r.bytes); sizeOverrides[r.game.id]=gb; r.game.sizeGB=gb; sizeDeleted.delete(Number(r.game.id)); });
       saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides); saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]);
       file.value='';
       renderSizesTab(); try{renderHeroStats();renderDashboard();renderResults();}catch(e){}
@@ -4054,7 +3882,6 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
         if(keys.has(OVERRIDES_KEY)){ overrides=loadJSON(OVERRIDES_KEY,{}); }
         if(keys.has(DATE_RECORDS_KEY)){ dateRecords=loadJSON(DATE_RECORDS_KEY,null); }
         if(keys.has(SIZE_OVERRIDES_KEY)){ sizeOverrides=loadJSON(SIZE_OVERRIDES_KEY,{}); }
-        if(keys.has(SIZE_BYTES_OVERRIDES_KEY)){ sizeBytesOverrides=loadJSON(SIZE_BYTES_OVERRIDES_KEY,{}); }
         if(keys.has(SIZE_DELETED_KEY)){ sizeDeleted=new Set(loadJSON(SIZE_DELETED_KEY,[]).map(Number)); }
         if(keys.has(CAP_KEY)){ capacities=loadJSON(CAP_KEY,{}); }
         if(keys.has(FAVORITES_KEY)){ favorites=new Set(loadJSON(FAVORITES_KEY,[]).map(Number)); }
@@ -4065,7 +3892,7 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
         // sits in localStorage but the in-memory GAMES array stays stale
         // until a full page reload.
         if(keys.has('mostafa_pc_deleted_games_v1') || keys.has(USERGAMES_KEY) ||
-           keys.has(OVERRIDES_KEY) || keys.has(SIZE_OVERRIDES_KEY) || keys.has(SIZE_BYTES_OVERRIDES_KEY)){
+           keys.has(OVERRIDES_KEY) || keys.has(SIZE_OVERRIDES_KEY)){
           rebuildGamesArray();
         }
         if(keys.has(DATE_RECORDS_KEY)){
