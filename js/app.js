@@ -2233,6 +2233,43 @@
     bindSizesImport();
   }
   function normSizeName(x){return String(x||'').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,'');}
+function sizeTokens(raw){
+  let s=String(raw||'');
+  s=s.replace(/\[[^\]]*\]|\([^)]*\)/g,' ');
+  s=s.replace(/[ _.\-]v?\d+(?:\.\d+){2,}.*$/i,' ');
+  s=s.toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,' ').trim();
+  const junk=new Set(['repack','dodi','fitgirl','plaza','gog','multi','www','gamestorrents','com','win','win64','codex','skidrow','the','a','an','series','edition','goty']);
+  const nums={one:'1',two:'2',three:'3',four:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10',ii:'2',iii:'3',iv:'4',vi:'6',vii:'7',viii:'8',ix:'9'};
+  const out=[];
+  s.split(' ').forEach(t=>{ if(!t)return; if(/^multi\d*$/.test(t))return; if(junk.has(t))return; out.push(nums[t]||t); });
+  return out;
+}
+function sizeScore(a,b){
+  if(!a.length||!b.length)return 0;
+  const A=new Set(a),B=new Set(b); let ov=0; A.forEach(x=>{if(B.has(x))ov++;});
+  const dA=[...A].filter(x=>/^\d+$/.test(x)), dB=[...B].filter(x=>/^\d+$/.test(x));
+  if(dA.length&&dB.length&&!dA.some(x=>B.has(x)))return 0;
+  return 2*ov/(A.size+B.size);
+}
+function matchSizes(list,games,minScore){
+  const G=games.map(g=>({g,t:sizeTokens(g.name)}));
+  const items=list.map((it,i)=>({it,i,t:sizeTokens(it.name),lvl:Number(it.level||1),bytes:Number(it.bytes)||0,path:String(it.path||'').toLowerCase()})).filter(x=>x.bytes>0&&x.t.length);
+  const pairs=[]; items.forEach(x=>G.forEach(y=>{const sc=sizeScore(x.t,y.t); if(sc>=minScore)pairs.push({x,y,sc});}));
+  pairs.sort((p,q)=>q.sc-p.sc);
+  const usedItem=new Set(), usedGame=new Set(), res=[];
+  // pass 1: level-2 folders first (they are the real games inside series folders)
+  [2,1].forEach(level=>pairs.forEach(p=>{
+    if(p.x.lvl!==level||usedItem.has(p.x.i)||usedGame.has(p.y.g.id))return;
+    if(level===1){
+      const isSeries=/series\s*$/i.test(String(p.x.it.name))||items.some(o=>o.lvl===2&&usedItem.has(o.i)&&o.path.startsWith(p.x.path));
+      if(isSeries&&p.sc<1)return;
+    }
+    usedItem.add(p.x.i); usedGame.add(p.y.g.id); res.push({folder:p.x.it.name,game:p.y.g,bytes:p.x.bytes,score:p.sc});
+  }));
+  const missed=items.filter(x=>x.lvl===1&&!usedItem.has(x.i)&&!/series\s*$/i.test(String(x.it.name))).map(x=>x.it.name);
+  return {res,missed};
+}
+
   function bindSizesImport(){
     const btn=document.getElementById('sizes-import-btn'), file=document.getElementById('sizes-import-file');
     if(!btn||!file||btn.dataset.bound)return; btn.dataset.bound='1';
@@ -2241,26 +2278,18 @@
       const f=file.files&&file.files[0]; if(!f)return;
       let list; try{ list=JSON.parse((await f.text()).replace(/^\uFEFF/,'')); }catch(e){ alert('ملف JSON غير صالح'); file.value=''; return; }
       if(!Array.isArray(list)){ alert('الملف لازم يكون قائمة (array)'); file.value=''; return; }
-      const byNorm=new Map(); GAMES.forEach(g=>{ const k=normSizeName(g.name); if(k&&!byNorm.has(k))byNorm.set(k,g); });
-      const done=new Set(); let matched=0, fuzzy=0; const missed=[], pending=[];
-      const apply=(g,bytes)=>{ sizeOverrides[g.id]=gbFromBytes(bytes); g.sizeGB=sizeOverrides[g.id]; sizeDeleted.delete(Number(g.id)); done.add(Number(g.id)); matched++; };
-      // Pass 1: exact name matches (any level)
-      list.forEach(it=>{
-        const key=normSizeName(it.name), bytes=parseBytes(it.bytes); if(!key||!bytes)return;
-        const g=byNorm.get(key);
-        if(g&&!done.has(Number(g.id))) apply(g,bytes); else if(!g) pending.push({it,key,bytes});
-      });
-      // Pass 2: approximate match only when exactly ONE game fits and it wasn't already set
-      pending.forEach(({it,key,bytes})=>{
-        if(key.length<6){ return; }
-        const cands=[]; byNorm.forEach((gg,k)=>{ if(k.length>=6&&(key.includes(k)||k.includes(key))&&!done.has(Number(gg.id)))cands.push(gg); });
-        if(cands.length===1){ apply(cands[0],bytes); fuzzy++; }
-        else if(Number(it.level||1)===1) missed.push(it.name);
-      });
+      const {res,missed}=matchSizes(list,GAMES.filter(g=>!sizeDeleted.has(Number(g.id))),0.6);
+      const sure=res.filter(r=>r.score>=0.85), maybe=res.filter(r=>r.score<0.85);
+      let take=sure.slice();
+      if(maybe.length){
+        const txt=maybe.map(r=>`• ${r.folder}  ←→  ${r.game.name}`).join('\n');
+        if(confirm(`${maybe.length} تطابق مش مؤكد 100%، راجعهم:\n\n${txt.slice(0,1500)}\n\nموافق = طبّقهم كلهم، إلغاء = تجاهلهم (وتقدر تعدّلهم يدوي).`)) take=take.concat(maybe);
+      }
+      take.forEach(r=>{ const gb=gbFromBytes(r.bytes); sizeOverrides[r.game.id]=gb; r.game.sizeGB=gb; sizeDeleted.delete(Number(r.game.id)); });
       saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides); saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]);
       file.value='';
       renderSizesTab(); try{renderHeroStats();renderDashboard();renderResults();}catch(e){}
-      alert(`تم تحديث ${matched} لعبة (منها ${fuzzy} بتطابق تقريبي).\n`+(missed.length?`لم يتم إيجاد ${missed.length} مجلد في المكتبة:\n`+missed.slice(0,25).join('\n')+(missed.length>25?'\n...':''):'كل المجلدات اتطابقت.'));
+      alert(`تم تحديث ${take.length} لعبة.\n`+(missed.length?`\nمجلدات ملقتش لها لعبة في المكتبة (${missed.length}):\n`+missed.slice(0,30).join('\n')+(missed.length>30?'\n...':''):'\nكل المجلدات اتطابقت.'));
     });
   }
 
