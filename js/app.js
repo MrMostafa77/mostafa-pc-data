@@ -2249,7 +2249,16 @@ function sizeScore(a,b){
   const A=new Set(a),B=new Set(b); let ov=0; A.forEach(x=>{if(B.has(x))ov++;});
   const dA=[...A].filter(x=>/^\d+$/.test(x)), dB=[...B].filter(x=>/^\d+$/.test(x));
   if(dA.length&&dB.length&&!dA.some(x=>B.has(x)))return 0;
-  return 2*ov/(A.size+B.size);
+  const sc=2*ov/(A.size+B.size);
+  // مقارنة ثانية على الاسم ملزوق (تعالج: Black List = Blacklist، وأخطاء الإملاء البسيطة) — بتأثر بس لو التطابق >= 0.9
+  const sq=sizeDice(a.join(''),b.join(''));
+  return sq>=0.9?Math.max(sc,sq):sc;
+}
+function sizeDice(a,b){
+  if(a.length<2||b.length<2)return 0;
+  const m=new Map(); for(let i=0;i<a.length-1;i++){const k=a.substr(i,2);m.set(k,(m.get(k)||0)+1);}
+  let ov=0; for(let i=0;i<b.length-1;i++){const k=b.substr(i,2);const c=m.get(k)||0;if(c>0){m.set(k,c-1);ov++;}}
+  return 2*ov/(a.length+b.length-2);
 }
 function matchSizes(list,games,minScore){
   const G=games.map(g=>({g,t:sizeTokens(g.name)}));
@@ -2292,6 +2301,23 @@ function matchSizes(list,games,minScore){
       alert(`تم تحديث ${take.length} لعبة.\n`+(missed.length?`\nمجلدات ملقتش لها لعبة في المكتبة (${missed.length}):\n`+missed.slice(0,30).join('\n')+(missed.length>30?'\n...':''):'\nكل المجلدات اتطابقت.'));
     });
   }
+
+  /* ================= SIZE SCANNER API (js/size-scanner.js) ================= */
+  window.GameVaultSizes={
+    getGames:()=>GAMES.filter(g=>!sizeDeleted.has(Number(g.id))),
+    getAllGames:()=>GAMES.slice(),
+    getDrives:()=>[...new Set(GAMES.map(g=>g.hdd).filter(Boolean))],
+    matchSizes,
+    // rows: [{id, bytes}] — بيسجل الأحجام زي ما بيعمل زرار Import بالظبط
+    apply(rows){
+      let n=0;
+      rows.forEach(r=>{ const g=GAMES.find(x=>Number(x.id)===Number(r.id)); if(!g||!(r.bytes>0))return;
+        const gb=gbFromBytes(r.bytes); sizeOverrides[g.id]=gb; g.sizeGB=gb; sizeDeleted.delete(Number(g.id)); n++; });
+      saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides); saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]);
+      return n;
+    },
+    refresh(){ try{renderSizesTab();}catch(e){} try{renderHeroStats();renderDashboard();renderResults();renderDrives();}catch(e){} }
+  };
 
   /* ================= REQUESTED UPGRADES ================= */
   const PLAY_LOGS = window.GameVaultData.playLogs || [];
