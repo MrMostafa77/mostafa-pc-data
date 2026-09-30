@@ -12,6 +12,7 @@
   const DATE_RECORDS_KEY = 'gameVault_dateRecords_v4';
   const SIZE_OVERRIDES_KEY = 'gameVault_sizeOverrides_v1';
   const SIZE_DELETED_KEY = 'gameVault_sizeDeleted_v1';
+  const SIZE_SCAN_STATUS_KEY = 'gameVault_sizeScanStatus_v1'; // {gameId:'found'|'missing'} نتيجة آخر فحص هاردات
   const CAP_KEY = 'gameVault_driveCapacities_v1';
   const FAVORITES_KEY = 'gameVault_favorites_v1';
   const TAGS_KEY = 'gameVault_gameTags_v1';
@@ -2147,13 +2148,24 @@
     const iconEdit='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17.25V20h2.75L18.81 7.94l-2.75-2.75L4 17.25Zm15.71-10.46c.39-.39.39-1.03 0-1.42l-1.08-1.08a1.003 1.003 0 0 0-1.42 0l-1.07 1.07 2.75 2.75 1.07-1.07Z"/></svg>';
     const iconSave='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4Zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6ZM6 5h8v4H6V5Z"/></svg>';
     const iconDelete='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12ZM8 9h8v10H8V9Zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5Z"/></svg>';
-    wrap.innerHTML=`<div class="result-count" style="margin-bottom:10px">${fmt(rows.length)} لعبة</div><div class="dt-table-wrap"><table class="dt-table sizes-table"><thead><tr><th>اللعبة</th><th>الهارد</th><th>الحجم (Byte)</th><th>الحجم (GB)</th><th>إجراءات</th></tr></thead><tbody>${rows.map(g=>{
+    const scanStatus=loadJSON(SIZE_SCAN_STATUS_KEY,{})||{};
+    // إجماليات بالجيجا — بتتغير مع البحث وفلتر الهارد
+    let totalGB=0, withSize=0; const perDrive={};
+    rows.forEach(g=>{ const v=sizeValueGB(g); if(v>0){totalGB+=v;withSize++;} const d=g.hdd||'—'; perDrive[d]=(perDrive[d]||0)+v; });
+    const gbTxt2=v=>fmt(v,2)+' GB';
+    const driveChips=(!filter?.value && Object.keys(perDrive).length>1)
+      ? Object.keys(perDrive).sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:'base'}))
+          .map(d=>`<span class="sz-chip"><b>${esc(d)}</b> ${gbTxt2(perDrive[d])}</span>`).join('') : '';
+    const totalsHtml=`<div class="sz-totals"><div class="sz-total-main"><span>إجمالي الحجم</span><b>${gbTxt2(totalGB)}</b>${totalGB>=1024?`<small>(${fmt(totalGB/1024,2)} TB)</small>`:''}</div><div class="sz-total-side"><span>${fmt(rows.length)} لعبة</span><span>${fmt(withSize)} ليها حجم</span></div>${driveChips?`<div class="sz-chips">${driveChips}</div>`:''}<div class="sz-legend"><span class="sz-dot-blue"></span> اتلقى في الفحص <span class="sz-x sz-x-mini">✕</span> مالقاهوش</div></div>`;
+    wrap.innerHTML=`${totalsHtml}<div class="dt-table-wrap"><table class="dt-table sizes-table"><thead><tr><th>اللعبة</th><th>الهارد</th><th>الحجم (Byte)</th><th>الحجم (GB)</th><th>إجراءات</th></tr></thead><tbody>${rows.map(g=>{
       const gb=sizeValueGB(g), bytes=bytesFromGB(gb);
+      const st=scanStatus[g.id], fc=st==='found'?' sz-found':'';
+      const xMark=st==='missing'?'<span class="sz-x" title="مالقاهوش في الفحص">✕</span>':'';
       return `<tr data-size-id="${esc(g.id)}">
         <td class="dt-name">${gameNameLink(g.name)}</td>
         <td>${esc(g.hdd||'—')}</td>
-        <td><input class="size-kb-input" type="text" inputmode="numeric" autocomplete="off" data-size-bytes data-editable-lock="1" value="${fmtBytes(bytes)}" readonly></td>
-        <td class="size-gb-cell"><input class="size-gb-output" type="text" data-size-gb value="${gb.toFixed(2)} GB" readonly></td>
+        <td><input class="size-kb-input${fc}" type="text" inputmode="numeric" autocomplete="off" data-size-bytes data-editable-lock="1" value="${fmtBytes(bytes)}" readonly></td>
+        <td class="size-gb-cell"><div class="sz-gb-wrap"><input class="size-gb-output${fc}" type="text" data-size-gb value="${gb.toFixed(2)} GB" readonly>${xMark}</div></td>
         <td><div class="size-actions">
           <button type="button" class="icon-action size-edit" title="تعديل بيانات الحجم" aria-label="تعديل بيانات الحجم">${iconEdit}</button>
           <button type="button" class="icon-action size-save" title="حفظ الحجم" aria-label="حفظ الحجم" disabled>${iconSave}</button>
@@ -2315,6 +2327,13 @@ function matchSizes(list,games,minScore){
         const gb=gbFromBytes(r.bytes); sizeOverrides[g.id]=gb; g.sizeGB=gb; sizeDeleted.delete(Number(g.id)); n++; });
       saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides); saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]);
       return n;
+    },
+    // نتيجة الفحص: found = ids اتلقت (أزرق) — missing = ids ملقيناهاش (X أحمر)
+    setScanStatus(found,missing){
+      const m=loadJSON(SIZE_SCAN_STATUS_KEY,{})||{};
+      (missing||[]).forEach(id=>{m[id]='missing';});
+      (found||[]).forEach(id=>{m[id]='found';});
+      saveJSON(SIZE_SCAN_STATUS_KEY,m);
     },
     refresh(){ try{renderSizesTab();}catch(e){} try{renderHeroStats();renderDashboard();renderResults();renderDrives();}catch(e){} }
   };

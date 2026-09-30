@@ -131,49 +131,50 @@
     const ctl={cancelled:false,files:0,errors:0,cur:'',sub:'',t:0,
       tick(force){const n=Date.now(); if(force||n-this.t>200){this.t=n;ui.progress(this);}}};
     ui.busy(true,ctl);
-    const log=[], maybeAll=[], driveMatched={}, drivesScanned=new Set();
-    let applied=0, totalBytes=0;
+    const warns=[], maybeAll=[], drivesScanned=new Set(), scannedIds=new Set(), foundIds=new Set();
+    let applied=0, sureN=0, approvedN=0, rejectedN=0, allSrc=[];
+    try{ allSrc=await dbAll(); }catch(e){}
     try{
       // اطلب الصلاحيات كلها الأول (طالما لسه الضغطة على الزرار صالحة)
       const okSrc=[];
       for(const s of sources){
         if(await ensurePerm(s.handle))okSrc.push(s);
-        else log.push(`⚠️ ${s.drive} — «${s.name}»: مفيش صلاحية قراءة. اضغط Scan بتاع الفولدر ده لوحده ووافق على الإذن.`);
+        else warns.push(`⚠️ ${s.drive} — «${s.name}»: مفيش صلاحية قراءة (اضغط Scan للفولدر ده لوحده ووافق على الإذن).`);
       }
       for(const s of okSrc){
         let items;
         try{items=await scanSource(s,ctl);}
-        catch(e){ if(e instanceof Cancel){log.push('⏹ اتلغى الفحص.');break;} log.push(`❌ ${s.drive} — «${s.name}»: ${e.message||e}`); continue; }
+        catch(e){ if(e instanceof Cancel){warns.push('⏹ اتلغى الفحص.');break;} warns.push(`❌ ${s.drive} — «${s.name}»: ${e.message||e}`); continue; }
         const m=matchForDrive(s,items);
         const n=G().apply(m.sure.map(r=>({id:r.game.id,bytes:r.bytes})));
-        applied+=n; m.sure.forEach(r=>totalBytes+=r.bytes);
+        applied+=n; sureN+=n; m.sure.forEach(r=>foundIds.add(Number(r.game.id)));
         maybeAll.push(...m.maybe);
-        (driveMatched[norm(s.drive)]=driveMatched[norm(s.drive)]||new Set());
-        m.matchedIds.forEach(id=>driveMatched[norm(s.drive)].add(id)); drivesScanned.add(s.drive);
+        drivesScanned.add(s.drive); scannedIds.add(s.id);
         s.lastScan=Date.now(); s.lastCount=n+m.maybe.length; s.lastBytes=m.sure.reduce((a,r)=>a+r.bytes,0);
         await dbPut(s);
-        log.push(`✅ ${s.drive} — «${s.name}»: ${items.filter(i=>i.level===1).length} فولدر، اتسجل ${n} لعبة`+(m.maybe.length?` (+${m.maybe.length} محتاجة تأكيد)`:'')+`.`);
-        if(m.missed.length)log.push(`   فولدرات ملقتش لها لعبة في المكتبة (${m.missed.length}): `+m.missed.slice(0,25).join(' | ')+(m.missed.length>25?' ...':''));
       }
-      // ألعاب مسجلة على الهارد في المكتبة ومالقيناش لها فولدر
-      drivesScanned.forEach(d=>{
-        const set=driveMatched[norm(d)]||new Set();
-        const gone=G().getGames().filter(g=>norm(g.hdd)===norm(d)&&!set.has(g.id));
-        if(gone.length)log.push(`ℹ️ ${gone.length} لعبة مسجلة على «${d}» ومالقيتش فولدر ليها (أحجامها ما اتغيرتش): `+gone.slice(0,25).map(g=>g.name).join(' | ')+(gone.length>25?' ...':''));
-      });
       // المطابقات غير المؤكدة: سؤال واحد في الآخر
       if(maybeAll.length && !ctl.cancelled){
         const txt=maybeAll.map(r=>`• [${r.drive}] ${r.folder}  ←→  ${r.game.name}${r.note}`).join('\n');
         if(confirm(`${maybeAll.length} تطابق مش مؤكد 100%، راجعهم:\n\n${txt.slice(0,1800)}${txt.length>1800?'\n...':''}\n\nموافق = سجّلهم وافتكرهم للمرات الجاية، إلغاء = تجاهلهم.`)){
-          const n=G().apply(maybeAll.map(r=>({id:r.game.id,bytes:r.bytes}))); applied+=n;
+          const n=G().apply(maybeAll.map(r=>({id:r.game.id,bytes:r.bytes}))); applied+=n; approvedN=n;
+          maybeAll.forEach(r=>foundIds.add(Number(r.game.id)));
           const map=loadMap(); maybeAll.forEach(r=>{map[mapKey(r.drive,r.folder)]=r.game.id;}); saveMap(map);
-          log.push(`✅ اتسجل ${n} تطابق بعد تأكيدك.`);
-        } else log.push(`↩️ اتجاهل ${maybeAll.length} تطابق غير مؤكد.`);
+        } else rejectedN=maybeAll.length;
       }
+      // علامات الجدول: الأزرق = اتلقى، X أحمر = لعبة مسجلة على هارد اتفحص كله ومالقيناش لها فولدر
+      const missingIds=new Set();
+      drivesScanned.forEach(d=>{
+        const full=allSrc.filter(x=>norm(x.drive)===norm(d)).every(x=>scannedIds.has(x.id));
+        if(!full)return;
+        G().getGames().filter(g=>norm(g.hdd)===norm(d)&&!foundIds.has(Number(g.id))).forEach(g=>missingIds.add(Number(g.id)));
+      });
+      G().setScanStatus([...foundIds],[...missingIds]);
+      ctl.result={sure:sureN,approved:approvedN,rejected:rejectedN,missing:missingIds.size};
     }finally{
       G().refresh();
       ui.busy(false,ctl);
-      ui.report([`تم تسجيل ${applied} حجم لعبة — قريت ${ctl.files.toLocaleString('en-US')} ملف`+(ctl.errors?` (${ctl.errors} ملف/فولدر ما اتقرأش)`:'')+'.',...log].join('\n'));
+      ui.report(ctl.result,warns,ctl);
       ui.renderSources();
     }
   }
@@ -191,7 +192,14 @@
     .ssp-src .m{color:var(--muted,#8A8B76);font-size:12px;margin-inline-start:auto}
     .ssp-src button,#size-scan-panel .ssp-head button{cursor:pointer}
     #size-scan-progress{display:none;margin-top:8px;font-family:var(--font-mono,monospace);font-size:12.5px;color:var(--verdigris-bright,#7BAF97);word-break:break-all}
-    #size-scan-report{display:none;margin-top:10px;padding:10px;border-radius:8px;background:rgba(0,0,0,.25);white-space:pre-wrap;font-size:12.5px;line-height:1.7;max-height:280px;overflow:auto}
+    #size-scan-report{display:none;margin-top:10px;padding:8px 10px;border-radius:8px;background:rgba(0,0,0,.25);font-size:12.5px;line-height:1.6;max-height:160px;overflow:auto}
+    #size-scan-report .ssp-sum{display:flex;gap:10px;flex-wrap:wrap}
+    #size-scan-report .ssp-stat{display:flex;align-items:center;gap:8px;padding:5px 12px;border-radius:8px;background:rgba(255,255,255,.06)}
+    #size-scan-report .ssp-stat b{font-size:18px}
+    #size-scan-report .ssp-stat.ok b{color:#2f8bff}
+    #size-scan-report .ssp-stat.maybe b{color:#e3b15c}
+    #size-scan-report .ssp-stat.miss b{color:#e5484d}
+    #size-scan-report .ssp-warns{margin-top:6px;color:var(--rust,#d98a5f)}
     .ssp-warn{color:var(--rust,#B5502F);font-size:13px}`;
     document.head.appendChild(st);
   }
@@ -214,7 +222,15 @@
       busy(on,ctl){ current=on?ctl:null; $('#ssp-cancel').hidden=!on; $('#ssp-all').disabled=on; $('#ssp-add').disabled=on;
         list.querySelectorAll('button').forEach(b=>b.disabled=on); prog.style.display=on?'block':'none'; if(on){rep.style.display='none';} },
       progress(c){ prog.textContent=`⏳ ${c.cur}${c.sub?' › '+c.sub:''} — ${c.files.toLocaleString('en-US')} ملف`; },
-      report(t){ rep.textContent=t; rep.style.display='block'; },
+      report(r,warns,ctl){
+        const w=(warns||[]).slice();
+        if(ctl&&ctl.errors)w.push(`⚠️ ${ctl.errors} ملف/فولدر ما اتقرأش.`);
+        rep.innerHTML=(r?`<div class="ssp-sum">
+          <div class="ssp-stat ok"><b>${r.sure}</b><span>لقاهم ودوّن أحجامهم</span></div>
+          <div class="ssp-stat maybe"><b>${r.approved}</b><span>كان شاكك فيهم ووافقت عليهم</span></div>
+          <div class="ssp-stat miss"><b>${r.missing}</b><span>مالقاهمش</span></div></div>`:'')
+          +(w.length?`<div class="ssp-warns">${w.map(esc).join('<br>')}</div>`:'');
+        rep.style.display='block'; },
       renderSources
     };
 
