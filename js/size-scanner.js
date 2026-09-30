@@ -50,101 +50,129 @@
     }catch(e){return false;}
   }
 
-  /* ---------- حساب الأحجام ---------- */
+  /* ---------- حساب الأحجام + المطابقة (بأي عمق) ---------- */
+  // بنمسح الشجرة كلها مرة واحدة، ونسجل كل فولدر لحد MAXD مستويات كـ«لعبة محتملة» بحجمه.
+  // المطابقة هي اللي بتقرر مين لعبة ومين فولدر سلسلة/تصنيف حسب الأسماء — مش حسب وجود exe أو عمق ثابت.
   class Cancel extends Error{}
-  async function dirSize(dir,ctl){
-    let bytes=0; const files=[], dirs=[];
-    for await(const [name,h] of dir.entries()){
+  const MAXD=4;
+  const yieldUI=()=>new Promise(r=>setTimeout(r,0));
+  const pathKey=(drive,path)=>norm(drive)+'|/'+norm(path);
+  async function scanTree(dir,name,path,depth,ctl){
+    let bytes=0,hasExe=false; const files=[],dirs=[];
+    for await(const [n,h] of dir.entries()){
       if(ctl.cancelled)throw new Cancel();
-      if(h.kind==='file')files.push(h); else if(!SKIP.test(name))dirs.push(h);
+      if(h.kind==='file'){files.push(h); if(/\.exe$/i.test(n))hasExe=true;}
+      else if(!SKIP.test(n))dirs.push([n,h]);
     }
     for(let i=0;i<files.length;i+=48){
       if(ctl.cancelled)throw new Cancel();
       const part=await Promise.all(files.slice(i,i+48).map(f=>f.getFile().then(x=>x.size).catch(()=>{ctl.errors++;return 0;})));
-      for(const n of part)bytes+=n; ctl.files+=part.length; ctl.tick();
+      for(const b of part)bytes+=b; ctl.files+=part.length; ctl.tick();
     }
-    for(const d of dirs){ try{bytes+=await dirSize(d,ctl);}catch(e){ if(e instanceof Cancel)throw e; ctl.errors++; } }
-    return bytes;
-  }
-  // فولدر مستوى أول: بيرجع الإجمالي + أحجام الفولدرات اللي جواه (مستوى تاني) + هل فيه exe مباشرة
-  async function walkTop(dir,ctl){
-    let total=0, hasExe=false; const files=[], subs=[];
-    for await(const [name,h] of dir.entries()){
-      if(ctl.cancelled)throw new Cancel();
-      if(h.kind==='file'){files.push(h); if(/\.exe$/i.test(name))hasExe=true;}
-      else if(!SKIP.test(name))subs.push([name,h]);
+    const children=[];
+    for(const [n,h] of dirs){
+      if(depth<=2){ctl.sub=n;ctl.tick();}
+      let c; try{c=await scanTree(h,n,path+'/'+n,depth+1,ctl);}catch(e){ if(e instanceof Cancel)throw e; ctl.errors++; continue; }
+      bytes+=c.bytes; if(depth<MAXD)children.push(c);
     }
-    for(let i=0;i<files.length;i+=48){
-      const part=await Promise.all(files.slice(i,i+48).map(f=>f.getFile().then(x=>x.size).catch(()=>{ctl.errors++;return 0;})));
-      for(const n of part)total+=n; ctl.files+=part.length;
-    }
-    const out=[];
-    for(const [name,h] of subs){
-      ctl.sub=name; ctl.tick();
-      let b=0; try{b=await dirSize(h,ctl);}catch(e){ if(e instanceof Cancel)throw e; ctl.errors++; }
-      out.push({name,bytes:b}); total+=b;
-    }
-    return {total,hasExe,subs:out};
+    return {name,path,depth,bytes,hasExe,children};
   }
   async function scanSource(src,ctl){
     const top=[];
     for await(const [name,h] of src.handle.entries()) if(h.kind==='directory'&&!SKIP.test(name))top.push([name,h]);
     top.sort((a,b)=>a[0].localeCompare(b[0],undefined,{numeric:true}));
-    const items=[];
+    const trees=[];
     for(let i=0;i<top.length;i++){
       const [name,h]=top[i];
       ctl.cur=`${src.drive} • ${name} (${i+1}/${top.length})`; ctl.sub=''; ctl.tick(true);
-      let r; try{r=await walkTop(h,ctl);}catch(e){ if(e instanceof Cancel)throw e; ctl.errors++; continue; }
-      items.push({name,level:1,bytes:r.total,path:src.drive+'/'+name});
-      // فولدر بدون exe مباشرة = فولدر سلسلة، والفولدرات اللي جواه هي الألعاب الفعلية
-      if(!r.hasExe) r.subs.forEach(s=>items.push({name:s.name,level:2,bytes:s.bytes,path:src.drive+'/'+name+'/'+s.name}));
+      try{trees.push(await scanTree(h,name,name,1,ctl));}catch(e){ if(e instanceof Cancel)throw e; ctl.errors++; }
     }
-    return items;
+    return trees;
   }
+  function flatten(tops){ const out=[]; const rec=(n,p)=>{n.parent=p; out.push(n); n.children.forEach(c=>rec(c,n));}; tops.forEach(t=>rec(t,null)); return out; }
+  const under=(a,b)=>b.path.startsWith(a.path+'/');            // b جوه a
+  const descOf=n=>n._d||(n._d=[].concat(...n.children.map(c=>[c,...descOf(c)])));
+  const exeBelow=n=>n.children.some(c=>c.hasExe||exeBelow(c));
+  const gamelike=n=>n.hasExe||exeBelow(n);
+  function keysOf(api,name){ const t=api.tokens?api.tokens(name):[]; const k=new Set(t); if(t.length)k.add(t.join('')); return k; }
 
-  /* ---------- المطابقة + التسجيل ---------- */
-  function topCands(name,pool,min,limit){
-    const api=G(), out=[];
-    pool.forEach(g=>{ const sc=api.similarity(name,g.name); if(sc>=min)out.push({game:g,score:sc}); });
-    out.sort((x,y)=>y.score-x.score); return out.slice(0,limit);
-  }
-  function matchForDrive(src,items){
-    const api=G(), map=loadMap();
-    const all=api.getAllGames();            // حتى الألعاب اللي سجل حجمها اتمسح — لو لقيناها على الهارد هترجع
-    const onDrive=all.filter(g=>norm(g.hdd)===norm(src.drive));
-    const cand=onDrive.length?onDrive:all;
-    const used=new Set(), remembered=[], rest=[];
-    items.forEach(it=>{
-      const gid=map[mapKey(src.drive,it.name)]; const g=gid&&all.find(x=>Number(x.id)===Number(gid));
-      if(g&&!used.has(g.id)&&it.bytes>0){used.add(g.id);remembered.push({game:g,bytes:it.bytes,folder:it.name});} else rest.push(it);
-    });
-    const {res,missed}=api.matchSizes(rest,cand.filter(g=>!used.has(g.id)),MIN);
-    res.forEach(r=>used.add(r.game.id));
-    const sure=res.filter(r=>r.score>=SURE).concat(remembered);
-    const maybe=res.filter(r=>r.score<SURE).map(r=>({...r,drive:src.drive,note:''}));
-    // فولدرات ملقتش لعبة على الهارد ده: جرّب باقي المكتبة (لعبة مسجلة على هارد تاني) — بتتطلب تأكيد
-    if(onDrive.length){
-      const left=rest.filter(it=>!res.some(r=>r.folder===it.name));
-      const others=all.filter(g=>!used.has(g.id)&&norm(g.hdd)!==norm(src.drive));
-      const r2=api.matchSizes(left,others,SURE).res;
-      r2.forEach(r=>{used.add(r.game.id);maybe.push({...r,drive:src.drive,note:` (مسجلة على هارد: ${r.game.hdd||'—'})`});});
+  async function matchForDrive(src,tops,ctl){
+    const api=G(), map=loadMap(), all=api.getAllGames();
+    const nodes=flatten(tops).filter(n=>n.bytes>0);
+    const anyHere=all.some(g=>norm(g.hdd)===norm(src.drive));
+    const sameDrive=g=>!anyHere||norm(g.hdd)===norm(src.drive);
+    // فهرس كلمات: الفولدرات العميقة (مستوى 3+) بتتقارن بس باللعبات اللي بتشاركها كلمة — عشان السرعة
+    const idx=new Map();
+    if(api.tokens) all.forEach(g=>keysOf(api,g.name).forEach(k=>{ if(!idx.has(k))idx.set(k,[]); idx.get(k).push(g); }));
+    for(let i=0;i<nodes.length;i++){
+      const n=nodes[i], seen=new Set(); n.sc=[];
+      const scoreIn=pool=>pool.forEach(g=>{ if(seen.has(g.id))return; seen.add(g.id); const s=api.similarity(n.name,g.name); if(s>=0.4)n.sc.push({game:g,score:s}); });
+      if(api.tokens){
+        const s=new Set(); keysOf(api,n.name).forEach(k=>(idx.get(k)||[]).forEach(g=>s.add(g))); scoreIn([...s]);
+        const top=n.sc.reduce((m,c)=>Math.max(m,c.score),0);
+        // مفيش تطابق قوي بالكلمات: مقارنة كاملة (أخطاء إملائية، Black List = Blacklist) — بس للفولدرات اللي ممكن تكون ألعاب
+        if(top<SURE&&(n.depth===1||(n.depth===2&&n.parent&&!n.parent.hasExe)))scoreIn(all);
+      } else scoreIn(all);
+      n.sc.sort((a,b)=>b.score-a.score); n.best=n.sc[0]||null;
+      if(i%120===0){
+        if(ctl){ctl.cur=`${src.drive} • مطابقة الأسماء (${i}/${nodes.length})`;ctl.sub='';ctl.tick(true);}
+        await yieldUI(); if(ctl&&ctl.cancelled)throw new Cancel();
+      }
     }
-    // ---- صفوف المراجعة: كل تطابق مش مؤكد + اقتراحات للفولدرات اللي ملقتش لها لعبة ----
+    // فولدر سلسلة/تصنيف = جواه لعبة (أو أكتر) بتطابق لعبة تانية بثقة. لو فيه exe مباشرة لازم لعبتين على الأقل.
+    const isContainer=(n,g)=>{
+      const ids=new Set();
+      descOf(n).forEach(d=>{ if(d.bytes>0&&d.best&&d.best.score>=SURE&&d.best.game.id!==g.id)ids.add(d.best.game.id); });
+      return ids.size>=2||(ids.size>=1&&!n.hasExe);
+    };
+    const pairs=[];
+    nodes.forEach(n=>n.sc.forEach(c=>{
+      if(c.score<MIN)return; const sd=sameDrive(c.game); if(!sd&&c.score<SURE)return;   // لعبة مسجلة على هارد تاني: لازم تطابق قوي + تأكيد
+      pairs.push({n,game:c.game,score:c.score,eff:c.score*(sd?1:0.999)});
+    }));
+    nodes.forEach(n=>{   // اختيارات اتأكدت قبل كده
+      const a=map[pathKey(src.drive,n.path)], b=map[mapKey(src.drive,n.name)];
+      const ga=a&&all.find(x=>Number(x.id)===Number(a)), gb=b&&all.find(x=>Number(x.id)===Number(b));
+      if(ga)pairs.push({n,game:ga,score:1,eff:3,remembered:true,exact:true});
+      else if(gb)pairs.push({n,game:gb,score:1,eff:2,remembered:true});
+    });
+    pairs.sort((p,q)=>(q.eff-p.eff)||(p.n.depth-q.n.depth));   // الأعلى تطابق الأول، ولو اتساووا الأقل عمق
+    const usedNode=new Set(), usedGame=new Set(), accepted=[];
+    const conflicts=n=>accepted.some(a=>a.n===n||under(a.n,n)||under(n,a.n));
+    for(const p of pairs){
+      const {n,game}=p;
+      if(usedNode.has(n)||usedGame.has(game.id)||conflicts(n))continue;
+      if(!p.exact){
+        if(isContainer(n,game))continue;
+        if(/series\s*$/i.test(n.name)&&p.score<1)continue;
+      }
+      usedNode.add(n); usedGame.add(game.id); accepted.push(p);
+    }
+    const sure=[], maybe=[];
+    accepted.forEach(p=>{
+      const rec={game:p.game,bytes:p.n.bytes,folder:p.n.name,score:p.score,n:p.n};
+      if(p.remembered||(p.score>=SURE&&sameDrive(p.game)))sure.push(rec); else maybe.push(rec);
+    });
+    // ---- صفوف المراجعة: تطابق مش مؤكد + اقتراحات للفولدرات اللي ملقتش لها لعبة ----
     const sureIds=new Set(sure.map(r=>Number(r.game.id)));
-    const pool=all.filter(g=>!sureIds.has(Number(g.id)));
+    const rest=n=>n.sc.filter(c=>!sureIds.has(Number(c.game.id)));
     const review=[], nomatch=[];
+    const row=(n,pre,cands)=>({drive:src.drive,folder:n.name,path:n.path,key:pathKey(src.drive,n.path),bytes:n.bytes,pre,cands});
     maybe.forEach(r=>{
-      const alts=topCands(r.folder,pool.filter(g=>g.id!==r.game.id),0.4,4);
-      review.push({drive:src.drive,folder:r.folder,bytes:r.bytes,pre:true,cands:[{game:r.game,score:r.score},...alts]});
+      const alts=rest(r.n).filter(c=>c.game.id!==r.game.id).slice(0,4);
+      review.push(row(r.n,true,[{game:r.game,score:r.score},...alts]));
     });
-    const claimed=f=>res.some(r=>r.folder===f)||remembered.some(r=>r.folder===f)||maybe.some(r=>r.folder===f);
-    const isContainer=it=>it.level===1&&(/series\s*$/i.test(it.name)||items.some(o=>o.level===2&&o.path.startsWith(it.path+'/')&&claimed(o.name)));
-    items.forEach(it=>{
-      if(!(it.bytes>0)||claimed(it.name)||isContainer(it))return;
-      const c=topCands(it.name,pool,0.4,4);
-      if(c.length)review.push({drive:src.drive,folder:it.name,bytes:it.bytes,pre:false,cands:c}); else nomatch.push(it.name);
-    });
-    return {sure,maybe,missed,review,nomatch};
+    const acc=accepted.map(p=>p.n);
+    const walk=n=>{
+      if(!(n.bytes>0)||acc.includes(n)||acc.some(a=>under(a,n)))return;
+      const container=acc.some(a=>under(n,a))||/series\s*$/i.test(n.name)||(!n.hasExe&&n.children.filter(gamelike).length>=2);
+      if(container){ n.children.forEach(walk); return; }
+      if(n.depth>=2&&!gamelike(n))return;      // فولدرات داخلية (Saves/Engine/...) مش ألعاب
+      const c=rest(n).slice(0,4);
+      if(c.length)review.push(row(n,false,c)); else nomatch.push(n.path);
+    };
+    tops.forEach(walk);
+    return {sure,maybe,missed:[],review,nomatch};
   }
 
   /* ---------- نافذة المراجعة: تطابقات مش مؤكدة واقتراحات ---------- */
@@ -158,7 +186,7 @@
         <div class="ssr-tools"><button type="button" data-a="all">تحديد الكل</button><button type="button" data-a="none">إلغاء التحديد</button><button type="button" data-a="sure">تحديد المحتمل بس</button></div>
         <div class="ssr-list">${rows.map((r,i)=>`<div class="ssr-row" data-i="${i}">
           <input type="checkbox" class="ssr-ck" ${r.pre?'checked':''}>
-          <div class="ssr-f"><b>${esc(r.folder)}</b><small>${esc(r.drive)} • ${gbTxt(r.bytes)}${r.pre?'':' • اقتراح ضعيف'}</small></div>
+          <div class="ssr-f"><b>${esc(r.folder)}</b><small>${esc(r.drive)}${r.path&&r.path!==r.folder?' › '+esc(r.path):''} • ${gbTxt(r.bytes)}${r.pre?'':' • اقتراح ضعيف'}</small></div>
           <span class="ssr-ar">←</span>
           <select class="ssr-sel">${r.cands.map((c,k)=>`<option value="${k}">${esc(c.game.name)} — ${pct(c.score)}${c.game.hdd?` (${esc(c.game.hdd)})`:''}</option>`).join('')}</select></div>`).join('')}</div>
         <div class="ssr-foot"><button type="button" class="btn" data-a="skip">تجاهل الكل</button><button type="button" class="btn ssr-ok" data-a="ok">✔ سجّل المحدد (<span id="ssr-n">0</span>)</button></div></div>`;
@@ -203,7 +231,7 @@
         let items;
         try{items=await scanSource(s,ctl);}
         catch(e){ if(e instanceof Cancel){warns.push('⏹ اتلغى الفحص.');break;} warns.push(`❌ ${s.drive} — «${s.name}»: ${e.message||e}`); continue; }
-        const m=matchForDrive(s,items);
+        let m; try{m=await matchForDrive(s,items,ctl);}catch(e){ if(e instanceof Cancel){warns.push('⏹ اتلغى الفحص.');break;} throw e; }
         const n=G().apply(m.sure.map(r=>({id:r.game.id,bytes:r.bytes})));
         applied+=n; sureN+=n; m.sure.forEach(r=>foundIds.add(Number(r.game.id)));
         reviewAll.push(...m.review); nomatchAll.push(...m.nomatch.map(n=>`${s.drive}: ${n}`));
@@ -219,7 +247,7 @@
         const seen=new Set(), take=[], chosenRows=new Set();
         picked.forEach(p=>{ if(seen.has(Number(p.game.id)))return; seen.add(Number(p.game.id)); take.push(p); chosenRows.add(p.row); });
         const n=G().apply(take.map(p=>({id:p.game.id,bytes:p.row.bytes}))); applied+=n; approvedN=n;
-        const map=loadMap(); take.forEach(p=>{ foundIds.add(Number(p.game.id)); map[mapKey(p.row.drive,p.row.folder)]=p.game.id; }); saveMap(map);
+        const map=loadMap(); take.forEach(p=>{ foundIds.add(Number(p.game.id)); map[p.row.key||mapKey(p.row.drive,p.row.folder)]=p.game.id; }); saveMap(map);
         rejectedN=reviewAll.length-take.length;
         reviewAll.forEach(r=>{ if(!chosenRows.has(r))ignored.push(`${r.drive}: ${r.folder}`); });
       }

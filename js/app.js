@@ -2452,6 +2452,7 @@ function matchSizes(list,games,minScore){
     getAllGames:()=>GAMES.slice(),
     getDrives:()=>[...new Set(GAMES.map(g=>g.hdd).filter(Boolean))],
     matchSizes,
+    tokens:sizeTokens,
     similarity:(a,b)=>sizeScore(sizeTokens(a),sizeTokens(b)),
     // rows: [{id, bytes}] — بيسجل الأحجام زي ما بيعمل زرار Import بالظبط
     apply(rows){
