@@ -15,6 +15,7 @@ const SYNC_KEYS = [
   'gameVault_userGames_v1',
   'gameVault_dateRecords_v4',
   'gameVault_driveCapacities_v1',
+  'gameVault_hiddenDrives_v1',
   'gameVault_fieldOverrides_v1',
   'gameVault_sizeDeleted_v1',
   'gameVault_sizeOverrides_v1',
