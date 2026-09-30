@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+
+<html dir="ltr" lang="en">
+<head>
+<link rel="icon" type="image/png" href="assets/hero-logo-icon.png">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Game Archive — Game Library</title>
+
+
+
+
+<script>window.__APP_VERSION='20260919-22-local-music';</script>
+<link href="css/style.css?v=20260920-name" rel="stylesheet"/><style>.report-year-games{display:grid;gap:6px;margin-top:12px}.report-year-game{padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.06)}.report-year-game.empty{opacity:.6}.wrap{visibility:hidden}</style><link rel="icon" href="favicon.svg" type="image/svg+xml">
+</head>
+<body><div hidden="" id="boot-error">Unable to load project data. Run the website through a local server (not file://).</div>
+<div aria-hidden="true" id="dynamic-bg"></div>
+
+<div class="wrap">
+<div class="wrap">
+<header class="hero">
+<div class="home-clock-dual" id="home-clock-dual" aria-label="Live date and time">
+  <div class="home-clock-analog" aria-hidden="true">
+    <span class="clock-tick t12"></span><span class="clock-tick t3"></span><span class="clock-tick t6"></span><span class="clock-tick t9"></span>
+    <span class="clock-hand clock-hour"></span><span class="clock-hand clock-minute"></span><span class="clock-hand clock-second"></span><span class="clock-center"></span>
+  </div>
+  <div class="home-clock-info">
+    <div class="home-clock-label">LOCAL TIME</div>
+    <div class="home-clock-digital" id="home-clock-time">00:00 PM</div>
+    <div class="home-clock-date" id="home-clock-date">Thu, 17 Sep 2026</div>
+  </div>
+</div>
+<img alt="" class="hero-logo-banner" src="assets/hero-logo-banner.png"/>
+<div class="hero-top">
+<div>
+<h1 class="hero-title">Mostafa's PC Data</h1>
+<div class="hero-sub">My Games Catalog And Dates Played</div>
+</div>
+</div>
+<div class="hero-stats" id="hero-stats"></div>
+</header></div>
+<nav class="tabnav" id="tabnav">
+<button class="tabnav-btn active" data-tab="dashboard-section" type="button"><span aria-hidden="true" class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11.5 12 4l9 7.5v7a1 1 0 0 1-1 1h-5v-5h-6v5H4a1 1 0 0 1-1-1v-7Z"/><path d="M9 19.5h6"/></svg></span><span class="tab-label">Home</span></button>
+<button class="tabnav-btn" data-tab="drives-section" type="button"><span aria-hidden="true" class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h5"/><circle cx="17" cy="16" r="1"/></svg></span><span class="tab-label">Drives</span></button>
+<button class="tabnav-btn" data-tab="library-section" type="button"><span aria-hidden="true" class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 9h10a5 5 0 0 1 4.6 6.9l-1.1 2.6a2 2 0 0 1-3.5.4L15 16H9l-2 2.9a2 2 0 0 1-3.5-.4l-1.1-2.6A5 5 0 0 1 7 9Z"/><path d="M8 12v4M6 14h4"/><circle cx="16.5" cy="13" r=".8"/><circle cx="18.5" cy="15" r=".8"/></svg></span><span class="tab-label">Library</span></button>
+<button class="tabnav-btn" data-tab="sizes-section" type="button"><span aria-hidden="true" class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h5M8 17h3"/><path d="M17 15v3M15.5 16.5h3"/></svg></span><span class="tab-label">Sizes</span></button>
+<button class="tabnav-btn" data-tab="dates-section" type="button"><span aria-hidden="true" class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01M16 17h.01"/></svg></span><span class="tab-label">Game Dates</span></button>
+<button class="tabnav-btn" data-tab="reports-section" type="button"><span aria-hidden="true" class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5h16v14H4Z"/><path d="M8 16v-4M12 16V8M16 16v-7"/></svg></span><span class="tab-label">Reports</span></button>
+</nav>
+<section class="section tab-page active" id="dashboard-section">
+</section>
+<section class="section tab-page" id="reports-section">
+<div class="panel report-panel">
+<div class="report-toolbar">
+<select class="sort-select" id="report-select">
+<option value="overview">Collection Summary</option><option value="ramadan">Ramadan Games</option><option value="epic-nostalgic">Epic & Nostalgic</option><option value="year-summary">Year Summary</option><option value="played-summary">Played Summary Year</option><option value="series-completion">Series Completion Rate</option><option value="series">SERIES</option><option value="last30">Last 30 Played Games</option><option value="genres">Genres</option><option value="hardware">Screen & Resolution</option><option value="dates">Play Activity Year</option><option value="backlog">Backlog / Never Played</option>
+</select>
+</div><div id="dynamic-report"></div>
+
+</div>
+<div class="dash-grid">
+<div class="panel">
+<h3>Top Genres</h3>
+<div id="chart-genre"></div>
+</div>
+<div class="panel">
+<h3>Playing State</h3>
+<div id="chart-state"></div>
+</div>
+<div class="panel">
+<h3>Final Rating</h3>
+<div id="chart-verdict"></div>
+</div>
+</div>
+<div class="dash-grid" style="margin-top:16px; grid-template-columns:2fr 1fr;">
+<div class="panel">
+<h3>Games by Release Decade</h3>
+<div class="decade-chart" id="chart-decade"></div>
+</div>
+<div class="panel">
+<h3>Perspective</h3>
+<div id="chart-persp"></div>
+</div>
+</div>
+<div class="dash-grid" style="margin-top:16px; grid-template-columns:1fr;">
+<div class="panel">
+<h3>Top Series <span class="note" id="series-note" style="font-size:11px; color:var(--muted); font-weight:400;"></span></h3>
+<div id="chart-series"></div>
+</div>
+</div>
+</section>
+<section class="section tab-page" id="drives-section">
+<div class="section-head">
+<span class="tab">Drives</span>
+<h2>Storage Distribution</h2>
+<span class="note">Enter the total capacity of each drive to calculate remaining space (saved in your browser)</span>
+</div>
+<div class="drives-grid" id="drives-grid"></div>
+</section>
+<section class="section tab-page" id="library-section">
+<div class="section-head home-section-head">
+<div class="home-playing-now" id="library-playing-now" aria-label="Currently Playing"></div>
+</div>
+<div class="search-box library-search-box">
+<button type="button" class="library-filter-toggle" id="library-filter-toggle" title="Filters" aria-label="فتح Filters" aria-expanded="false">⚱</button>
+<input autocomplete="off" class="search-input" id="search-name-input" placeholder="Search by game name..." type="text"/><input autocomplete="off" class="search-input" id="search-series-input" placeholder="Search by series..." type="text"/>
+<div class="search-sugg" id="search-sugg"></div>
+</div>
+<div class="lib-layout">
+<aside class="filters" id="filters"></aside>
+<div>
+<div class="toolbar">
+<div class="result-count" id="result-count"></div>
+<select class="sort-select" id="sort-select">
+<option value="name-asc">Name (A-Z)</option>
+<option value="year-desc">Release Year (Newest First)</option>
+<option value="year-asc">Release Year (Oldest First)</option>
+<option value="size-desc">Size (Largest First)</option>
+<option value="size-asc">Size (Smallest First)</option>
+<option value="added-desc">Recently Added (Newest First)</option>
+</select>
+<button class="action-btn" id="library-add-game-btn" title="Add Game" type="button">＋ 🎮</button>
+<select class="page-select" id="page-size-select">
+<option value="20">20 / صفحة</option>
+<option selected="" value="40">40 / صفحة</option>
+<option value="999999">عرض الكل</option>
+</select>
+</div>
+<div class="results-list" id="results-list"></div>
+<div class="pager" id="pager"></div>
+</div>
+</div>
+</section>
+<section class="section tab-page" id="sizes-section">
+<div class="section-head">
+<span class="tab">Sizes</span>
+<h2>Game Sizes</h2>
+<span class="note">View the size of each game by drive</span>
+</div>
+<div class="panel">
+<div class="dt-toolbar">
+<input autocomplete="off" class="search-input" id="sizes-search-input" placeholder="Search by game or drive..." type="text"/>
+<select class="sort-select" id="sizes-drive-filter"><option value="">All Drives</option></select>
+</div>
+<div id="sizes-wrap"></div>
+</div>
+</section>
+<section class="section tab-page" id="dates-section">
+<div class="section-head">
+<span class="tab">Dates</span>
+<h2>Game Dates & Play Duration</h2>
+<div class="dates-metrics" aria-label="Game Dates summary">
+<span class="dates-metric" id="dates-play-count"><b>Games Played</b><strong>0</strong></span>
+<span class="dates-metric" id="dates-days-count"><b>Days Played</b><strong>0</strong></span>
+<span class="dates-metric" id="dates-completion-rate"><b>Completion rate</b><strong>0%</strong></span>
+<span class="dates-metric dates-resolution-metric" id="dates-resolution-480"><b>480P</b><strong>0</strong></span>
+<span class="dates-metric dates-resolution-metric" id="dates-resolution-720"><b>720P</b><strong>0</strong></span>
+<span class="dates-metric dates-resolution-metric" id="dates-resolution-1080"><b>1080P</b><strong>0</strong></span>
+<span class="dates-metric dates-resolution-metric" id="dates-resolution-1440"><b>1440P</b><strong>0</strong></span>
+<span class="dates-metric dates-resolution-metric" id="dates-resolution-4k"><b>4K</b><strong>0</strong></span>
+</div>
+</div>
+<div id="dates-wrap"></div>
+</section>
+<div id="upcoming-game-modal" class="upcoming-game-modal" hidden>
+  <div class="upcoming-game-card" role="dialog" aria-modal="true" aria-labelledby="upcoming-game-title">
+    <div class="upcoming-game-head">
+      <div><h2 id="upcoming-game-title">Select Upcoming Game</h2><p>Choose any game already in your Library.</p></div>
+      <button class="icon-btn" id="upcoming-game-close" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="upcoming-picker-preview" id="upcoming-game-preview">
+      <div class="upcoming-picker-placeholder">+</div>
+      <div><strong>No game selected</strong><span>Choose a game from your Library</span></div>
+    </div>
+    <label class="upcoming-picker-label" for="upcoming-game-search">Search Library</label>
+    <input id="upcoming-game-search" class="upcoming-picker-search" type="search" placeholder="Search by game name...">
+    <label class="upcoming-picker-label" for="upcoming-game-search">Library Results</label>
+    <div id="upcoming-game-results" class="upcoming-picker-results" aria-live="polite"></div>
+    <div class="upcoming-picker-actions">
+      <button type="button" class="ui-btn" id="upcoming-game-cancel">Cancel</button>
+      <button type="button" class="ui-btn upcoming-save-btn" id="upcoming-game-save">Add Game</button>
+    </div>
+  </div>
+</div>
+<div id="library-add-game-modal" class="library-add-game-modal" style="display:none;position:fixed;inset:0;background:rgba(3,10,20,.82);z-index:1000;padding:30px;overflow:auto"><div class="library-add-game-card" style="max-width:1100px;margin:0 auto;border-radius:12px;padding:20px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Add Game جديدة</h2><button class="icon-btn" id="close-library-add" type="button">✕</button></div><div id="library-add-game-wrap"></div></div></div>
+</div>
+<div id="game-tools-modal" class="game-tools-modal" hidden>
+  <div class="game-tools-card" role="dialog" aria-modal="true" aria-labelledby="game-tools-title">
+    <div class="game-tools-head"><h3 id="game-tools-title">Game Tools</h3><button type="button" class="icon-btn" id="game-tools-close">✕</button></div>
+    <div id="game-tools-body"></div>
+  </div>
+</div>
+<div id="backup-status" class="backup-status" hidden></div>
+<footer>Created from your Excel file — <span id="footer-count">638</span> archived games · You can add new games from inside Library</footer>
+</div>
+
+
+
+
+
+<!-- Floating utility dock: moved out of the header so it can be fixed to the viewport, above the music button -->
+<div class="hero-actions">
+<button class="ui-btn" id="lang-toggle" type="button" title="Language / اللغة" aria-label="Language">English</button>
+<button class="ui-btn" id="backup-project-btn" type="button" title="Backup Project">💾 Backup</button>
+<button class="ui-btn" id="notifications-btn" type="button" title="Notifications">🔔 <span id="notifications-badge" hidden>0</span></button>
+<button class="ui-btn users-btn" id="users-btn" type="button" title="Users" aria-haspopup="dialog" aria-expanded="false">👥 <span class="users-btn-label">Users</span></button>
+<div id="users-popup" class="users-popup" hidden role="dialog" aria-label="Users online status">
+  <div class="users-popup-head"><strong>Users</strong><button type="button" class="users-popup-close" id="users-popup-close" aria-label="Close">×</button></div>
+  <div id="users-list" class="users-list"><div class="users-empty">Loading...</div></div>
+</div>
+<button class="ui-btn" id="theme-toggle" type="button" title="Theme / الوضع" aria-label="Theme">☀️ / 🌙</button>
+<span class="auth-current-user" id="auth-current-user" hidden></span>
+<button class="ui-btn logout-btn" id="logout-btn" type="button" title="Sign out" onclick="GameVaultSignOut()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M15 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg><span>Sign out</span></button>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="js/sound-effects.js?v=20260919-8"></script>
+<script src="js/cover-store.js?v=20260919-8"></script>
+<script src="firebase-config.js?v=20260919-8"></script>
+<script src="js/auth-gate.js?v=20260920-name"></script>
+<script src="js/user-presence.js?v=20260919-4"></script>
+<script src="js/cloud-sync.js?v=20260930-1-usage"></script>
+<script src="js/notifications.js?v=20260919-16-fcmfix"></script>
+<script src="js/push-notifications.js?v=20260919-5"></script>
+<script src="js/music-player.js?v=20260919-23-local"></script>
+<script src="js/backup-usage.js?v=20260930-1"></script>
+
+</body>
+</html>
