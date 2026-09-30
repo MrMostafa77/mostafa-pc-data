@@ -2220,15 +2220,29 @@
       filter.innerHTML='<option value="">كل Drives</option>'+drives.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('');
       if(drives.includes(cur))filter.value=cur;
     }
+    const scanStatus=loadJSON(SIZE_SCAN_STATUS_KEY,{})||{};
+    const stFilter=document.getElementById('sizes-status-filter');
+    if(stFilter){
+      const cur=stFilter.value||'';
+      let nMiss=0,nFound=0;
+      GAMES.forEach(g=>{ if(sizeDeleted.has(Number(g.id)))return; const st=scanStatus[g.id]; if(st==='missing')nMiss++; else if(st==='found')nFound++; });
+      stFilter.innerHTML=`<option value="">كل العلامات</option><option value="missing">✕ مالقاهوش (${nMiss})</option><option value="found">🔵 اتلقى (${nFound})</option><option value="none">بدون علامة</option>`;
+      stFilter.value=cur;
+      if(!stFilter.dataset.bound){stFilter.dataset.bound='1';stFilter.addEventListener('change',renderSizesTab);}
+    }
+    const stSel=stFilter?.value||'';
     const rows=GAMES.filter(g=>{
       if(sizeDeleted.has(Number(g.id))) return false;
       const text=`${g.name||''} ${g.hdd||''}`.toLocaleLowerCase('ar');
+      const st=scanStatus[g.id];
+      if(stSel==='missing'&&st!=='missing')return false;
+      if(stSel==='found'&&st!=='found')return false;
+      if(stSel==='none'&&(st==='missing'||st==='found'))return false;
       return (!q||text.startsWith(q))&&(!filter?.value||String(g.hdd||'')===filter.value);
     }).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{numeric:true,sensitivity:'base'}));
     const iconEdit='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17.25V20h2.75L18.81 7.94l-2.75-2.75L4 17.25Zm15.71-10.46c.39-.39.39-1.03 0-1.42l-1.08-1.08a1.003 1.003 0 0 0-1.42 0l-1.07 1.07 2.75 2.75 1.07-1.07Z"/></svg>';
     const iconSave='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4Zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6ZM6 5h8v4H6V5Z"/></svg>';
     const iconDelete='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12ZM8 9h8v10H8V9Zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5Z"/></svg>';
-    const scanStatus=loadJSON(SIZE_SCAN_STATUS_KEY,{})||{};
     // إجماليات بالجيجا — بتتغير مع البحث وفلتر الهارد
     let totalGB=0, withSize=0; const perDrive={};
     rows.forEach(g=>{ const v=sizeValueGB(g); if(v>0){totalGB+=v;withSize++;} const d=g.hdd||'—'; perDrive[d]=(perDrive[d]||0)+v; });
@@ -2300,6 +2314,8 @@
       const gb=gbFromBytes(inp.value);
       sizeOverrides[id]=gb;
       sizeDeleted.delete(id);
+      // لو اللعبة كان عليها علامة ✕ حمراء: التعديل اليدوي بيشيلها
+      try{ const ss=loadJSON(SIZE_SCAN_STATUS_KEY,{})||{}; if(ss[id]==='missing'){ delete ss[id]; saveJSON(SIZE_SCAN_STATUS_KEY,ss); } }catch(e){}
       saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides);
       saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]);
       const g=GAMES.find(x=>Number(x.id)===id); if(g) g.sizeGB=gb;
@@ -2423,6 +2439,7 @@ function matchSizes(list,games,minScore){
   state.dateSortKey='start'; state.dateSortDir=1;
   let lang = localStorage.getItem('gameVault_lang_v1') || 'en';
   const I18N = {
+    "كل العلامات":"All marks","✕ مالقاهوش":"✕ Not found","🔵 اتلقى":"🔵 Found","بدون علامة":"No mark",
     "اسم الهارد (مثال: SSD-01)":"Drive name (e.g. SSD-01)","السعة GB":"Capacity GB","＋ إضافة هارد":"＋ Add drive","✏️ تعديل":"✏️ Edit","💾 حفظ":"💾 Save","✖ إلغاء":"✖ Cancel",
     "المساحة الكلية":"Total space","المساحة المستخدمة":"Used space","المساحة الفارغة":"Free space","فارغة":"Free","إجمالي السعة":"Total capacity","إجمالي المستخدم":"Total used","إجمالي الفارغ":"Total free",
     "⚠ تجاوز السعة":"⚠ Over capacity","اكتب السعة الكلية فوق":"Enter the total capacity above",
