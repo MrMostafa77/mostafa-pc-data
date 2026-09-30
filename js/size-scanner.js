@@ -103,9 +103,14 @@
   }
 
   /* ---------- المطابقة + التسجيل ---------- */
+  function topCands(name,pool,min,limit){
+    const api=G(), out=[];
+    pool.forEach(g=>{ const sc=api.similarity(name,g.name); if(sc>=min)out.push({game:g,score:sc}); });
+    out.sort((x,y)=>y.score-x.score); return out.slice(0,limit);
+  }
   function matchForDrive(src,items){
     const api=G(), map=loadMap();
-    const all=api.getGames();
+    const all=api.getAllGames();            // حتى الألعاب اللي سجل حجمها اتمسح — لو لقيناها على الهارد هترجع
     const onDrive=all.filter(g=>norm(g.hdd)===norm(src.drive));
     const cand=onDrive.length?onDrive:all;
     const used=new Set(), remembered=[], rest=[];
@@ -124,14 +129,67 @@
       const r2=api.matchSizes(left,others,SURE).res;
       r2.forEach(r=>{used.add(r.game.id);maybe.push({...r,drive:src.drive,note:` (مسجلة على هارد: ${r.game.hdd||'—'})`});});
     }
-    return {sure,maybe,missed,matchedIds:new Set([...sure.map(r=>r.game.id),...maybe.map(r=>r.game.id)])};
+    // ---- صفوف المراجعة: كل تطابق مش مؤكد + اقتراحات للفولدرات اللي ملقتش لها لعبة ----
+    const sureIds=new Set(sure.map(r=>Number(r.game.id)));
+    const pool=all.filter(g=>!sureIds.has(Number(g.id)));
+    const review=[], nomatch=[];
+    maybe.forEach(r=>{
+      const alts=topCands(r.folder,pool.filter(g=>g.id!==r.game.id),0.4,4);
+      review.push({drive:src.drive,folder:r.folder,bytes:r.bytes,pre:true,cands:[{game:r.game,score:r.score},...alts]});
+    });
+    const claimed=f=>res.some(r=>r.folder===f)||remembered.some(r=>r.folder===f)||maybe.some(r=>r.folder===f);
+    const isContainer=it=>it.level===1&&(/series\s*$/i.test(it.name)||items.some(o=>o.level===2&&o.path.startsWith(it.path+'/')&&claimed(o.name)));
+    items.forEach(it=>{
+      if(!(it.bytes>0)||claimed(it.name)||isContainer(it))return;
+      const c=topCands(it.name,pool,0.4,4);
+      if(c.length)review.push({drive:src.drive,folder:it.name,bytes:it.bytes,pre:false,cands:c}); else nomatch.push(it.name);
+    });
+    return {sure,maybe,missed,review,nomatch};
+  }
+
+  /* ---------- نافذة المراجعة: تطابقات مش مؤكدة واقتراحات ---------- */
+  function reviewDialog(rows){
+    return new Promise(resolve=>{
+      const ov=document.createElement('div'); ov.className='ssr-ov';
+      const pct=v=>Math.round(v*100)+'%';
+      rows.sort((a,b)=>(b.pre-a.pre)||(b.cands[0].score-a.cands[0].score));
+      ov.innerHTML=`<div class="ssr-box" dir="rtl">
+        <div class="ssr-head"><b>🔍 راجع المطابقات</b><span>اللي عليه ✔ هيتسجل حجمه. غيّر اللعبة من القايمة لو الاقتراح غلط.</span></div>
+        <div class="ssr-tools"><button type="button" data-a="all">تحديد الكل</button><button type="button" data-a="none">إلغاء التحديد</button><button type="button" data-a="sure">تحديد المحتمل بس</button></div>
+        <div class="ssr-list">${rows.map((r,i)=>`<div class="ssr-row" data-i="${i}">
+          <input type="checkbox" class="ssr-ck" ${r.pre?'checked':''}>
+          <div class="ssr-f"><b>${esc(r.folder)}</b><small>${esc(r.drive)} • ${gbTxt(r.bytes)}${r.pre?'':' • اقتراح ضعيف'}</small></div>
+          <span class="ssr-ar">←</span>
+          <select class="ssr-sel">${r.cands.map((c,k)=>`<option value="${k}">${esc(c.game.name)} — ${pct(c.score)}${c.game.hdd?` (${esc(c.game.hdd)})`:''}</option>`).join('')}</select></div>`).join('')}</div>
+        <div class="ssr-foot"><button type="button" class="btn" data-a="skip">تجاهل الكل</button><button type="button" class="btn ssr-ok" data-a="ok">✔ سجّل المحدد (<span id="ssr-n">0</span>)</button></div></div>`;
+      document.body.appendChild(ov);
+      const cks=()=>[...ov.querySelectorAll('.ssr-ck')], upd=()=>{ov.querySelector('#ssr-n').textContent=cks().filter(c=>c.checked).length;};
+      ov.addEventListener('change',e=>{ if(e.target.classList.contains('ssr-sel')){ e.target.closest('.ssr-row').querySelector('.ssr-ck').checked=true; } upd(); });
+      ov.addEventListener('click',e=>{
+        const a=e.target.closest('button')?.dataset.a; if(!a)return;
+        if(a==='all')cks().forEach(c=>c.checked=true);
+        else if(a==='none')cks().forEach(c=>c.checked=false);
+        else if(a==='sure')ov.querySelectorAll('.ssr-row').forEach(rw=>{rw.querySelector('.ssr-ck').checked=!!rows[Number(rw.dataset.i)].pre;});
+        else if(a==='skip'){ov.remove();resolve([]);return;}
+        else if(a==='ok'){
+          const out=[]; ov.querySelectorAll('.ssr-row').forEach(rw=>{
+            if(!rw.querySelector('.ssr-ck').checked)return;
+            const r=rows[Number(rw.dataset.i)], c=r.cands[Number(rw.querySelector('.ssr-sel').value)];
+            out.push({row:r,game:c.game});
+          });
+          ov.remove(); resolve(out); return;
+        }
+        upd();
+      });
+      upd();
+    });
   }
 
   async function runScan(sources,ui){
     const ctl={cancelled:false,files:0,errors:0,cur:'',sub:'',t:0,
       tick(force){const n=Date.now(); if(force||n-this.t>200){this.t=n;ui.progress(this);}}};
     ui.busy(true,ctl);
-    const warns=[], maybeAll=[], drivesScanned=new Set(), scannedIds=new Set(), foundIds=new Set();
+    const warns=[], reviewAll=[], nomatchAll=[], drivesScanned=new Set(), scannedIds=new Set(), foundIds=new Set();
     let applied=0, sureN=0, approvedN=0, rejectedN=0, allSrc=[];
     try{ allSrc=await dbAll(); }catch(e){}
     try{
@@ -148,20 +206,24 @@
         const m=matchForDrive(s,items);
         const n=G().apply(m.sure.map(r=>({id:r.game.id,bytes:r.bytes})));
         applied+=n; sureN+=n; m.sure.forEach(r=>foundIds.add(Number(r.game.id)));
-        maybeAll.push(...m.maybe);
+        reviewAll.push(...m.review); nomatchAll.push(...m.nomatch.map(n=>`${s.drive}: ${n}`));
         drivesScanned.add(s.drive); scannedIds.add(s.id);
         s.lastScan=Date.now(); s.lastCount=n+m.maybe.length; s.lastBytes=m.sure.reduce((a,r)=>a+r.bytes,0);
         await dbPut(s);
       }
-      // المطابقات غير المؤكدة: سؤال واحد في الآخر
-      if(maybeAll.length && !ctl.cancelled){
-        const txt=maybeAll.map(r=>`• [${r.drive}] ${r.folder}  ←→  ${r.game.name}${r.note}`).join('\n');
-        if(confirm(`${maybeAll.length} تطابق مش مؤكد 100%، راجعهم:\n\n${txt.slice(0,1800)}${txt.length>1800?'\n...':''}\n\nموافق = سجّلهم وافتكرهم للمرات الجاية، إلغاء = تجاهلهم.`)){
-          const n=G().apply(maybeAll.map(r=>({id:r.game.id,bytes:r.bytes}))); applied+=n; approvedN=n;
-          maybeAll.forEach(r=>foundIds.add(Number(r.game.id)));
-          const map=loadMap(); maybeAll.forEach(r=>{map[mapKey(r.drive,r.folder)]=r.game.id;}); saveMap(map);
-        } else rejectedN=maybeAll.length;
+      // المطابقات غير المؤكدة + الاقتراحات: نافذة مراجعة واحدة في الآخر
+      const ignored=[];
+      if(reviewAll.length && !ctl.cancelled){
+        ui.progress({cur:'في انتظار مراجعتك للمطابقات...',sub:'',files:ctl.files});
+        const picked=await reviewDialog(reviewAll.slice());
+        const seen=new Set(), take=[], chosenRows=new Set();
+        picked.forEach(p=>{ if(seen.has(Number(p.game.id)))return; seen.add(Number(p.game.id)); take.push(p); chosenRows.add(p.row); });
+        const n=G().apply(take.map(p=>({id:p.game.id,bytes:p.row.bytes}))); applied+=n; approvedN=n;
+        const map=loadMap(); take.forEach(p=>{ foundIds.add(Number(p.game.id)); map[mapKey(p.row.drive,p.row.folder)]=p.game.id; }); saveMap(map);
+        rejectedN=reviewAll.length-take.length;
+        reviewAll.forEach(r=>{ if(!chosenRows.has(r))ignored.push(`${r.drive}: ${r.folder}`); });
       }
+      ignored.push(...nomatchAll);
       // علامات الجدول: الأزرق = اتلقى، X أحمر = لعبة مسجلة على هارد اتفحص كله ومالقيناش لها فولدر
       const missingIds=new Set();
       drivesScanned.forEach(d=>{
@@ -170,7 +232,7 @@
         G().getGames().filter(g=>norm(g.hdd)===norm(d)&&!foundIds.has(Number(g.id))).forEach(g=>missingIds.add(Number(g.id)));
       });
       G().setScanStatus([...foundIds],[...missingIds]);
-      ctl.result={sure:sureN,approved:approvedN,rejected:rejectedN,missing:missingIds.size};
+      ctl.result={sure:sureN,approved:approvedN,rejected:rejectedN,missing:missingIds.size,ignored};
     }finally{
       G().refresh();
       ui.busy(false,ctl);
@@ -200,7 +262,25 @@
     #size-scan-report .ssp-stat.maybe b{color:#e3b15c}
     #size-scan-report .ssp-stat.miss b{color:#e5484d}
     #size-scan-report .ssp-warns{margin-top:6px;color:var(--rust,#d98a5f)}
-    .ssp-warn{color:var(--rust,#B5502F);font-size:13px}`;
+    .ssp-warn{color:var(--rust,#B5502F);font-size:13px}
+    #size-scan-report .ssp-ign{margin-top:6px;font-size:12px;color:#b8c4d2}
+    #size-scan-report .ssp-ign summary{cursor:pointer}
+    #size-scan-report .ssp-ign div{margin-top:4px;max-height:110px;overflow:auto;direction:ltr;text-align:left;opacity:.85}
+    .ssr-ov{position:fixed;inset:0;z-index:99999;background:rgba(3,8,16,.78);display:flex;align-items:center;justify-content:center;padding:14px}
+    .ssr-box{width:min(960px,100%);max-height:90vh;display:flex;flex-direction:column;border-radius:16px;border:1px solid rgba(47,139,255,.4);background:linear-gradient(160deg,#10223a,#0a1527);color:#e8eef6;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+    .ssr-head{padding:14px 18px 6px;display:flex;flex-direction:column;gap:3px}.ssr-head b{font-size:18px}.ssr-head span{font-size:12.5px;color:#9aa6b5}
+    .ssr-tools{display:flex;gap:8px;padding:6px 18px 10px;flex-wrap:wrap}
+    .ssr-tools button{cursor:pointer;padding:4px 12px;border-radius:8px;border:1px solid rgba(130,170,210,.3);background:rgba(255,255,255,.06);color:#cfd8e3;font-size:12px}
+    .ssr-list{overflow:auto;padding:0 12px;flex:1}
+    .ssr-row{display:flex;align-items:center;gap:10px;padding:8px 8px;border-top:1px solid rgba(130,170,210,.14)}
+    .ssr-ck{width:18px;height:18px;flex:0 0 auto;accent-color:#2f8bff}
+    .ssr-f{flex:1 1 38%;min-width:0;direction:ltr;text-align:left;display:flex;flex-direction:column;gap:2px}
+    .ssr-f b{font-size:13px;word-break:break-word}.ssr-f small{font-size:11px;color:#9aa6b5}
+    .ssr-ar{color:#2f8bff;font-size:16px}
+    .ssr-sel{flex:1 1 44%;min-width:0;padding:6px 8px;border-radius:8px;border:1px solid rgba(130,170,210,.35);background:#0e1b2d;color:#fff;font-size:12.5px;direction:ltr}
+    .ssr-foot{display:flex;justify-content:space-between;gap:10px;padding:12px 18px;border-top:1px solid rgba(130,170,210,.2)}
+    .ssr-ok{border-color:#2f8bff !important;background:rgba(47,139,255,.22) !important;font-weight:700}
+    @media(max-width:700px){.ssr-row{flex-wrap:wrap}.ssr-ar{display:none}.ssr-f,.ssr-sel{flex:1 1 100%}}`;
     document.head.appendChild(st);
   }
 
@@ -229,6 +309,7 @@
           <div class="ssp-stat ok"><b>${r.sure}</b><span>لقاهم ودوّن أحجامهم</span></div>
           <div class="ssp-stat maybe"><b>${r.approved}</b><span>كان شاكك فيهم ووافقت عليهم</span></div>
           <div class="ssp-stat miss"><b>${r.missing}</b><span>مالقاهمش</span></div></div>`:'')
+          +(r&&r.ignored&&r.ignored.length?`<details class="ssp-ign"><summary>📂 ${r.ignored.length} فولدر ماتسجلش (مالقيتش لهم لعبة أو اتجاهلوا)</summary><div>${r.ignored.slice(0,300).map(esc).join('<br>')}</div></details>`:'')
           +(w.length?`<div class="ssp-warns">${w.map(esc).join('<br>')}</div>`:'');
         rep.style.display='block'; },
       renderSources

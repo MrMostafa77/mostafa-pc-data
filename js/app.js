@@ -2341,26 +2341,62 @@
     bindSizesImport();
   }
   function normSizeName(x){return String(x||'').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,'');}
+const _sizeTokCache=new Map();
 function sizeTokens(raw){
-  let s=String(raw||'');
+  const key=String(raw||''); let c=_sizeTokCache.get(key); if(c)return c;
+  let s=key;
   s=s.replace(/\[[^\]]*\]|\([^)]*\)/g,' ');
   s=s.replace(/[ _.\-]v?\d+(?:\.\d+){2,}.*$/i,' ');
+  s=s.replace(/([a-z])([A-Z])/g,'$1 $2');            // BulletStorm -> Bullet Storm
+  s=s.replace(/['’`]/g,'');                           // Assassin's -> Assassins
   s=s.toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,' ').trim();
-  const junk=new Set(['repack','dodi','fitgirl','plaza','gog','multi','www','gamestorrents','com','win','win64','codex','skidrow','the','a','an','series','edition','goty']);
+  const junk=new Set(['repack','dodi','fitgirl','plaza','gog','multi','www','gamestorrents','com','win','win64','win32','x64','x86','codex','skidrow','elamigos','rune','tenoke','flt','empress','rld','kaos','steamrip','drmfree','portable','update','build','hotfix','dlc','dlcs','bundle','pc','the','a','an','series','edition','deluxe','ultimate','definitive','complete','goty','enhanced','anniversary','directors','cut']);
   const nums={one:'1',two:'2',three:'3',four:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10',ii:'2',iii:'3',iv:'4',vi:'6',vii:'7',viii:'8',ix:'9'};
   const out=[];
   s.split(' ').forEach(t=>{ if(!t)return; if(/^multi\d*$/.test(t))return; if(junk.has(t))return; out.push(nums[t]||t); });
-  return out;
+  _sizeTokCache.set(key,out); return out;
 }
+function sizeEd(a,b){ // Levenshtein
+  if(a===b)return 0; const m=a.length,n=b.length; if(!m)return n; if(!n)return m;
+  let prev=Array.from({length:n+1},(_,i)=>i);
+  for(let i=1;i<=m;i++){ const cur=[i]; for(let j=1;j<=n;j++) cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1)); prev=cur; }
+  return prev[n];
+}
+// كلمتين متشابهتين بغلطة إملائية بسيطة (aftur ≈ after)
+function sizeFuzzyTok(x,y){
+  if(/^\d+$/.test(x)||/^\d+$/.test(y))return false;
+  if(Math.min(x.length,y.length)<5)return false;
+  const lim=Math.max(x.length,y.length)>=8?2:1;
+  return Math.abs(x.length-y.length)<=lim && sizeEd(x,y)<=lim;
+}
+function sizeMatchTokens(a,b){
+  const used=new Array(b.length).fill(false); let exact=0,fuzzy=0; const rest=[];
+  a.forEach(x=>{ const k=b.findIndex((y,i)=>!used[i]&&y===x); if(k>=0){used[k]=true;exact++;} else rest.push(x); });
+  rest.forEach(x=>{ const k=b.findIndex((y,i)=>!used[i]&&sizeFuzzyTok(x,y)); if(k>=0){used[k]=true;fuzzy++;} });
+  return {exact,fuzzy};
+}
+const _isNumTok=x=>/^\d+$/.test(x);
 function sizeScore(a,b){
   if(!a.length||!b.length)return 0;
-  const A=new Set(a),B=new Set(b); let ov=0; A.forEach(x=>{if(B.has(x))ov++;});
-  const dA=[...A].filter(x=>/^\d+$/.test(x)), dB=[...B].filter(x=>/^\d+$/.test(x));
-  if(dA.length&&dB.length&&!dA.some(x=>B.has(x)))return 0;
-  const sc=2*ov/(A.size+B.size);
-  // مقارنة ثانية على الاسم ملزوق (تعالج: Black List = Blacklist، وأخطاء الإملاء البسيطة) — بتأثر بس لو التطابق >= 0.9
+  const nA=a.filter(_isNumTok), nB=b.filter(_isNumTok);
+  if(nA.length&&nB.length&&!nA.some(x=>nB.includes(x)))return 0;   // أرقام مختلفة = لعبة تانية
+  const {exact,fuzzy}=sizeMatchTokens(a,b), tot=a.length+b.length;
+  let best=2*exact/tot;
+  if(fuzzy) best=Math.max(best,Math.min(0.84,2*(exact+fuzzy)/tot*0.97));        // غلطة إملائية: اسأل دايماً
+  // مقارنة الاسم ملزوق: Black List = Blacklist / after-us = afterus / أخطاء إملائية
   const sq=sizeDice(a.join(''),b.join(''));
-  return sq>=0.9?Math.max(sc,sq):sc;
+  if(sq>=0.9) best=Math.max(best,Math.abs(a.join("").length-b.join("").length)<=1?sq:Math.min(0.84,sq)); else if(sq>=0.6) best=Math.max(best,Math.min(0.84,sq*0.95));
+  // اسم اللعبة كله موجود جوه الاسم التاني (Bulletstorm ⊂ Bulletstorm Full Clip): اسأل
+  const [S,L]=a.length<=b.length?[a,b]:[b,a];
+  if(S.length<L.length && S.join('').length>=6){
+    const mm=sizeMatchTokens(S,L), nL=L.filter(_isNumTok), nS=S.filter(_isNumTok);
+    if(mm.exact+mm.fuzzy===S.length && nL.every(n=>nS.includes(n))) best=Math.max(best,Math.min(0.84,0.62+0.22*S.length/L.length));
+  }
+  // رقم موجود في اسم واحد بس (Resident Evil ↔ Resident Evil 2): ممكن تكون لعبة تانية، اسأل
+  if((nA.length>0)!==(nB.length>0)) best=Math.min(best,0.8);
+  // Remake ≠ الأصلية (Resident Evil 4 Remake ↔ Resident Evil 4): اسأل
+  if(a.includes('remake')!==b.includes('remake')) best=Math.min(best,0.8);
+  return best;
 }
 function sizeDice(a,b){
   if(a.length<2||b.length<2)return 0;
@@ -2416,6 +2452,7 @@ function matchSizes(list,games,minScore){
     getAllGames:()=>GAMES.slice(),
     getDrives:()=>[...new Set(GAMES.map(g=>g.hdd).filter(Boolean))],
     matchSizes,
+    similarity:(a,b)=>sizeScore(sizeTokens(a),sizeTokens(b)),
     // rows: [{id, bytes}] — بيسجل الأحجام زي ما بيعمل زرار Import بالظبط
     apply(rows){
       let n=0;
