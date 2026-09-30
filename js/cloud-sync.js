@@ -31,6 +31,7 @@ const FS_KEYS_COLLECTION = 'gamevault_store'; // {key} (metadata: totalChunks, v
 const FS_LEGACY_COLLECTION = 'gamevault';     // المستند القديم — للترحيل مرة واحدة بس
 const FS_LEGACY_DOC = 'mostafa_library';
 const COVERS_COLLECTION = 'covers'; // covers/{gameId} (metadata) + covers/{gameId}/chunks/{n} (بيانات الصورة)
+const POLL_INTERVAL_MS = 15000; // الفحص الاحتياطي (شبكة أمان فقط)
 const CHUNK_SIZE = 700000; // ~700 ألف حرف لكل جزء — بعيد جدًا وآمن عن حد الـ1 ميجا لكل مستند
 
 let db = null;
@@ -41,6 +42,40 @@ let realtimePollTimer = null;
 let legacyMigrationChecked = false;
 const pendingCloudWrites = Object.create(null);
 const remoteVersions = Object.create(null); // last version WE fetched/applied per key
+const failedWrites = Object.create(null); // مفاتيح فشل رفعها للسحابة ولسه بتحاول تاني
+
+// ===== عدّاد استهلاك Firestore على هذا الجهاز (تقريبي) =====
+// Firebase مابيعرضش الاستهلاك جوه الصفحة، فبنعدّ إحنا كل مستند بيتقرأ/بيتكتب/بيتمسح من هذا الجهاز.
+// الرقم الكلي الحقيقي (كل أجهزتك مع بعض) في Firebase Console > Firestore > Usage.
+// اليوم بيتحسب بتوقيت المحيط الهادي (Pacific) لأن حصة Firestore اليومية بتتجدد عند منتصف الليل بتوقيته.
+const GVUsage = (function () {
+  const KEY = 'gv_usage_v1';
+  function pacificDay() {
+    try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date()); }
+    catch (e) { return new Date().toISOString().slice(0, 10); }
+  }
+  function fresh() { return { day: pacificDay(), reads: 0, writes: 0, deletes: 0 }; }
+  let st = fresh();
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (saved && saved.day === st.day) st = saved;
+  } catch (e) {}
+  let timer = null;
+  function flush() { timer = null; try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+  function rollDay() { if (st.day !== pacificDay()) st = fresh(); }
+  function bump(field, n) {
+    rollDay();
+    st[field] += Math.max(0, Number(n) || 0);
+    if (!timer) timer = setTimeout(flush, 3000);
+  }
+  return {
+    reads: n => bump('reads', n),
+    writes: n => bump('writes', n),
+    deletes: n => bump('deletes', n),
+    get: () => { rollDay(); return { day: st.day, reads: st.reads, writes: st.writes, deletes: st.deletes }; }
+  };
+})();
+window.GVUsage = GVUsage;
 
 function isFirebaseConfigured() {
   return typeof firebaseConfig !== 'undefined' &&
@@ -107,9 +142,11 @@ function queueCloudWrite(key, value) {
         // reconcileMeta() skips re-fetching our own echo back from the listener.
         remoteVersions[key] = version;
         delete pendingCloudWrites[key];
+        delete failedWrites[key];
       })
       .catch(err => {
         delete pendingCloudWrites[key];
+        failedWrites[key] = true;
         console.error('Cloud sync failed for', key, err);
         window.SoundFX?.playError();
         showSyncToast(
@@ -131,6 +168,7 @@ async function uploadKeyToCloud(key, value, version) {
   const str = String(value == null ? '' : value);
 
   const oldChunksSnap = await chunksRef.get();
+  GVUsage.reads(Math.max(1, oldChunksSnap.size));
   const chunks = [];
   for (let i = 0; i < str.length; i += CHUNK_SIZE) chunks.push(str.slice(i, i + CHUNK_SIZE));
   if (chunks.length === 0) chunks.push(''); // keep at least one empty chunk for an empty value
@@ -140,10 +178,13 @@ async function uploadKeyToCloud(key, value, version) {
   chunks.forEach((chunk, idx) => batch.set(chunksRef.doc(String(idx)), { d: chunk }));
   batch.set(keyRef, { totalChunks: chunks.length, v: version, updatedAt: version });
   await batch.commit();
+  GVUsage.writes(chunks.length + 1);
+  GVUsage.deletes(oldChunksSnap.size);
 }
 
 async function fetchKeyFromCloud(key) {
   const chunksSnap = await db.collection(FS_KEYS_COLLECTION).doc(key).collection('chunks').get();
+  GVUsage.reads(Math.max(1, chunksSnap.size));
   const parts = [];
   chunksSnap.forEach(docSnap => parts.push({ idx: Number(docSnap.id), d: (docSnap.data() || {}).d || '' }));
   parts.sort((a, b) => a.idx - b.idx);
@@ -199,6 +240,7 @@ function subscribeToCloud() {
   if (!db || unsubscribeCore) return;
   unsubscribeCore = db.collection(FS_KEYS_COLLECTION).onSnapshot(
     snap => {
+      try { GVUsage.reads(snap.docChanges().length); } catch (e) {}
       const metaByKey = {};
       snap.forEach(docSnap => { metaByKey[docSnap.id] = docSnap.data() || {}; });
       reconcileMeta(metaByKey);
@@ -216,8 +258,10 @@ function subscribeToCloud() {
 // (زي Game Dates) إلا لو فعلاً اتغيرت — رخيص وسريع.
 async function pollFromServer() {
   if (!syncReady || !db) return;
+  if (document.visibilityState === 'hidden') return; // لا نفحص والتبويب مخفي (يوفّر القراءات)
   try {
     const snap = await db.collection(FS_KEYS_COLLECTION).get({ source: 'server' });
+    GVUsage.reads(Math.max(1, snap.size));
     const metaByKey = {};
     snap.forEach(docSnap => { metaByKey[docSnap.id] = docSnap.data() || {}; });
     await reconcileMeta(metaByKey);
@@ -227,7 +271,8 @@ async function pollFromServer() {
 }
 function startRealtimeFallbackPoll() {
   if (realtimePollTimer || !db) return;
-  realtimePollTimer = setInterval(pollFromServer, 2000);
+  // كان كل 2 ثانية (≈20 ألف قراءة/ساعة). الآن كل 15 ثانية وللتبويب الظاهر فقط؛ المزامنة اللحظية الأساسية (onSnapshot) لم تتغير.
+  realtimePollTimer = setInterval(pollFromServer, POLL_INTERVAL_MS);
 }
 
 // شبكة أمان إضافية فوق onSnapshot + الفحص الدوري: لما المتصفح يحط التاب في
@@ -256,6 +301,7 @@ async function migrateLegacyDocIfNeeded(existingKeys) {
   if (!missing.length) return;
   try {
     const legacySnap = await db.collection(FS_LEGACY_COLLECTION).doc(FS_LEGACY_DOC).get();
+    GVUsage.reads(1);
     if (!legacySnap.exists) return;
     const legacyData = legacySnap.data() || {};
     for (const key of missing) {
@@ -273,6 +319,7 @@ async function hydrateFromCloud() {
   if (!db) return;
   try {
     const snap = await db.collection(FS_KEYS_COLLECTION).get();
+    GVUsage.reads(Math.max(1, snap.size));
     const existingKeys = new Set();
     snap.forEach(docSnap => existingKeys.add(docSnap.id));
 
@@ -325,6 +372,7 @@ async function uploadCoverToCloud(id, dataUrl, updatedAt) {
 
     // امسح أي أجزاء قديمة أولاً (لو الصورة الجديدة عدد أجزائها مختلف عن القديمة)
     const oldChunksSnap = await chunksRef.get();
+    GVUsage.reads(Math.max(1, oldChunksSnap.size));
     const chunks = [];
     for (let i = 0; i < dataUrl.length; i += CHUNK_SIZE) chunks.push(dataUrl.slice(i, i + CHUNK_SIZE));
 
@@ -333,6 +381,9 @@ async function uploadCoverToCloud(id, dataUrl, updatedAt) {
     chunks.forEach((chunk, idx) => batch.set(chunksRef.doc(String(idx)), { d: chunk }));
     batch.set(gameRef, { totalChunks: chunks.length, updatedAt: updatedAt || Date.now() });
     await batch.commit();
+    GVUsage.writes(chunks.length + 1);
+    GVUsage.deletes(oldChunksSnap.size);
+    return true;
   } catch (e) {
     console.error('Cloud cover upload failed for', id, e);
     showSyncToast(
@@ -340,6 +391,7 @@ async function uploadCoverToCloud(id, dataUrl, updatedAt) {
       true
     );
     window.SoundFX?.playError();
+    return false;
   }
 }
 
@@ -348,10 +400,12 @@ async function removeCoverFromCloud(id) {
   try {
     const gameRef = db.collection(COVERS_COLLECTION).doc(String(id));
     const chunksSnap = await gameRef.collection('chunks').get();
+    GVUsage.reads(Math.max(1, chunksSnap.size));
     const batch = db.batch();
     chunksSnap.forEach(docSnap => batch.delete(docSnap.ref));
     batch.delete(gameRef);
     await batch.commit();
+    GVUsage.deletes(chunksSnap.size + 1);
   } catch (e) {
     console.error('Cloud cover remove failed for', id, e);
   }
@@ -363,6 +417,7 @@ async function getCoverManifestFromCloud() {
   if (!db) return {};
   try {
     const snap = await db.collection(COVERS_COLLECTION).get();
+    GVUsage.reads(Math.max(1, snap.size));
     const out = {};
     snap.forEach(docSnap => { out[docSnap.id] = (docSnap.data() || {}).updatedAt || 0; });
     return out;
@@ -377,6 +432,7 @@ async function fetchCoverFromCloud(id) {
   if (!db) return null;
   try {
     const chunksSnap = await db.collection(COVERS_COLLECTION).doc(String(id)).collection('chunks').get();
+    GVUsage.reads(Math.max(1, chunksSnap.size));
     const parts = [];
     chunksSnap.forEach(docSnap => parts.push({ idx: Number(docSnap.id), d: (docSnap.data() || {}).d || '' }));
     parts.sort((a, b) => a.idx - b.idx);
@@ -436,7 +492,10 @@ async function hydrateCovers() {
 window.GameVaultCloudSync = {
   uploadCover: uploadCoverToCloud,
   removeCover: removeCoverFromCloud,
-  isReady: () => syncReady
+  isReady: () => syncReady,
+  keys: SYNC_KEYS,
+  pollIntervalMs: POLL_INTERVAL_MS,
+  hasPending: () => Object.keys(pendingCloudWrites).length > 0 || Object.keys(failedWrites).length > 0
 };
 
 async function init() {
