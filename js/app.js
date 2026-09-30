@@ -11,6 +11,7 @@
   const ONLINE_COVER_CACHE_KEY = 'gameVault_onlineCoverCache_v1'; // كاش لصور الأغلفة المجلوبة أونلاين للألعاب التي لا تملك صورة محلية
   const DATE_RECORDS_KEY = 'gameVault_dateRecords_v4';
   const SIZE_OVERRIDES_KEY = 'gameVault_sizeOverrides_v1';
+  const SIZE_BYTES_OVERRIDES_KEY = 'gameVault_sizeBytesOverrides_v1';
   const SIZE_DELETED_KEY = 'gameVault_sizeDeleted_v1';
   const CAP_KEY = 'gameVault_driveCapacities_v1';
   const FAVORITES_KEY = 'gameVault_favorites_v1';
@@ -80,6 +81,7 @@
   let onlineCoverCache = loadJSON(ONLINE_COVER_CACHE_KEY, {}); // id(string) -> url مكتشف | false غير موجود
   let dateRecords = loadJSON(DATE_RECORDS_KEY, null);
   let sizeOverrides = loadJSON(SIZE_OVERRIDES_KEY, {});
+  let sizeBytesOverrides = loadJSON(SIZE_BYTES_OVERRIDES_KEY, {});
   let sizeDeleted = new Set(loadJSON(SIZE_DELETED_KEY, []).map(Number));
   let capacities = loadJSON(CAP_KEY, {});
   let favorites = new Set(loadJSON(FAVORITES_KEY, []).map(Number));
@@ -2127,7 +2129,18 @@
   }
   function fmtBytes(value){return parseBytes(value).toLocaleString('en-US');}
   function gbFromBytes(bytes){const n=parseBytes(bytes);return Number.isFinite(n)&&n>=0 ? n/(1024*1024*1024) : 0;}
-  function sizeValueGB(g){return sizeOverrides[g.id]!=null ? Number(sizeOverrides[g.id]) : (g.sizeGB!=null?Number(g.sizeGB):0);}
+  function sizeValueBytes(g){
+    const id=Number(g?.id);
+    if(sizeBytesOverrides[id]!=null){
+      const n=parseBytes(sizeBytesOverrides[id]);
+      if(n>0) return n;
+    }
+    if(sizeOverrides[id]!=null) return bytesFromGB(sizeOverrides[id]);
+    return bytesFromGB(g?.sizeGB);
+  }
+  function sizeValueGB(g){ return gbFromBytes(sizeValueBytes(g)); }
+  function bytesToKB(bytes){ const n=parseBytes(bytes); return n/1024; }
+  function fmtKB(bytes){ return bytesToKB(bytes).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
   function renderSizesTab(){
     const wrap=document.getElementById('sizes-wrap'); if(!wrap)return;
     const search=document.getElementById('sizes-search-input');
@@ -2147,12 +2160,12 @@
     const iconEdit='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17.25V20h2.75L18.81 7.94l-2.75-2.75L4 17.25Zm15.71-10.46c.39-.39.39-1.03 0-1.42l-1.08-1.08a1.003 1.003 0 0 0-1.42 0l-1.07 1.07 2.75 2.75 1.07-1.07Z"/></svg>';
     const iconSave='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4Zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6ZM6 5h8v4H6V5Z"/></svg>';
     const iconDelete='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12ZM8 9h8v10H8V9Zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5Z"/></svg>';
-    wrap.innerHTML=`<div class="result-count" style="margin-bottom:10px">${fmt(rows.length)} لعبة</div><div class="dt-table-wrap"><table class="dt-table sizes-table"><thead><tr><th>اللعبة</th><th>الهارد</th><th>الحجم (Byte)</th><th>الحجم (GB)</th><th>إجراءات</th></tr></thead><tbody>${rows.map(g=>{
-      const gb=sizeValueGB(g), bytes=bytesFromGB(gb);
+    wrap.innerHTML=`<div class="result-count" style="margin-bottom:10px">${fmt(rows.length)} لعبة</div><div class="dt-table-wrap"><table class="dt-table sizes-table"><thead><tr><th>اللعبة</th><th>الهارد</th><th>الحجم (KB)</th><th>الحجم (GB)</th><th>إجراءات</th></tr></thead><tbody>${rows.map(g=>{
+      const bytes=sizeValueBytes(g), gb=gbFromBytes(bytes);
       return `<tr data-size-id="${esc(g.id)}">
         <td class="dt-name">${gameNameLink(g.name)}</td>
         <td>${esc(g.hdd||'—')}</td>
-        <td><input class="size-kb-input" type="text" inputmode="numeric" autocomplete="off" data-size-bytes data-editable-lock="1" value="${fmtBytes(bytes)}" readonly></td>
+        <td><input class="size-kb-input" type="text" inputmode="numeric" autocomplete="off" data-size-bytes data-editable-lock="1" value="${fmtKB(bytes)}" readonly></td>
         <td class="size-gb-cell"><input class="size-gb-output" type="text" data-size-gb value="${gb.toFixed(2)} GB" readonly></td>
         <td><div class="size-actions">
           <button type="button" class="icon-action size-edit" title="تعديل بيانات الحجم" aria-label="تعديل بيانات الحجم">${iconEdit}</button>
@@ -2164,8 +2177,10 @@
     wrap.querySelectorAll('.size-kb-input').forEach(inp=>{
       inp.addEventListener('input',()=>{
         const row=inp.closest('tr'), out=row?.querySelector('[data-size-gb]');
-        if(out) out.value=gbFromBytes(inp.value).toFixed(2)+' GB';
-        inp.value=inp.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',');
+        const kb=Number(String(inp.value||'').replace(/,/g,''));
+        const bytes=Number.isFinite(kb)&&kb>=0 ? Math.round(kb*1024) : 0;
+        if(out) out.value=gbFromBytes(bytes).toFixed(2)+' GB';
+        if(inp.value!=='') inp.value=String(inp.value).replace(/[^0-9.]/g,'');
       });
     });
     wrap.querySelectorAll('.size-edit').forEach(btn=>btn.addEventListener('click',()=>{
@@ -2205,9 +2220,13 @@
     wrap.querySelectorAll('.size-save').forEach(btn=>btn.addEventListener('click',()=>{
       const row=btn.closest('tr'); const id=Number(row?.dataset.sizeId); const inp=row?.querySelector('[data-size-bytes]');
       if(!id||!inp||btn.disabled)return;
-      const gb=gbFromBytes(inp.value);
+      const kb=Number(String(inp.value||'').replace(/,/g,''));
+      const bytes=Number.isFinite(kb)&&kb>=0 ? Math.round(kb*1024) : 0;
+      const gb=gbFromBytes(bytes);
+      sizeBytesOverrides[id]=bytes;
       sizeOverrides[id]=gb;
       sizeDeleted.delete(id);
+      saveJSON(SIZE_BYTES_OVERRIDES_KEY,sizeBytesOverrides);
       saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides);
       saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]);
       const g=GAMES.find(x=>Number(x.id)===id); if(g) g.sizeGB=gb;
@@ -2231,6 +2250,8 @@
     }
     if(filter && !filter.dataset.bound){filter.dataset.bound='1';filter.addEventListener('change',renderSizesTab);}
     bindSizesImport();
+    const scanBtn=document.getElementById('sizes-local-scan-btn');
+    if(scanBtn && !scanBtn.dataset.bound){ scanBtn.dataset.bound='1'; scanBtn.addEventListener('click',scanLocalGameSizes); }
   }
   function normSizeName(x){return String(x||'').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,'');}
 function sizeTokens(raw){
@@ -2270,6 +2291,94 @@ function matchSizes(list,games,minScore){
   return {res,missed};
 }
 
+  async function scanLocalGameSizes(){
+    const status=document.getElementById('sizes-scan-status');
+    const btn=document.getElementById('sizes-local-scan-btn');
+    if(!window.showDirectoryPicker){
+      alert('متصفحك لا يدعم اختيار مجلد محلي بهذه الطريقة. استخدم أحدث إصدار من Google Chrome أو Microsoft Edge.');
+      return;
+    }
+    let root;
+    try{
+      root=await window.showDirectoryPicker({mode:'read'});
+    }catch(e){
+      if(e?.name!=='AbortError') alert('تعذر فتح مجلد الألعاب: '+(e?.message||e));
+      return;
+    }
+    const folders=[];
+    const children=[];
+    try{
+      for await(const entry of root.values()){
+        if(entry.kind==='directory') children.push(entry);
+      }
+    }catch(e){
+      alert('تعذر قراءة مجلد الألعاب: '+(e?.message||e));
+      return;
+    }
+    if(!children.length){
+      alert('المجلد الذي اخترته لا يحتوي على مجلدات ألعاب مباشرة.');
+      return;
+    }
+    btn?.setAttribute('disabled','disabled');
+    const oldText=btn?.textContent;
+    if(btn) btn.textContent='⏳ جاري الفحص...';
+    let processed=0;
+    const total=children.length;
+    const setStatus=(s)=>{if(status)status.textContent=s;};
+
+    async function folderBytes(dir){
+      let totalBytes=0;
+      async function walk(d){
+        for await(const entry of d.values()){
+          if(entry.kind==='file'){
+            try{
+              const f=await entry.getFile();
+              totalBytes+=Number(f.size)||0;
+            }catch(e){}
+          }else if(entry.kind==='directory'){
+            await walk(entry);
+          }
+        }
+      }
+      await walk(dir);
+      return totalBytes;
+    }
+
+    for(const dir of children){
+      processed++;
+      setStatus(`فحص ${processed} / ${total}: ${dir.name}`);
+      const bytes=await folderBytes(dir);
+      if(bytes>0) folders.push({name:dir.name,bytes,level:1,path:dir.name.toLowerCase()});
+    }
+
+    const {res,missed}=matchSizes(folders,GAMES.filter(g=>!sizeDeleted.has(Number(g.id))),0.6);
+    const sure=res.filter(r=>r.score>=0.85), maybe=res.filter(r=>r.score<0.85);
+    let take=sure.slice();
+    if(maybe.length){
+      const txt=maybe.map(r=>`• ${r.folder}  ←→  ${r.game.name} (${fmtKB(r.bytes)} KB)`).join('\\n');
+      if(confirm(`${maybe.length} تطابق تحتاج مراجعة:\\n\\n${txt.slice(0,2500)}\\n\\nموافق = حفظها كلها، إلغاء = حفظ التطابقات المؤكدة فقط.`)){
+        take=take.concat(maybe);
+      }
+    }
+    take.forEach(r=>{
+      const bytes=parseBytes(r.bytes);
+      const gb=gbFromBytes(bytes);
+      sizeBytesOverrides[r.game.id]=bytes;
+      sizeOverrides[r.game.id]=gb;
+      r.game.sizeGB=gb;
+      sizeDeleted.delete(Number(r.game.id));
+    });
+    saveJSON(SIZE_BYTES_OVERRIDES_KEY,sizeBytesOverrides);
+    saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides);
+    saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]);
+    renderSizesTab();
+    try{renderHeroStats();renderDashboard();renderResults();}catch(e){}
+    setStatus(`تم الفحص: ${take.length} لعبة من ${folders.length} مجلد`);
+    if(btn){btn.removeAttribute('disabled');btn.textContent=oldText||'📁 Scan Local Games';}
+    alert(`تم فحص ${folders.length} مجلد لعبة.\\nتم تحديث ${take.length} لعبة بالحجم الدقيق بالـKB.`+
+      (missed.length?`\\n\\nلم يتم العثور على تطابق لـ ${missed.length} مجلد:\\n${missed.slice(0,30).join('\\n')}${missed.length>30?'\\n...':''}`:''));
+  }
+
   function bindSizesImport(){
     const btn=document.getElementById('sizes-import-btn'), file=document.getElementById('sizes-import-file');
     if(!btn||!file||btn.dataset.bound)return; btn.dataset.bound='1';
@@ -2285,7 +2394,8 @@ function matchSizes(list,games,minScore){
         const txt=maybe.map(r=>`• ${r.folder}  ←→  ${r.game.name}`).join('\n');
         if(confirm(`${maybe.length} تطابق مش مؤكد 100%، راجعهم:\n\n${txt.slice(0,1500)}\n\nموافق = طبّقهم كلهم، إلغاء = تجاهلهم (وتقدر تعدّلهم يدوي).`)) take=take.concat(maybe);
       }
-      take.forEach(r=>{ const gb=gbFromBytes(r.bytes); sizeOverrides[r.game.id]=gb; r.game.sizeGB=gb; sizeDeleted.delete(Number(r.game.id)); });
+      take.forEach(r=>{ const bytes=parseBytes(r.bytes); const gb=gbFromBytes(bytes); sizeBytesOverrides[r.game.id]=bytes; sizeOverrides[r.game.id]=gb; r.game.sizeGB=gb; sizeDeleted.delete(Number(r.game.id)); });
+      saveJSON(SIZE_BYTES_OVERRIDES_KEY,sizeBytesOverrides);
       saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides); saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]);
       file.value='';
       renderSizesTab(); try{renderHeroStats();renderDashboard();renderResults();}catch(e){}
@@ -3882,6 +3992,7 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
         if(keys.has(OVERRIDES_KEY)){ overrides=loadJSON(OVERRIDES_KEY,{}); }
         if(keys.has(DATE_RECORDS_KEY)){ dateRecords=loadJSON(DATE_RECORDS_KEY,null); }
         if(keys.has(SIZE_OVERRIDES_KEY)){ sizeOverrides=loadJSON(SIZE_OVERRIDES_KEY,{}); }
+        if(keys.has(SIZE_BYTES_OVERRIDES_KEY)){ sizeBytesOverrides=loadJSON(SIZE_BYTES_OVERRIDES_KEY,{}); }
         if(keys.has(SIZE_DELETED_KEY)){ sizeDeleted=new Set(loadJSON(SIZE_DELETED_KEY,[]).map(Number)); }
         if(keys.has(CAP_KEY)){ capacities=loadJSON(CAP_KEY,{}); }
         if(keys.has(FAVORITES_KEY)){ favorites=new Set(loadJSON(FAVORITES_KEY,[]).map(Number)); }
@@ -3892,7 +4003,7 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
         // sits in localStorage but the in-memory GAMES array stays stale
         // until a full page reload.
         if(keys.has('mostafa_pc_deleted_games_v1') || keys.has(USERGAMES_KEY) ||
-           keys.has(OVERRIDES_KEY) || keys.has(SIZE_OVERRIDES_KEY)){
+           keys.has(OVERRIDES_KEY) || keys.has(SIZE_OVERRIDES_KEY) || keys.has(SIZE_BYTES_OVERRIDES_KEY)){
           rebuildGamesArray();
         }
         if(keys.has(DATE_RECORDS_KEY)){
