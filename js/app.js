@@ -667,8 +667,7 @@
       all.map(([name,st])=>{
         const cap=capacities[name]; const isDeleted=name==='Deleted'; let barHtml='',remainHtml='';
         if(cap&&cap>0){
-          // Capacity is entered/displayed as GB; keep the comparison in the same
-          // GB convention used by the Sizes tab (GiB from stored bytes).
+          // Capacity and game usage both use decimal GB (1 GB = 1,000,000,000 bytes).
           const pct=Math.min(100,Math.max(0,st.size/cap*100)),warn=pct>88;
           const remaining=Math.max(0,cap-st.size);
           barHtml=`<div class="drive-bar-track"><div class="drive-bar-fill ${warn?'warn':''}" style="width:${pct.toFixed(1)}%"></div></div>`;
@@ -2137,13 +2136,13 @@
   }
 
   /* ================= SIZES TAB ================= */
-  function bytesFromGB(gb){return Number.isFinite(Number(gb)) ? Math.round(Number(gb)*1024*1024*1024) : 0;}
+  function bytesFromGB(gb){return Number.isFinite(Number(gb)) ? Math.round(Number(gb)*1000*1000*1000) : 0;}
   function parseBytes(value){
     const n=Number(String(value??'').replace(/,/g,'').replace(/\s/g,''));
     return Number.isFinite(n)&&n>=0 ? Math.round(n) : 0;
   }
   function fmtBytes(value){return parseBytes(value).toLocaleString('en-US');}
-  function gbFromBytes(bytes){const n=parseBytes(bytes);return Number.isFinite(n)&&n>=0 ? n/(1024*1024*1024) : 0;}
+  function gbFromBytes(bytes){const n=parseBytes(bytes);return Number.isFinite(n)&&n>=0 ? n/1000000000 : 0;}
   function sizeValueBytes(g){
     const id=Number(g?.id);
     if(sizeBytesOverrides[id]!=null){
@@ -2154,7 +2153,7 @@
     return bytesFromGB(g?.sizeGB);
   }
   function sizeValueGB(g){ return gbFromBytes(sizeValueBytes(g)); }
-  function bytesToKB(bytes){ const n=parseBytes(bytes); return n/1024; }
+  function bytesToKB(bytes){ const n=parseBytes(bytes); return n/1000; }
   function fmtKB(bytes){ return bytesToKB(bytes).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
   function renderSizesTab(){
     const wrap=document.getElementById('sizes-wrap'); if(!wrap)return;
@@ -2408,7 +2407,10 @@ function matchSizes(list,games,minScore){
         const xp=String(x.path||x.folderPath||'').toLowerCase();
         return xp && rp && xp.startsWith(rp+'/');
       });
-      if(hasMatchedDescendant && Number(r.level||1)===1) return;
+      // A directory is a container when a deeper matched game directory exists.
+      // Never assign the container's total size to a single game. This works at
+      // any nesting depth (not only level 1), so Series/Game/Edition trees are safe.
+      if(hasMatchedDescendant) return;
       const gid=Number(r.game?.id);
       if(!gid || usedGames.has(gid)) return;
       usedGames.add(gid); selected.push(r);
