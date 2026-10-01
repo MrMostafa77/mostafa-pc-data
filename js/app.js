@@ -2342,18 +2342,33 @@
   }
   function normSizeName(x){return String(x||'').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,'');}
 const _sizeTokCache=new Map();
+// كلمات مالهاش علاقة باسم اللعبة: ريباكرز، نوع الإصدار، لغات، صيغ...
+const SIZE_JUNK=new Set(['repack','repacks','dodi','fitgirl','plaza','gog','gogcom','multi','multilingual','multilanguage','www','gamestorrents','com','win','win64','win32','x64','x86','64bit','32bit','codex','skidrow','elamigos','rune','tenoke','flt','empress','rld','kaos','kaoss','steamrip','drmfree','portable','update','updates','build','hotfix','dlc','dlcs','bundle','pc','the','a','an','and','of','series','edition','version','deluxe','delux','ultimate','definitive','complete','goty','enhanced','anniversary','remastered','remaster','xatab','qoob','igggames','ovagames','corepack','blackbox','cpy','hoodlum','razor1911','p2p','preinstalled','crack','cracked','crackfix','compressed','highlycompressed','selective','download','torrent','iso','rip','setup','installer']);
+// أرقام رومانية (I = 1, II = 2 ...) — بتتحول لأرقام عادية في الطرفين
+const SIZE_ROMAN={i:'1',ii:'2',iii:'3',iv:'4',v:'5',vi:'6',vii:'7',viii:'8',ix:'9',x:'10',xi:'11',xii:'12',xiii:'13',xiv:'14',xv:'15',xvi:'16',xvii:'17',xviii:'18',xix:'19',xx:'20'};
+const SIZE_WORDNUM={one:'1',two:'2',three:'3',four:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10'};
+// "Gold Edition" / "Game of the Year" / "Director's Cut" ... = نوع إصدار مش اسم لعبة
+const SIZE_EDITION_RE=/\b(?:game\s+of\s+the\s+year(?:\s+edition)?|director'?s\s+cut|(?:special|gold|royal|legendary|platinum|limited|standard|premium|digital|extended|expanded|enhanced|ultimate|deluxe|delux|definitive|complete|anniversary|collector'?s?|goty|remastered|steam|launch|day\s*one|next[\s-]*gen)\s+(?:edition|version|collection|bundle|pack|cut))\b/gi;
+const SIZE_TAG_PAREN=/(?:^\s*v?\d+(?:[._]\d+)+|^\s*v\d+|\b(?:repack|fitgirl|dodi|multi\d*|build|update|dlcs?|gog|win(?:32|64)?|x64|x86|steam|portable|crack|fix|bonus|ost|selective|iso|rip|codex|skidrow|plaza|empress|elamigos|xatab|cpy|early\s*access)\b)/i;
 function sizeTokens(raw){
   const key=String(raw||''); let c=_sizeTokCache.get(key); if(c)return c;
-  let s=key;
-  s=s.replace(/\[[^\]]*\]|\([^)]*\)/g,' ');
-  s=s.replace(/[ _.\-]v?\d+(?:\.\d+){2,}.*$/i,' ');
-  s=s.replace(/([a-z])([A-Z])/g,'$1 $2');            // BulletStorm -> Bullet Storm
-  s=s.replace(/['’`]/g,'');                           // Assassin's -> Assassins
+  let s=key.replace(/\u00a0/g,' ');
+  s=s.replace(/\[[^\]]*\]|\{[^}]*\}/g,' ');                                  // [FitGirl Repack] [DODI-REPACK] [v1.2]
+  s=s.replace(/\(([^)]*)\)/g,(m,t)=>SIZE_TAG_PAREN.test(t)?' ':' '+t+' ');   // (v1.0) (Repack) تتشال — (Last Light) (2033) بتفضل
+  s=s.replace(/\+\s*(?:\d+\s*)?(?:dlcs?|bonus|ost|soundtrack|updates?|multiplayer|fix|crack|mods?|extras?)\b.*$/i,' ');
+  s=s.replace(/\b(?:build|update|patch|hotfix|rev|revision|ver|version)[\s._-]*v?\d+(?:[._]\d+)*[a-z]?\b/gi,' ');
+  s=s.replace(/\bv\d+(?:[._]\d+)*[a-z]?\b/gi,' ');                           // v1.2.3 / v2
+  s=s.replace(/\b\d+\.\d+\.\d+(?:\.\d+)*\b/g,' ');
+  s=s.replace(/\bb\d{4,}\b/gi,' ');
+  s=s.replace(SIZE_EDITION_RE,' ');
+  s=s.replace(/^\s*\d{1,2}\s*[-_.)]+\s*(?=[a-z])/i,'');                      // "01 - Hitman" / "2. Halo"
+  s=s.replace(/([a-z])([A-Z])/g,'$1 $2');                                    // BulletStorm -> Bullet Storm
+  s=s.replace(/['’`]/g,'');                                                   // Assassin's -> Assassins
   s=s.toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,' ').trim();
-  const junk=new Set(['repack','dodi','fitgirl','plaza','gog','multi','www','gamestorrents','com','win','win64','win32','x64','x86','codex','skidrow','elamigos','rune','tenoke','flt','empress','rld','kaos','steamrip','drmfree','portable','update','build','hotfix','dlc','dlcs','bundle','pc','the','a','an','series','edition','deluxe','ultimate','definitive','complete','goty','enhanced','anniversary','directors','cut']);
-  const nums={one:'1',two:'2',three:'3',four:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10',ii:'2',iii:'3',iv:'4',vi:'6',vii:'7',viii:'8',ix:'9'};
-  const out=[];
-  s.split(' ').forEach(t=>{ if(!t)return; if(/^multi\d*$/.test(t))return; if(junk.has(t))return; out.push(nums[t]||t); });
+  const all=[]; s.split(' ').forEach(t=>{ if(!t)return; const m=/^([a-z]{3,})(\d{1,2})$/.exec(t); if(m){all.push(m[1],m[2]);} else all.push(t); });
+  const kept=all.filter(t=>!SIZE_JUNK.has(t)&&!/^multi\d*$/.test(t));
+  const base=kept.length?kept:all;
+  const out=base.map((t,i)=>SIZE_WORDNUM[t]||(i>0&&SIZE_ROMAN[t])||t);
   _sizeTokCache.set(key,out); return out;
 }
 function sizeEd(a,b){ // Levenshtein
@@ -2376,7 +2391,12 @@ function sizeMatchTokens(a,b){
   return {exact,fuzzy};
 }
 const _isNumTok=x=>/^\d+$/.test(x);
-function sizeScore(a,b){
+function sizeScore(a,b,lenient){
+  if(!a.length||!b.length)return 0;
+  let _soft=false;
+  // الجزء الأول بيتكتب كتير من غير رقم: "Resident Evil" = "Resident Evil I" = "Resident Evil 1"
+  const _n=x=>x.filter(_isNumTok), _only1=x=>{const n=_n(x);return n.length===1&&n[0]==='1';};
+  if(_only1(a)&&!_n(b).length){ a=a.filter(t=>t!=='1'); _soft=true; } else if(_only1(b)&&!_n(a).length){ b=b.filter(t=>t!=='1'); _soft=true; }
   if(!a.length||!b.length)return 0;
   const nA=a.filter(_isNumTok), nB=b.filter(_isNumTok);
   if(nA.length&&nB.length&&!nA.some(x=>nB.includes(x)))return 0;   // أرقام مختلفة = لعبة تانية
@@ -2393,9 +2413,10 @@ function sizeScore(a,b){
     if(mm.exact+mm.fuzzy===S.length && nL.every(n=>nS.includes(n))) best=Math.max(best,Math.min(0.84,0.62+0.22*S.length/L.length));
   }
   // رقم موجود في اسم واحد بس (Resident Evil ↔ Resident Evil 2): ممكن تكون لعبة تانية، اسأل
-  if((nA.length>0)!==(nB.length>0)) best=Math.min(best,0.8);
+  if((nA.length>0)!==(nB.length>0)&&!lenient) best=Math.min(best,0.8);   // lenient = لعبة جوه فولدر سلسلة: الرقم ممكن يتسكت عنه (Black Flag = AC IV)
   // Remake ≠ الأصلية (Resident Evil 4 Remake ↔ Resident Evil 4): اسأل
   if(a.includes('remake')!==b.includes('remake')) best=Math.min(best,0.8);
+  if(_soft) best=Math.min(best,0.97);   // "بدون رقم" = الجزء الأول، بس التطابق الحرفي (MK 1 = MK 1) يكسب عليه
   return best;
 }
 function sizeDice(a,b){
@@ -2406,16 +2427,21 @@ function sizeDice(a,b){
 }
 function matchSizes(list,games,minScore){
   const G=games.map(g=>({g,t:sizeTokens(g.name)}));
-  const items=list.map((it,i)=>({it,i,t:sizeTokens(it.name),lvl:Number(it.level||1),bytes:Number(it.bytes)||0,path:String(it.path||'').toLowerCase()})).filter(x=>x.bytes>0&&x.t.length);
-  const pairs=[]; items.forEach(x=>G.forEach(y=>{const sc=sizeScore(x.t,y.t); if(sc>=minScore)pairs.push({x,y,sc});}));
+  const _SER=/\s*series\s*$/i;
+  const items=list.map((it,i)=>{
+    const lvl=Number(it.level||1), segs=String(it.path||'').split(/[\\/]+/).filter(Boolean), par=segs.length>=2?segs[segs.length-2]:'';
+    const ct=(lvl>=2&&_SER.test(par))?sizeTokens(par.replace(_SER,'')+' '+it.name):null;   // لعبة جوه فولدر سلسلة: بنجرب اسم السلسلة + اسم الفولدر
+    return {it,i,t:sizeTokens(it.name),ct,lvl,bytes:Number(it.bytes)||0,path:String(it.path||'').toLowerCase()};
+  }).filter(x=>x.bytes>0&&x.t.length);
+  const pairs=[]; items.forEach(x=>G.forEach(y=>{const sc=Math.max(sizeScore(x.t,y.t),x.ct?sizeScore(x.ct,y.t,true):0); if(sc>=minScore)pairs.push({x,y,sc});}));
   pairs.sort((p,q)=>q.sc-p.sc);
   const usedItem=new Set(), usedGame=new Set(), res=[];
   // pass 1: level-2 folders first (they are the real games inside series folders)
   [2,1].forEach(level=>pairs.forEach(p=>{
     if(p.x.lvl!==level||usedItem.has(p.x.i)||usedGame.has(p.y.g.id))return;
     if(level===1){
-      const isSeries=/series\s*$/i.test(String(p.x.it.name))||items.some(o=>o.lvl===2&&usedItem.has(o.i)&&o.path.startsWith(p.x.path));
-      if(isSeries&&p.sc<1)return;
+      if(_SER.test(String(p.x.it.name)))return;     // فولدر SERIES = حاوية للألعاب اللي جواه، مش لعبة
+      if(items.some(o=>o.lvl===2&&usedItem.has(o.i)&&o.path.startsWith(p.x.path))&&p.sc<1)return;
     }
     usedItem.add(p.x.i); usedGame.add(p.y.g.id); res.push({folder:p.x.it.name,game:p.y.g,bytes:p.x.bytes,score:p.sc});
   }));
@@ -2453,7 +2479,7 @@ function matchSizes(list,games,minScore){
     getDrives:()=>[...new Set(GAMES.map(g=>g.hdd).filter(Boolean))],
     matchSizes,
     tokens:sizeTokens,
-    similarity:(a,b)=>sizeScore(sizeTokens(a),sizeTokens(b)),
+    similarity:(a,b,o)=>sizeScore(sizeTokens(a),sizeTokens(b),!!(o&&o.lenient)),
     // rows: [{id, bytes}] — بيسجل الأحجام زي ما بيعمل زرار Import بالظبط
     apply(rows){
       let n=0;

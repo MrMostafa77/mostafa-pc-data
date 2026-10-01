@@ -94,6 +94,16 @@
   const descOf=n=>n._d||(n._d=[].concat(...n.children.map(c=>[c,...descOf(c)])));
   const exeBelow=n=>n.children.some(c=>c.hasExe||exeBelow(c));
   const gamelike=n=>n.hasExe||exeBelow(n);
+  // سياق السلسلة: لعبة جوه "Assassins Creed Series" اسمها "Black Flag" → بنجرب "Assassins Creed Black Flag" كمان
+  const SER=/\s*series\s*$/i;
+  const seriesCtx=n=>{ for(let p=n.parent;p;p=p.parent) if(SER.test(p.name)) return p.name.replace(SER,'').trim(); return ''; };
+  const parentCtx=n=>{ const p=n.parent; return (p&&!p.hasExe&&!SER.test(p.name))?p.name:''; };
+  function variantsOf(n){
+    const v=[{name:n.name,cap:1}], sc=seriesCtx(n), pc=parentCtx(n);
+    if(sc)v.push({name:sc+' '+n.name,cap:1,len:true});
+    if(pc)v.push({name:pc+' '+n.name,cap:0.84});      // فولدر أب عادي: اقتراح بس (بيسأل)
+    return v;
+  }
   function keysOf(api,name){ const t=api.tokens?api.tokens(name):[]; const k=new Set(t); if(t.length)k.add(t.join('')); return k; }
 
   async function matchForDrive(src,tops,ctl){
@@ -106,9 +116,10 @@
     if(api.tokens) all.forEach(g=>keysOf(api,g.name).forEach(k=>{ if(!idx.has(k))idx.set(k,[]); idx.get(k).push(g); }));
     for(let i=0;i<nodes.length;i++){
       const n=nodes[i], seen=new Set(); n.sc=[];
-      const scoreIn=pool=>pool.forEach(g=>{ if(seen.has(g.id))return; seen.add(g.id); const s=api.similarity(n.name,g.name); if(s>=0.4)n.sc.push({game:g,score:s}); });
+      const vars=variantsOf(n);
+      const scoreIn=pool=>pool.forEach(g=>{ if(seen.has(g.id))return; seen.add(g.id); let s=0; vars.forEach(v=>{ s=Math.max(s,Math.min(v.cap,api.similarity(v.name,g.name,v.len?{lenient:true}:undefined))); }); if(s>=0.3)n.sc.push({game:g,score:s}); });
       if(api.tokens){
-        const s=new Set(); keysOf(api,n.name).forEach(k=>(idx.get(k)||[]).forEach(g=>s.add(g))); scoreIn([...s]);
+        const s=new Set(); vars.forEach(v=>keysOf(api,v.name).forEach(k=>(idx.get(k)||[]).forEach(g=>s.add(g)))); scoreIn([...s]);
         const top=n.sc.reduce((m,c)=>Math.max(m,c.score),0);
         // مفيش تطابق قوي بالكلمات: مقارنة كاملة (أخطاء إملائية، Black List = Blacklist) — بس للفولدرات اللي ممكن تكون ألعاب
         if(top<SURE&&(n.depth===1||(n.depth===2&&n.parent&&!n.parent.hasExe)))scoreIn(all);
@@ -127,7 +138,7 @@
     };
     const pairs=[];
     nodes.forEach(n=>n.sc.forEach(c=>{
-      if(c.score<MIN)return; const sd=sameDrive(c.game); if(!sd&&c.score<SURE)return;   // لعبة مسجلة على هارد تاني: لازم تطابق قوي + تأكيد
+      if(c.score<MIN||SER.test(n.name))return; const sd=sameDrive(c.game);   // فولدر SERIES حاوية مش لعبة if(!sd&&c.score<SURE)return;   // لعبة مسجلة على هارد تاني: لازم تطابق قوي + تأكيد
       pairs.push({n,game:c.game,score:c.score,eff:c.score*(sd?1:0.999)});
     }));
     nodes.forEach(n=>{   // اختيارات اتأكدت قبل كده
