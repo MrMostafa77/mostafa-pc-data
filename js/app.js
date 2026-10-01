@@ -17,6 +17,7 @@
   const SIZE_SCAN_STATUS_KEY = 'gameVault_sizeScanStatus_v1'; // {gameId:'found'|'missing'} نتيجة آخر فحص هاردات
   const CAP_KEY = 'gameVault_driveCapacities_v1';
   const HIDDEN_DRIVES_KEY = 'gameVault_hiddenDrives_v1'; // هاردات اتشالت من تبويب Drives (الألعاب نفسها ما بتتمسحش)
+  const OTHER_KEY = 'gameVault_driveOtherSpace_v1'; // {drive: GB} مساحات أخرى مستخدمة على الهارد (خارج الألعاب) وبتتضاف على المستخدمة
   const FAVORITES_KEY = 'gameVault_favorites_v1';
   const TAGS_KEY = 'gameVault_gameTags_v1';
   const UPCOMING_GAMES_KEY = 'gameVault_upcomingGames_v1'; // fixed 5 manual Home slots
@@ -87,6 +88,7 @@
   let sizeDeleted = new Set(loadJSON(SIZE_DELETED_KEY, []).map(Number));
   let capacities = loadJSON(CAP_KEY, {});
   let hiddenDrives = new Set(loadJSON(HIDDEN_DRIVES_KEY, []).map(String));
+  let otherSpace = loadJSON(OTHER_KEY, {});
   let drivesEditing = false, drivesDraft = {};
   let favorites = new Set(loadJSON(FAVORITES_KEY, []).map(Number));
   let gameTags = loadJSON(TAGS_KEY, {});
@@ -655,7 +657,10 @@
   function renderDrives(){
     const grid=document.getElementById('drives-grid'); if(!grid)return;
     // لو فيه تعديل شغال وحصل إعادة رسم (مزامنة مثلاً) نحافظ على اللي اتكتب
-    if(drivesEditing) grid.querySelectorAll('.cap-input').forEach(i=>{drivesDraft[i.dataset.drive]=i.value;});
+    if(drivesEditing){
+      grid.querySelectorAll('.cap-input').forEach(i=>{drivesDraft[i.dataset.drive]=i.value;});
+      grid.querySelectorAll('.other-input').forEach(i=>{drivesDraft['other:'+i.dataset.drive]=i.value;});
+    }
     const gbTxt=v=>(Number(v)||0).toFixed(2)+'GB';
     // الحسابات من تبويب Sizes: نفس القيمة اللي بتظهر هناك لكل لعبة (بدون السجلات المحذوفة)
     const stats={};
@@ -666,12 +671,20 @@
       if(!sizeDeleted.has(Number(g.id))) st.size+=sizeValueGB(g);
     });
     Object.keys(capacities).forEach(k=>{ if(!stats[k]) stats[k]={count:0,size:0}; });
-    const names=Object.keys(stats).filter(n=>!hiddenDrives.has(n))
+    const otherOf=n=>Math.max(0,Number(otherSpace[n])||0);
+    // الترتيب: صف 1 = A2, AC, The 7th, Mester — صف 2 = PC_KSA, LAPTOP, COMPANY — بعد كده الباقي (Deleted آخر حاجة)
+    const normName=s=>String(s).toLowerCase().replace(/[\s_\-]+/g,'');
+    const visible=Object.keys(stats).filter(n=>!hiddenDrives.has(n));
+    const pickRow=list=>list.map(k=>visible.find(n=>normName(n)===k)).filter(Boolean);
+    const row1=pickRow(['a2','ac','the7th','mester']), row2=pickRow(['pcksa','laptop','company']);
+    const placed=new Set([...row1,...row2]);
+    const restNames=visible.filter(n=>!placed.has(n))
       .sort((a,b)=>(a==='Deleted')-(b==='Deleted') || String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:'base'}));
+    const names=[...row1,...row2,...restNames];
 
     // ملخص كل الهاردات اللي ليها سعة
     let sumCap=0,sumUsed=0;
-    names.forEach(n=>{const c=Number(capacities[n]); if(c>0&&n!=='Deleted'){sumCap+=c;sumUsed+=stats[n].size;}});
+    names.forEach(n=>{const c=Number(capacities[n]); if(c>0&&n!=='Deleted'){sumCap+=c;sumUsed+=stats[n].size+otherOf(n);}});
     const summary=sumCap>0?`<div class="drv-summary" style="grid-column:1/-1">
         <div><span>إجمالي السعة</span><b>${gbTxt(sumCap)}</b></div>
         <div><span>إجمالي المستخدم</span><b>${gbTxt(sumUsed)}</b></div>
@@ -689,13 +702,16 @@
           <button type="button" class="drv-btn save" id="drives-save-all" title="حفظ كل التعديلات" ${drivesEditing?'':'disabled'}>💾 حفظ</button>
         </div></div>`;
 
-    const cards=names.map(name=>{
+    const cardsArr=names.map(name=>{
       const st=stats[name], isDel=name==='Deleted';
       const capSaved=Number(capacities[name])>0?Number(capacities[name]):0;
       const capVal=drivesEditing&&drivesDraft[name]!==undefined?drivesDraft[name]:(capSaved||'');
-      const used=st.size, free=capSaved?Math.max(0,capSaved-used):0;
-      const usedPct=capSaved?Math.min(100,used/capSaved*100):0, freePct=capSaved?100-usedPct:0;
-      const over=capSaved&&used>capSaved, warn=!over&&usedPct>88;
+      const used=st.size, other=isDel?0:otherOf(name), usedAll=used+other;
+      const otherVal=drivesEditing&&drivesDraft['other:'+name]!==undefined?drivesDraft['other:'+name]:(other||'');
+      // الفارغ = المساحة الكلية - (المستخدمة + الأخرى)
+      const free=capSaved?Math.max(0,capSaved-usedAll):0;
+      const usedPct=capSaved?Math.min(100,usedAll/capSaved*100):0, freePct=capSaved?100-usedPct:0;
+      const over=capSaved&&usedAll>capSaved, warn=!over&&usedPct>88;
       const ring=`<div class="drv-ring" title="عدد الألعاب"><b>${fmt(st.count)}</b><small>🎮</small></div>`;
       const totalCell=isDel?'':`<div class="drv-stat total"><span>المساحة الكلية</span>${drivesEditing
         ?`<div class="drv-cap-edit"><input type="number" min="1" step="1" inputmode="decimal" data-drive="${esc(name)}" class="cap-input is-editing" value="${esc(capVal)}" placeholder="0"><em>GB</em></div>`
@@ -710,13 +726,19 @@
         <div class="drv-stats">
           ${totalCell}
           <div class="drv-stat used"><span>المساحة المستخدمة</span><b>${gbTxt(used)}</b></div>
+          ${isDel?'':`<div class="drv-stat other"><span>مساحات أخرى</span>${drivesEditing
+            ?`<div class="drv-cap-edit"><input type="number" min="0" step="any" inputmode="decimal" data-drive="${esc(name)}" class="other-input is-editing" value="${esc(otherVal)}" placeholder="0"><em>GB</em></div>`
+            :`<b>${gbTxt(other)}</b>`}</div>`}
           ${isDel?'':`<div class="drv-stat free"><span>المساحة الفارغة</span><b>${capSaved?gbTxt(free):'—'}</b></div>`}
         </div>
         ${bar}
-        ${(!isDel&&over)?`<div class="drv-audit-warn">⚠ ألعاب الهارد (${gbTxt(used)}) أكبر من سعته (${gbTxt(capSaved)}) بـ ${gbTxt(used-capSaved)} — ده مستحيل، في أحجام متحسبة مرتين أو غلط.</div>`:''}
+        ${(!isDel&&over)?`<div class="drv-audit-warn">⚠ المستخدم + الأخرى (${gbTxt(usedAll)}) أكبر من سعة الهارد (${gbTxt(capSaved)}) بـ ${gbTxt(usedAll-capSaved)} — ده مستحيل، في أحجام متحسبة مرتين أو غلط.</div>`:''}
         <div class="drv-foot">${isDel?'':`<button type="button" class="drv-btn drive-audit ${over?'is-on':''}" data-drive="${esc(name)}" title="اعرف إيه اللي زوّد الحجم">🔍 فحص الأحجام</button>`}<button type="button" class="icon-action danger drive-remove" data-drive="${esc(name)}" title="إزالة الهارد من القائمة" aria-label="إزالة الهارد">🗑️</button></div>
       </div>`;
-    }).join('');
+    });
+    const wrapRow=(arr,cls)=>arr.length?`<div class="drv-row ${cls}" style="grid-column:1/-1">${arr.join('')}</div>`:'';
+    const n1=row1.length, n2=row2.length;
+    const cards=wrapRow(cardsArr.slice(0,n1),'r1')+wrapRow(cardsArr.slice(n1,n1+n2),'r2')+wrapRow(cardsArr.slice(n1+n2),'r3');
 
     grid.innerHTML=summary+toolbar+cards;
 
@@ -736,9 +758,13 @@
         const d=inp.dataset.drive, v=parseFloat(inp.value);
         if(v>0) capacities[d]=v; else delete capacities[d];
       });
-      saveJSON(CAP_KEY,capacities); stopEdit();
+      grid.querySelectorAll('.other-input').forEach(inp=>{
+        const d=inp.dataset.drive, v=parseFloat(inp.value);
+        if(v>0) otherSpace[d]=v; else delete otherSpace[d];
+      });
+      saveJSON(CAP_KEY,capacities); saveJSON(OTHER_KEY,otherSpace); stopEdit();
     });
-    grid.querySelectorAll('.cap-input').forEach(inp=>inp.addEventListener('keydown',e=>{
+    grid.querySelectorAll('.cap-input,.other-input').forEach(inp=>inp.addEventListener('keydown',e=>{
       if(e.key==='Enter'){e.preventDefault();document.getElementById('drives-save-all')?.click();}
       else if(e.key==='Escape'){e.preventDefault();stopEdit();}
     }));
@@ -748,6 +774,7 @@
       const msg=n>0?`إزالة الهارد «${d}» من تبويب Drives؟\n\nفيه ${n} لعبة مسجلة عليه — الألعاب نفسها مش هتتمسح، بس الهارد هيختفي من القائمة وسعته هتتشال.`:`إزالة الهارد «${d}»؟`;
       if(!confirm(msg))return;
       delete capacities[d]; saveJSON(CAP_KEY,capacities);
+      delete otherSpace[d]; saveJSON(OTHER_KEY,otherSpace);
       hiddenDrives.add(d); saveJSON(HIDDEN_DRIVES_KEY,[...hiddenDrives]);
       renderDrives();
     }));
@@ -1574,6 +1601,7 @@
     setPageMode(document.querySelector('.tab-page.active')?.id || 'dashboard-section');
     const rendered=new Set(['dashboard-section','drives-section']);
     function renderTab(id){
+      if(id==='drives-section'){ try{renderDrives();}catch(e){} return; } // دايمًا نحدّث Drives من أحدث أحجام Sizes
       if(rendered.has(id)) return;
       rendered.add(id);
       if(id==='library-section'){ initLibrarySearch(); initLibraryControls(); renderFilters(); renderResults(); }
@@ -2386,7 +2414,7 @@
       row.classList.remove('size-row-editing');
       delete row.dataset.sizeOriginalKb;
       delete row.dataset.sizeOriginalGb;
-      renderSizesTab(); renderHeroStats(); renderDashboard(); renderResults();
+      renderSizesTab(); renderHeroStats(); renderDashboard(); renderResults(); renderDrives();
     }));
     wrap.querySelectorAll('.size-delete').forEach(btn=>btn.addEventListener('click',()=>{
       const row=btn.closest('tr'); const id=Number(row?.dataset.sizeId); if(!id)return;
@@ -2394,7 +2422,7 @@
       if(!confirm(tr(`حذف سجل الحجم "${g?.name||''}"؟`)))return;
       sizeDeleted.add(id);
       saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]);
-      renderSizesTab();
+      renderSizesTab(); renderDrives();
     }));
     if(search && !search.dataset.bound){
       search.dataset.bound='1';
@@ -2531,7 +2559,7 @@ function matchSizes(list,games,minScore){
       take.forEach(r=>{ const gb=gbFromBytes(r.bytes); sizeOverrides[r.game.id]=gb; r.game.sizeGB=gb; sizeDeleted.delete(Number(r.game.id)); });
       saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides); saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]);
       file.value='';
-      renderSizesTab(); try{renderHeroStats();renderDashboard();renderResults();}catch(e){}
+      renderSizesTab(); try{renderHeroStats();renderDashboard();renderResults();renderDrives();}catch(e){}
       alert(`تم تحديث ${take.length} لعبة.\n`+(missed.length?`\nمجلدات ملقتش لها لعبة في المكتبة (${missed.length}):\n`+missed.slice(0,30).join('\n')+(missed.length>30?'\n...':''):'\nكل المجلدات اتطابقت.'));
     });
   }
@@ -2570,7 +2598,7 @@ function matchSizes(list,games,minScore){
   const I18N = {
     "كل العلامات":"All marks","✕ مالقاهوش":"✕ Not found","🔵 اتلقى":"🔵 Found","بدون علامة":"No mark",
     "اسم الهارد (مثال: SSD-01)":"Drive name (e.g. SSD-01)","السعة GB":"Capacity GB","＋ إضافة هارد":"＋ Add drive","✏️ تعديل":"✏️ Edit","💾 حفظ":"💾 Save","✖ إلغاء":"✖ Cancel",
-    "المساحة الكلية":"Total space","المساحة المستخدمة":"Used space","المساحة الفارغة":"Free space","فارغة":"Free","إجمالي السعة":"Total capacity","إجمالي المستخدم":"Total used","إجمالي الفارغ":"Total free",
+    "المساحة الكلية":"Total space","المساحة المستخدمة":"Used space","مساحات أخرى":"Other space","المساحة الفارغة":"Free space","فارغة":"Free","إجمالي السعة":"Total capacity","إجمالي المستخدم":"Total used","إجمالي الفارغ":"Total free",
     "⚠ تجاوز السعة":"⚠ Over capacity","اكتب السعة الكلية فوق":"Enter the total capacity above",
     'أرشيف الألعاب':"Mostafa's Pc Data",'سجل شخصي':'Personal Record','فهرسة كاملة لمقتنياتك عبر Drives، مع بحث وفرز وتحليل للمجموعة':'Complete catalog of your games across drives, with search, sorting and analytics',
     'Home':'Home','Drives':'Drives','Library':'Library','Game Dates':'Game Dates','إضافة لعبة':'Add Game',
@@ -3478,6 +3506,7 @@ if(type==='overview'){
         sizeOverrides:loadJSON(SIZE_OVERRIDES_KEY,{}),
         sizeDeleted:loadJSON(SIZE_DELETED_KEY,[]),
         capacities:loadJSON(CAP_KEY,{}),
+        driveOtherSpace:loadJSON(OTHER_KEY,{}),
         hiddenDrives:loadJSON(HIDDEN_DRIVES_KEY,[]),
         favorites:loadJSON(FAVORITES_KEY,[]),
         gameTags:loadJSON(TAGS_KEY,{}),
@@ -4159,6 +4188,7 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
         if(keys.has(SIZE_OVERRIDES_KEY)){ sizeOverrides=loadJSON(SIZE_OVERRIDES_KEY,{}); }
         if(keys.has(SIZE_DELETED_KEY)){ sizeDeleted=new Set(loadJSON(SIZE_DELETED_KEY,[]).map(Number)); }
         if(keys.has(CAP_KEY)){ capacities=loadJSON(CAP_KEY,{}); }
+        if(keys.has(OTHER_KEY)){ otherSpace=loadJSON(OTHER_KEY,{}); }
         if(keys.has(HIDDEN_DRIVES_KEY)){ hiddenDrives=new Set(loadJSON(HIDDEN_DRIVES_KEY,[]).map(String)); }
         if(keys.has(FAVORITES_KEY)){ favorites=new Set(loadJSON(FAVORITES_KEY,[]).map(Number)); }
         if(keys.has(TAGS_KEY)){ gameTags=loadJSON(TAGS_KEY,{}); }
