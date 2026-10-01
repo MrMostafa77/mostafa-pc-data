@@ -243,7 +243,7 @@
         try{items=await scanSource(s,ctl);}
         catch(e){ if(e instanceof Cancel){warns.push('⏹ اتلغى الفحص.');break;} warns.push(`❌ ${s.drive} — «${s.name}»: ${e.message||e}`); continue; }
         let m; try{m=await matchForDrive(s,items,ctl);}catch(e){ if(e instanceof Cancel){warns.push('⏹ اتلغى الفحص.');break;} throw e; }
-        const n=G().apply(m.sure.map(r=>({id:r.game.id,bytes:r.bytes})));
+        const n=G().apply(m.sure.map(r=>({id:r.game.id,bytes:r.bytes,src:{drive:s.drive,path:r.n.path}})));
         applied+=n; sureN+=n; m.sure.forEach(r=>foundIds.add(Number(r.game.id)));
         reviewAll.push(...m.review); nomatchAll.push(...m.nomatch.map(n=>`${s.drive}: ${n}`));
         drivesScanned.add(s.drive); scannedIds.add(s.id);
@@ -257,7 +257,7 @@
         const picked=await reviewDialog(reviewAll.slice());
         const seen=new Set(), take=[], chosenRows=new Set();
         picked.forEach(p=>{ if(seen.has(Number(p.game.id)))return; seen.add(Number(p.game.id)); take.push(p); chosenRows.add(p.row); });
-        const n=G().apply(take.map(p=>({id:p.game.id,bytes:p.row.bytes}))); applied+=n; approvedN=n;
+        const n=G().apply(take.map(p=>({id:p.game.id,bytes:p.row.bytes,src:{drive:p.row.drive,path:p.row.path}}))); applied+=n; approvedN=n;
         const map=loadMap(); take.forEach(p=>{ foundIds.add(Number(p.game.id)); map[p.row.key||mapKey(p.row.drive,p.row.folder)]=p.game.id; }); saveMap(map);
         rejectedN=reviewAll.length-take.length;
         reviewAll.forEach(r=>{ if(!chosenRows.has(r))ignored.push(`${r.drive}: ${r.folder}`); });

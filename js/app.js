@@ -4,6 +4,8 @@
 
   /* ================= BASE DATA + STORAGE ================= */
   const BASE_GAMES = window.GameVaultData.games;
+  const BASE_SIZE0 = new Map(BASE_GAMES.map(g=>[Number(g.id),Number(g.sizeGB)||0]));   // الأحجام الأصلية قبل أي مسح
+  const SIZE_SRC_KEY = 'gameVault_sizeSources_v1';                                      // {gameId:{drive,path,bytes}} الفولدر اللي الحجم اتاخد منه
   const USERGAMES_KEY = 'gameVault_userGames_v1';
   const OVERRIDES_KEY = 'gameVault_fieldOverrides_v1'; // per-id: {screenType, gpu, resolution}
   // ملحوظة: صور الأغلفة بقت متخزنة في IndexedDB (js/cover-store.js) بدل localStorage
@@ -711,7 +713,8 @@
           ${isDel?'':`<div class="drv-stat free"><span>المساحة الفارغة</span><b>${capSaved?gbTxt(free):'—'}</b></div>`}
         </div>
         ${bar}
-        <div class="drv-foot"><button type="button" class="icon-action danger drive-remove" data-drive="${esc(name)}" title="إزالة الهارد من القائمة" aria-label="إزالة الهارد">🗑️</button></div>
+        ${(!isDel&&over)?`<div class="drv-audit-warn">⚠ ألعاب الهارد (${gbTxt(used)}) أكبر من سعته (${gbTxt(capSaved)}) بـ ${gbTxt(used-capSaved)} — ده مستحيل، في أحجام متحسبة مرتين أو غلط.</div>`:''}
+        <div class="drv-foot">${isDel?'':`<button type="button" class="drv-btn drive-audit ${over?'is-on':''}" data-drive="${esc(name)}" title="اعرف إيه اللي زوّد الحجم">🔍 فحص الأحجام</button>`}<button type="button" class="icon-action danger drive-remove" data-drive="${esc(name)}" title="إزالة الهارد من القائمة" aria-label="إزالة الهارد">🗑️</button></div>
       </div>`;
     }).join('');
 
@@ -739,6 +742,7 @@
       if(e.key==='Enter'){e.preventDefault();document.getElementById('drives-save-all')?.click();}
       else if(e.key==='Escape'){e.preventDefault();stopEdit();}
     }));
+    grid.querySelectorAll('.drive-audit').forEach(btn=>btn.addEventListener('click',()=>openDriveAudit(btn.dataset.drive)));
     grid.querySelectorAll('.drive-remove').forEach(btn=>btn.addEventListener('click',()=>{
       const d=btn.dataset.drive, n=stats[d]?.count||0;
       const msg=n>0?`إزالة الهارد «${d}» من تبويب Drives؟\n\nفيه ${n} لعبة مسجلة عليه — الألعاب نفسها مش هتتمسح، بس الهارد هيختفي من القائمة وسعته هتتشال.`:`إزالة الهارد «${d}»؟`;
@@ -747,6 +751,66 @@
       hiddenDrives.add(d); saveJSON(HIDDEN_DRIVES_KEY,[...hiddenDrives]);
       renderDrives();
     }));
+  }
+
+  /* ================= DRIVE AUDIT: ليه مجموع الألعاب أكبر من الهارد؟ ================= */
+  function openDriveAudit(drive){
+    const GiB=1073741824, cap=Number(capacities[drive])||0, srcs=loadJSON(SIZE_SRC_KEY,{})||{};
+    if(!document.getElementById('aud-css')){
+      const st=document.createElement('style'); st.id='aud-css';
+      st.textContent=`.aud-ov{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:14px;direction:rtl}
+      .aud-box{background:#10182a;color:#e8eef6;border:1px solid rgba(255,255,255,.15);border-radius:14px;width:min(1150px,100%);max-height:92vh;display:flex;flex-direction:column}
+      .aud-box header{padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.1)} .aud-box h3{margin:0 0 8px}
+      .aud-sum{display:flex;gap:8px;flex-wrap:wrap;font-size:13px}.aud-sum span{padding:4px 10px;border-radius:8px;background:rgba(255,255,255,.07)}
+      .aud-sum .bad{background:rgba(248,81,73,.25);color:#ffb3ae}.aud-sum .good{background:rgba(46,160,67,.25);color:#7ee787}
+      .aud-body{overflow:auto;padding:0 18px}.aud-body table{width:100%;border-collapse:collapse;font-size:13px}
+      .aud-body th{position:sticky;top:0;background:#10182a;text-align:right;padding:8px 6px;border-bottom:1px solid rgba(255,255,255,.15)}
+      .aud-body td{padding:6px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:middle}
+      .aud-n{direction:ltr;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+      .aud-up{background:rgba(227,160,8,.15)}.aud-dup{background:rgba(248,81,73,.18)}.aud-new{background:rgba(46,160,67,.12)}
+      .aud-flag{font-size:11px;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.1);margin-inline-start:4px;white-space:nowrap}
+      .aud-flag.r{background:rgba(248,81,73,.35)}.aud-src{font-size:11px;opacity:.65;direction:ltr;text-align:left;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .aud-box footer{padding:12px 18px;border-top:1px solid rgba(255,255,255,.1);display:flex;gap:8px;flex-wrap:wrap;align-items:center}.aud-box footer .g{flex:1}
+      .drv-audit-warn{margin:8px 0;padding:8px 10px;border-radius:8px;background:rgba(248,81,73,.18);color:#ffb3ae;font-size:12.5px;line-height:1.5}`;
+      document.head.appendChild(st);
+    }
+    const norm=p=>String(p||'').toLowerCase().replace(/\\/g,'/').replace(/\/+$/,'');
+    const rows=GAMES.filter(g=>g.hdd===drive&&!sizeDeleted.has(Number(g.id))).map(g=>{
+      const now=sizeValueGB(g), orig=BASE_SIZE0.has(Number(g.id))?BASE_SIZE0.get(Number(g.id)):now, src=srcs[g.id]||null;
+      return {g,now,orig,delta:now-orig,src};
+    });
+    // نفس الفولدر (أو فولدر جوه التاني) متسجل لأكتر من لعبة = نفس الملفات اتحسبت مرتين
+    rows.forEach(r=>{ r.flags=[]; if(!r.src||!r.src.path)return; const p=norm(r.src.drive+'|'+r.src.path);
+      rows.forEach(o=>{ if(o===r||!o.src||!o.src.path)return; const q=norm(o.src.drive+'|'+o.src.path);
+        if(p===q)r.flags.push({t:'نفس فولدر «'+o.g.name+'»',red:1}); else if(q.startsWith(p+'/')||p.startsWith(q+'/'))r.flags.push({t:'متداخل مع «'+o.g.name+'»',red:1}); }); });
+    // أحجام متطابقة تماماً لأكتر من لعبة (بالبايت) = غالباً نفس الفولدر
+    const bySize={}; rows.forEach(r=>{ if(r.now>0.5){const k=r.now.toFixed(2); (bySize[k]=bySize[k]||[]).push(r);} });
+    Object.values(bySize).forEach(l=>{ if(l.length>1)l.forEach(r=>r.flags.push({t:'نفس الحجم بالظبط مع '+(l.length-1)+' لعبة تانية'})); });
+    const grew=r=>r.delta>0.05; rows.forEach(r=>{ if(r.orig<=0&&r.now>0)r.flags.push({t:'كان بدون حجم'}); else if(r.orig>0&&r.now>r.orig*1.25&&r.delta>3)r.flags.push({t:'زاد '+Math.round((r.now/r.orig-1)*100)+'%',red:1}); });
+    rows.sort((a,b)=>(b.flags.some(f=>f.red)-a.flags.some(f=>f.red))||(b.delta-a.delta)||(b.now-a.now));
+    const ov=document.createElement('div'); ov.className='aud-ov';
+    const fmtD=x=>(x>0?'+':x<0?'−':'')+Math.abs(x).toFixed(2);
+    const render=()=>{
+      const sumNow=rows.reduce((a,r)=>a+r.now,0), sumOrig=rows.reduce((a,r)=>a+r.orig,0), gap=cap?sumNow-cap:0;
+      ov.innerHTML=`<div class="aud-box" role="dialog" aria-modal="true"><header><h3>فحص أحجام ${esc(drive)}</h3><div class="aud-sum">
+        <span>السعة: <b>${cap?cap.toFixed(2)+' GB':'غير محددة'}</b></span><span>مجموع الألعاب دلوقتي: <b>${sumNow.toFixed(2)} GB</b></span><span>مجموعها الأصلي (قبل المسح): <b>${sumOrig.toFixed(2)} GB</b></span>
+        <span>الفرق بسبب المسح: <b>${fmtD(sumNow-sumOrig)} GB</b></span>${cap?`<span class="${gap>0?'bad':'good'}">${gap>0?'زيادة عن السعة: '+gap.toFixed(2)+' GB':'فاضل: '+(-gap).toFixed(2)+' GB'}</span>`:''}</div>
+        <div style="font-size:12px;opacity:.75;margin-top:8px">الصفوف الحمرا هي الأولى بالمراجعة. «رجّع الأصلي» بيرجع الحجم اللي كان في الشيت قبل المسح، و«صفّر» مناسب للعبة نصبتها جوه فولدر لعبة تانية (زي Halo جوه MCC).</div></header>
+        <div class="aud-body"><table><thead><tr><th>اللعبة</th><th>الأصلي</th><th>الحالي</th><th>الفرق</th><th>ملاحظات</th><th>الفولدر اللي اتاخد منه</th><th></th></tr></thead><tbody>${rows.map((r,i)=>`<tr class="${r.flags.some(f=>f.red)?'aud-dup':grew(r)?(r.orig>0?'aud-up':'aud-new'):''}"><td>${esc(r.g.name)}</td><td class="aud-n">${r.orig.toFixed(2)}</td><td class="aud-n">${r.now.toFixed(2)}</td><td class="aud-n">${fmtD(r.delta)}</td><td>${r.flags.map(f=>`<span class="aud-flag ${f.red?'r':''}">${esc(f.t)}</span>`).join('')}</td><td class="aud-src" title="${esc(r.src?r.src.path:'')}">${r.src?esc(r.src.path):'—'}</td><td style="white-space:nowrap">${Math.abs(r.delta)>0.005?`<button type="button" class="btn" data-a="orig" data-i="${i}">رجّع الأصلي</button> `:''}${r.now>0?`<button type="button" class="btn" data-a="zero" data-i="${i}">صفّر</button>`:''}</td></tr>`).join('')}</tbody></table></div>
+        <footer><button type="button" class="btn" data-a="allorig">رجّع كل الألعاب اللي زادت لأصلها</button><span class="g"></span><button type="button" class="btn" data-a="close">إغلاق</button></footer></div>`;
+    };
+    const commit=()=>{ saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides); try{renderDrives();renderSizesTab();renderHeroStats();renderDashboard();renderResults();}catch(e){} };
+    const setSize=(r,v)=>{ sizeOverrides[r.g.id]=v; r.g.sizeGB=v; r.now=v; r.delta=v-r.orig; };
+    ov.addEventListener('click',e=>{
+      const b=e.target.closest('button'); if(!b){ if(e.target===ov)ov.remove(); return; }
+      const a=b.dataset.a, r=rows[Number(b.dataset.i)];
+      if(a==='close'){ov.remove();return;}
+      if(a==='orig'&&r){ setSize(r,r.orig); }
+      else if(a==='zero'&&r){ setSize(r,0); }
+      else if(a==='allorig'){ if(!confirm('هرجّع حجم كل لعبة زادت بعد المسح لقيمتها الأصلية في الشيت. متأكد؟'))return; rows.forEach(x=>{ if(x.delta>0.005)setSize(x,x.orig); }); }
+      commit(); render();
+    });
+    render(); document.body.appendChild(ov);
   }
 
   /* ================= FILTER STATE ================= */
@@ -2482,10 +2546,11 @@ function matchSizes(list,games,minScore){
     similarity:(a,b,o)=>sizeScore(sizeTokens(a),sizeTokens(b),!!(o&&o.lenient)),
     // rows: [{id, bytes}] — بيسجل الأحجام زي ما بيعمل زرار Import بالظبط
     apply(rows){
-      let n=0;
+      let n=0; const srcs=loadJSON(SIZE_SRC_KEY,{})||{};
       rows.forEach(r=>{ const g=GAMES.find(x=>Number(x.id)===Number(r.id)); if(!g||!(r.bytes>0))return;
-        const gb=gbFromBytes(r.bytes); sizeOverrides[g.id]=gb; g.sizeGB=gb; sizeDeleted.delete(Number(g.id)); n++; });
-      saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides); saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]);
+        const gb=gbFromBytes(r.bytes); sizeOverrides[g.id]=gb; g.sizeGB=gb; sizeDeleted.delete(Number(g.id)); n++;
+        if(r.src) srcs[g.id]={drive:r.src.drive||'',path:r.src.path||'',bytes:r.bytes}; });
+      saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides); saveJSON(SIZE_DELETED_KEY,[...sizeDeleted]); saveJSON(SIZE_SRC_KEY,srcs);
       return n;
     },
     // نتيجة الفحص: found = ids اتلقت (أزرق) — missing = ids ملقيناهاش (X أحمر)
