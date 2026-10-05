@@ -3803,3 +3803,91 @@ body.light .dt-sort::after{color:#2a5aa3 !important;}
 body.light #size-scan-panel{background:#eaf1fb !important;border:1px solid #b9cdea !important;color:#0a3a82 !important;}
 body.light #size-scan-panel :is(.ssp-warn,.ssp-title,.ssp-list,div,span,b,strong){color:#0a3a82 !important;}
 body.light #size-scan-panel button{background:linear-gradient(180deg,#ffffff,#e0e8f3) !important;color:#0a3a82 !important;border:1px solid #aab6c4 !important;}
+
+/* ===== 14) Round 5: Library filters, open game card, modals ===== */
+/* --- filters panel (the "menus") --- */
+body.light #library-section aside#filters.filters{background:linear-gradient(180deg,#ffffff,#eef3f9) !important;border:1px solid #c9d2dd !important;box-shadow:0 12px 30px rgba(20,60,120,.18) !important;}
+body.light #library-section aside#filters.filters :is(.f-group,details.f-group){
+  background:linear-gradient(180deg,#ffffff,#eaf0f8) !important;border:1px solid #c9d2dd !important;box-shadow:0 1px 4px rgba(20,60,120,.08) !important;color:#0a3a82 !important;
+}
+body.light #library-section aside#filters.filters :is(.f-group,details.f-group)[open]{border-color:#1565d8 !important;}
+body.light #library-section aside#filters.filters :is(summary,.chip-list,.range-row,.filter-panel-tools){background:transparent !important;box-shadow:none !important;border-color:transparent !important;}
+body.light #library-section aside#filters.filters :is(.filter-group-title,.filter-group-title *,summary span,.chip-label,label,label span,.range-row span,.filter-panel-action span){color:#0a3a82 !important;text-shadow:none !important;}
+body.light #library-section aside#filters.filters .filter-group-icon{background:#dbe8fa !important;color:#0b4fb3 !important;border:1px solid #9fbbe3 !important;box-shadow:none !important;}
+body.light #library-section aside#filters.filters .filter-group-icon *{color:#0b4fb3 !important;}
+body.light #library-section aside#filters.filters .filter-group-count{background:#dbe8fa !important;color:#0b4fb3 !important;border:1px solid #9fbbe3 !important;}
+body.light #library-section aside#filters.filters .chip{background:linear-gradient(180deg,#ffffff,#e8eef6) !important;border:1px solid #c9d2dd !important;color:#0a3a82 !important;box-shadow:none !important;}
+body.light #library-section aside#filters.filters .chip:hover{border-color:#1565d8 !important;background:#e3edfb !important;}
+body.light #library-section aside#filters.filters .chip.active{background:linear-gradient(180deg,#1b6fe6,#0b4fb3) !important;border-color:#0a3f94 !important;}
+body.light #library-section aside#filters.filters .chip.active,body.light #library-section aside#filters.filters .chip.active *{color:#ffffff !important;}
+body.light #library-section aside#filters.filters button:not(.chip){background:linear-gradient(180deg,#ffffff,#dfe6ef) !important;border:1px solid #aab6c4 !important;color:#0a3a82 !important;box-shadow:0 1px 3px rgba(20,60,120,.12) !important;}
+body.light #library-section aside#filters.filters button:not(.chip) *{color:#0a3a82 !important;}
+body.light #library-section aside#filters.filters button:not(.chip):hover{border-color:#1565d8 !important;background:#e3edfb !important;}
+body.light #library-section aside#filters.filters :is(.range-row input,input[type=number],input[type=text]){background:#ffffff !important;border:1px solid #aab6c4 !important;color:#0a3a82 !important;}
+body.light #library-section aside#filters.filters :is(div,label):has(> input[type=checkbox]){background:linear-gradient(180deg,#ffffff,#eaf0f8) !important;border:1px solid #c9d2dd !important;color:#0a3a82 !important;}
+body.light #library-section aside#filters.filters input[type=checkbox]{accent-color:#1565d8;}
+/* --- opened game card --- */
+body.light .g-row.open .g-detail,body.light .g-row.open .g-detail-fields,body.light .g-row.open .g-detail-cover{background:transparent !important;box-shadow:none !important;}
+body.light .g-row.open .g-detail-fields > div{background:#f6f9fd !important;border-color:#d4dde9 !important;}
+body.light .g-row.open .g-detail-fields .dk,body.light .g-detail div .dk{color:#2a5aa3 !important;text-shadow:none !important;}
+body.light .g-row.open .g-detail-fields .dv,body.light .g-detail div .dv,body.light .g-row.open .g-detail-fields .dv *{color:#0a2f6b !important;text-shadow:none !important;}
+body.light .g-idx,body.light .g-series{color:#3f67a3 !important;}
+body.light .g-row .game-name-link,body.light .g-row.open .game-name-link,body.light .library-game-name{color:#0a2f6b !important;background:transparent !important;border-color:transparent !important;text-shadow:none !important;box-shadow:none !important;}
+body.light .g-row.open .g-detail-fields .last-played-days,body.light .last-played-days{background:linear-gradient(145deg,#2a7be8,#0b3f94) !important;color:#ffffff !important;border:1.5px solid #c9d2dd !important;box-shadow:none !important;}
+body.light .last-played-days *{color:#ffffff !important;}
+body.light .last-played-days::first-line{color:#ffffff !important;}
+body.light :is(.cover-upload-label,.cover-remove){background:linear-gradient(180deg,#ffffff,#dfe6ef) !important;color:#0b4fb3 !important;border:1px solid #aab6c4 !important;}
+body.light .g-row.open .g-badges .badge{background:#f1f5fa !important;color:#0a3a82 !important;border-color:#aab6c4 !important;text-shadow:none !important;}
+body.light .g-row.open .g-badges .badge.hdd,body.light .g-row.open .g-badges .badge.size,body.light .g-row.open .g-badges .badge.play-count-badge{background:#e8f0fb !important;color:#0a3a82 !important;border-color:#1565d8 !important;}
+body.light .g-row.open .g-badges .badge.year{color:#3f67a3 !important;}
+body.light .g-row.open .g-badges .badge.state-done,body.light .g-row.open .g-badges .badge.verdict-very-good{background:#e6f6ee !important;color:#0d7a45 !important;border-color:#2e9d60 !important;}
+body.light .g-row.open .g-badges .badge.verdict-epic{background:#fff4cf !important;color:#8a5d00 !important;border-color:#d2a72e !important;}
+body.light .g-row.open .g-badges .badge.verdict-great{background:#fffadb !important;color:#7a6a00 !important;border-color:#cdb52f !important;}
+body.light .g-row.open .g-badges .badge.verdict-good{background:#eaf1fb !important;color:#0a3a82 !important;border-color:#8aa6cf !important;}
+body.light .g-row.open .g-badges .badge.verdict-not-bad{background:#fdeaea !important;color:#c22b2b !important;border-color:#c53b3b !important;}
+/* --- modals: Game Tools, Upcoming picker, Add Game --- */
+body.light :is(.game-tools-card,.upcoming-game-card,.library-add-game-card) *:not(svg):not(path):not(img){color:#0a3a82 !important;text-shadow:none !important;}
+body.light :is(.game-tools-card,.upcoming-game-card,.library-add-game-card) :is(h1,h2,h3,h4,.game-tool-section-title,.game-tools-head h3,.history-main strong){color:#0a2f6b !important;}
+body.light :is(.game-quick-btn,.game-history-item,.upcoming-picker-preview,.upcoming-picker-results,.upcoming-picker-item,.upcoming-result,.dt-game-results){background:linear-gradient(180deg,#ffffff,#eef3f9) !important;border:1px solid #c9d2dd !important;}
+body.light :is(.upcoming-picker-placeholder,.history-num){background:#dbe8fa !important;border:1px solid #1565d8 !important;color:#0b4fb3 !important;}
+body.light .game-quick-btn b{color:#0b4fb3 !important;}
+body.light .game-tool-section{border-top:1px solid #d4dde9 !important;}
+body.light .game-tools-card .tool-save-btn,body.light .upcoming-game-card .upcoming-save-btn,body.light .library-add-game-card .tool-save-btn{background:linear-gradient(180deg,#1b6fe6,#0b4fb3) !important;border-color:#0a3f94 !important;color:#ffffff !important;}
+body.light .game-tools-card .tool-save-btn *,body.light .upcoming-game-card .upcoming-save-btn *{color:#ffffff !important;}
+body.light .library-add-game-card :is(input,select,textarea),body.light input[id^="ag-"],body.light select[id^="ag-"],body.light textarea[id^="ag-"]{background:#ffffff !important;color:#0a3a82 !important;border:1px solid #aab6c4 !important;}
+body.light :is(.library-add-game-card,.game-edit-field) :is(label,.ag-label,span){color:#0a3a82 !important;}
+body.light .game-edit-field :is(input,select,textarea){background:#ffffff !important;color:#0a3a82 !important;border:1px solid #aab6c4 !important;}
+body.light .game-edit-actions button{background:linear-gradient(180deg,#ffffff,#dfe6ef) !important;color:#0a3a82 !important;border:1px solid #aab6c4 !important;}
+body.light .game-edit-actions .save-edit{background:linear-gradient(180deg,#1b6fe6,#0b4fb3) !important;color:#ffffff !important;}
+
+/* ===== 15) Round 6 ===== */
+body.light #library-section aside#filters.filters :is(.n,.chip-mark,.chip .n,.chip-label){color:#2a5aa3 !important;}
+body.light #library-section aside#filters.filters .chip.active :is(.n,.chip-mark,.chip-label){color:#ffffff !important;}
+body.light #library-section aside#filters.filters :is(.rating-stars,.chip-mark.rating-stars){color:#b87800 !important;text-shadow:none !important;}
+body.light #library-section aside#filters.filters .filter-panel-action.filter-panel-action,
+body.light #library-section aside#filters.filters button.filter-panel-action,
+body.light #library-section aside#filters.filters #collapse-all-filters,
+body.light #library-section aside#filters.filters #expand-all-filters{background:linear-gradient(180deg,#ffffff,#dfe6ef) !important;color:#0a3a82 !important;border:1px solid #aab6c4 !important;}
+body.light #library-section aside#filters.filters .filter-panel-action *{color:#0a3a82 !important;}
+body.light #library-section aside#filters.filters button#clear-filters,
+body.light #library-section aside#filters.filters button[id*="clear"]{background:linear-gradient(180deg,#1b6fe6,#0b4fb3) !important;color:#ffffff !important;border-color:#0a3f94 !important;}
+body.light #library-section aside#filters.filters button[id*="clear"] *{color:#ffffff !important;}
+body.light label.toggle-row,body.light .toggle-row{background:linear-gradient(180deg,#ffffff,#eaf0f8) !important;border:1px solid #c9d2dd !important;color:#0a3a82 !important;}
+body.light #library-add-game-wrap :is(input,select,textarea),body.light .library-add-game-card :is(input,select,textarea){background:#ffffff !important;color:#0a3a82 !important;border:1px solid #aab6c4 !important;}
+body.light #library-add-game-wrap :is(label,.field label,span,div){color:#0a3a82 !important;}
+body.light #library-add-game-wrap :is(.ag-custom-wrap,.ag-custom-wrap input,.ag-grid > div,fieldset){background:transparent !important;}
+body.light #library-add-game-wrap :is(.ag-custom-wrap input){background:#ffffff !important;}
+body.light .g-row.open .g-detail-cover :is(.cover-upload-label,.cover-remove,.icon-btn),body.light .g-row :is(.cover-upload-label,.cover-remove){background:linear-gradient(180deg,#ffffff,#dfe6ef) !important;color:#0b4fb3 !important;border:1px solid #aab6c4 !important;}
+body.light .g-row .g-idx,body.light .g-row.open .g-idx{color:#3f67a3 !important;}
+body.light .g-row .g-series,body.light .g-row.open .g-series,body.light .g-row .g-name .g-series{color:#3f67a3 !important;}
+
+/* ===== 16) Round 7 ===== */
+body.light :is(.ag-grid,.game-edit-grid,.game-edit-panel,.game-edit-form){background:linear-gradient(180deg,#ffffff,#eef3f9) !important;border:1px solid #c9d2dd !important;box-shadow:none !important;color:#0a3a82 !important;}
+body.light .ag-grid *:not(input):not(select):not(textarea):not(button):not(option){color:#0a3a82 !important;}
+body.light .ag-grid button{background:linear-gradient(180deg,#ffffff,#dfe6ef) !important;color:#0a3a82 !important;border:1px solid #aab6c4 !important;}
+body.light #library-add-game-wrap > button,body.light #library-add-game-wrap .primary-btn,body.light .library-add-game-card .ui-btn{background:linear-gradient(180deg,#1b6fe6,#0b4fb3) !important;color:#ffffff !important;border-color:#0a3f94 !important;}
+/* open game card: no gold glow */
+body.light .g-row.open,body.light .g-row.open .g-row-top{background-image:linear-gradient(180deg,#ffffff,#eef3f9) !important;}
+body.light .g-row.open::before,body.light .g-row.open::after{display:none !important;}
+/* group chevrons */
+body.light #library-section aside#filters.filters summary::after,body.light #library-section aside#filters.filters summary::marker,body.light #library-section aside#filters.filters .filter-group-chevron{color:#0b4fb3 !important;border-color:#0b4fb3 !important;}
