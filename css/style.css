@@ -3518,3 +3518,288 @@ body.light .drv-stat{background:rgba(20,50,80,.06)}
 .gy-plays{display:inline-flex;justify-content:center;align-items:center;min-width:34px;height:26px;padding:0 8px;border-radius:13px;background:rgba(100,185,239,.16);color:#8fd0f6;font-weight:800;font-size:.85rem;justify-self:center}
 .gy-plays.zero{background:rgba(255,255,255,.06);color:#7f93a4}
 @media(max-width:700px){.gy-head,.gy-game-row{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 52px;gap:8px}.gy-list{padding:0 10px 12px}}
+
+
+/* =====================================================================
+   LIGHT THEME — White / Blue / Silver  (no photo background, blue text)
+   Active only when <body class="light">.  Dark theme is untouched.
+   ===================================================================== */
+body.light{
+  --lt-white:#ffffff;
+  --lt-bg:#f4f7fb;
+  --lt-silver:#dfe5ec;
+  --lt-silver-2:#c9d2dd;
+  --lt-silver-3:#aab6c4;
+  --lt-blue:#0b4fb3;          /* main blue  */
+  --lt-blue-2:#1565d8;        /* bright blue */
+  --lt-blue-3:#0a2f6b;        /* deep blue (headings) */
+  --lt-text:#0a3a82;          /* body text: blue, high contrast on white */
+  --lt-text-soft:#2a5aa3;
+  --lt-tint:#e8f0fb;          /* very light blue tint */
+  --lt-tint-2:#d6e4f7;
+
+  --ink:#f4f7fb; --ink-2:#e9eef5; --panel:#ffffff; --panel-2:#f1f5fa;
+  --line:rgba(30,80,150,.20); --line-strong:rgba(30,80,150,.38);
+  --parchment:#0a3a82; --parchment-dim:#1f4f9a; --muted:#3f67a3;
+  --brass:#1565d8; --brass-bright:#0b4fb3;
+  --verdigris:#1f6fb8; --verdigris-bright:#1565d8; --rust:#c0392b;
+  --main-tab-gold:#1565d8; --main-tab-gold-2:#0b4fb3;
+  color-scheme:light;
+}
+
+/* ---- 1) Remove the photo background completely ---- */
+body.light #dynamic-bg{display:none !important;background-image:none !important;animation:none !important;}
+body.light::after,body.light::before{display:none !important;}
+html body.light{
+  background:linear-gradient(180deg,#ffffff 0%,#f1f5fa 45%,#e3e9f1 100%) fixed !important;
+  color:var(--lt-text) !important;
+}
+body.light ::selection{background:#1565d8;color:#fff;}
+body.light a{color:#0b4fb3;}
+body.light ::-webkit-scrollbar-track{background:#e9eef5;}
+body.light ::-webkit-scrollbar-thumb{background:#aab6c4;border:2px solid #e9eef5;}
+
+/* ---- 2) Header banner: keep the brand artwork, frame it in silver/blue ---- */
+body.light header.hero{
+  border:2px solid var(--lt-silver-3) !important;
+  border-bottom:4px solid var(--lt-blue-2) !important;
+  border-radius:0 0 18px 18px;
+  box-shadow:0 10px 26px rgba(20,60,120,.22) !important;
+}
+
+/* ---- 3) Text: blue & clear everywhere ---- */
+body.light :is(h1,h2,h3,h4,h5,h6,p,span,div,li,label,td,th,summary,legend,small,strong,b,em,i,dt,dd,caption,figcaption){
+  color:var(--lt-text);
+  text-shadow:none !important;
+}
+body.light :is(h1,h2,h3,h4,h5,h6){color:var(--lt-blue-3) !important;}
+body.light .note,body.light .report-help,body.light .tool-hint,body.light .s-meta,
+body.light .result-count,body.light .home-clock-label{color:var(--lt-text-soft) !important;}
+
+/* ---- 4) Cards / panels / lists ---- */
+body.light :is(.panel,.drive-card,.filters,.g-row,.recent-game,.report-card,.section-head,
+  .dt-add-panel,.dt-table-wrap,.results-list,.report-panel,.home-playing-card,.upcoming-add-slot,
+  .upcoming-games-grid,.home-planning-games,.drv-card,.drv-summary,.drv-toolbar,.sz-totals,
+  .series-directory-group,.series-directory-games,.dt-resolution-panel,.dates-metric,
+  .backup-status,.notify-panel,.users-popup,.drives-toolbar,.series-progress){
+  background:linear-gradient(180deg,#ffffff,#f3f6fb) !important;
+  color:var(--lt-text) !important;
+  border-color:var(--lt-silver-2) !important;
+  box-shadow:0 4px 14px rgba(20,60,120,.08) !important;
+  backdrop-filter:none !important;-webkit-backdrop-filter:none !important;
+}
+body.light aside.filters,body.light #library-section aside#filters.filters{background:linear-gradient(180deg,#ffffff,#eef3f9) !important;}
+body.light .tab-page,body.light .tab-page::before{
+  background:transparent !important;border-color:transparent !important;
+  backdrop-filter:none !important;-webkit-backdrop-filter:none !important;
+}
+body.light .g-row:hover,body.light .recent-game:hover{border-color:var(--lt-blue-2) !important;background:linear-gradient(180deg,#ffffff,#e8f0fb) !important;}
+body.light footer{color:var(--lt-text-soft) !important;}
+
+/* ---- 5) Tabs bar ---- */
+body.light .tabnav{
+  background:linear-gradient(180deg,#ffffff,#e9eef5) !important;
+  border:1px solid var(--lt-silver-2) !important;
+  box-shadow:0 6px 18px rgba(20,60,120,.10) !important;
+  backdrop-filter:none !important;
+}
+body.light .tabnav-btn{
+  background:linear-gradient(180deg,#ffffff,#e6ecf4) !important;
+  border:1px solid var(--lt-silver-2) !important;
+  color:var(--lt-text) !important;
+  box-shadow:0 2px 6px rgba(20,60,120,.08) !important;
+}
+body.light .tabnav-btn .tab-label{color:var(--lt-text) !important;text-shadow:none !important;}
+body.light .tabnav-btn .tab-icon{
+  color:var(--lt-blue) !important;border-color:var(--lt-silver-3) !important;
+  background:radial-gradient(circle,#ffffff,#e4ebf5) !important;box-shadow:none !important;filter:none !important;
+}
+body.light .tabnav-btn:hover,body.light .tabnav-btn.active{
+  background:linear-gradient(180deg,#ffffff,#d6e4f7) !important;
+  border-color:var(--lt-blue-2) !important;color:var(--lt-blue) !important;
+  box-shadow:0 6px 16px rgba(21,101,216,.22) !important;
+}
+body.light .tabnav-btn:hover .tab-label,body.light .tabnav-btn.active .tab-label{color:var(--lt-blue) !important;}
+body.light .tabnav-btn::after{display:none !important;}
+body.light .tabnav-btn.active::before{background:var(--lt-blue-2) !important;box-shadow:0 0 8px rgba(21,101,216,.55) !important;}
+
+/* ---- 6) Floating dock buttons (language / backup / bell / users / theme / logout) ---- */
+body.light .hero-actions > .ui-btn,body.light .hero-actions > .logout-btn{
+  background:linear-gradient(180deg,#ffffff,#dfe6ef) !important;
+  color:var(--lt-blue) !important;
+  border:1px solid var(--lt-silver-3) !important;
+  box-shadow:0 4px 12px rgba(20,60,120,.18) !important;
+}
+body.light .hero-actions > .ui-btn:hover,body.light .hero-actions > .logout-btn:hover{border-color:var(--lt-blue-2) !important;background:#e8f0fb !important;}
+body.light .ui-btn{background:linear-gradient(180deg,#ffffff,#e4ebf4);color:var(--lt-blue);border-color:var(--lt-silver-3);}
+
+/* ---- 7) Inputs, selects, buttons ---- */
+body.light :is(input,select,textarea,.search-input,.sort-select,.page-select,.mini-input,.tool-input,
+  .upcoming-picker-search,.dt-game-search,.size-kb-input,.cap-input,.other-input,.auth-gate-input){
+  background:#ffffff !important;color:var(--lt-text) !important;
+  border:1px solid var(--lt-silver-3) !important;box-shadow:none !important;
+}
+body.light :is(input,textarea)::placeholder{color:#6f90bd !important;opacity:1;}
+body.light :is(input,select,textarea):focus{border-color:var(--lt-blue-2) !important;box-shadow:0 0 0 3px rgba(21,101,216,.18) !important;outline:none !important;}
+body.light option{background:#ffffff !important;color:var(--lt-text) !important;}
+body.light :is(button,.btn,.action-btn,.plus-btn,.icon-btn,.export-icon-btn,.dt-bulk-btn,.dt-now-btn,
+  .library-filter-toggle,.game-quick-inline,.game-quick-btn,.chip,.pager button,.dt-pager button,
+  .upcoming-change,.upcoming-remove,.global-context-menu button){
+  background:linear-gradient(180deg,#ffffff,#e6ecf4);
+  color:var(--lt-text);border:1px solid var(--lt-silver-3);box-shadow:0 1px 3px rgba(20,60,120,.10);
+}
+body.light :is(button,.btn,.action-btn,.plus-btn,.icon-btn,.export-icon-btn,.dt-bulk-btn,.dt-now-btn,
+  .library-filter-toggle,.game-quick-inline,.game-quick-btn,.chip,.pager button,.dt-pager button):hover:not(:disabled){
+  border-color:var(--lt-blue-2);background:linear-gradient(180deg,#ffffff,#d6e4f7);color:var(--lt-blue);
+}
+body.light :is(.chip.active,.pager button.active,.pager .active,.dt-pager .active,.game-quick-btn.is-active,
+  .tool-save-btn,.upcoming-save-btn,.save-edit,.game-edit-actions .save-edit){
+  background:linear-gradient(180deg,#1b6fe6,#0b4fb3) !important;color:#ffffff !important;border-color:#0a3f94 !important;
+}
+body.light :is(.chip.active,.pager .active,.tool-save-btn,.upcoming-save-btn,.save-edit) *{color:#ffffff !important;}
+body.light :is(button,.btn)[disabled]{opacity:.55;}
+
+/* ---- 8) Tables / reports ---- */
+body.light :is(table,.report-table,.sizes-table,.dt-table){color:var(--lt-text) !important;}
+body.light :is(th,.report-table th,.sizes-table th,.dt-table th){
+  background:#e3ebf6 !important;color:var(--lt-blue-3) !important;border-bottom:1px solid var(--lt-silver-3) !important;
+}
+body.light :is(td,.report-table td,.sizes-table td,.dt-table td){border-bottom:1px solid var(--lt-silver) !important;background:transparent;}
+body.light tr:hover td{background:#eef4fc !important;}
+body.light .report-card .rv,body.light .gy-plays{color:var(--lt-blue) !important;}
+body.light .gy-game-row,body.light .report-year-game{background:#f1f5fa !important;}
+body.light .gy-plays{background:#dbe8fa !important;}
+body.light .gy-plays.zero{background:#edf1f6 !important;color:#6f90bd !important;}
+body.light .gy-list{border-top:1px solid var(--lt-silver-2) !important;}
+
+/* ---- 9) Modals / popups ---- */
+body.light :is(.game-tools-modal,.upcoming-game-modal,.library-add-game-modal,.series-history-backdrop){
+  background:rgba(40,70,110,.35) !important;backdrop-filter:blur(3px) !important;
+}
+body.light :is(.game-tools-card,.upcoming-game-card,.library-add-game-card){
+  background:linear-gradient(180deg,#ffffff,#eef3f9) !important;color:var(--lt-text) !important;
+  border:1px solid var(--lt-silver-3) !important;box-shadow:0 20px 60px rgba(20,50,100,.28) !important;
+}
+
+/* ---- 10) Clock in header ---- */
+body.light .home-clock-analog{background:radial-gradient(circle,#ffffff,#e4ebf5) !important;border-color:var(--lt-silver-3) !important;box-shadow:none !important;}
+body.light .clock-tick{background:var(--lt-blue) !important;}
+body.light .clock-hand{background:var(--lt-blue-3) !important;}
+body.light .clock-second{background:#d23b3b !important;}
+body.light .clock-center{background:var(--lt-blue-2) !important;}
+body.light .home-clock-digital{color:var(--lt-blue-3) !important;}
+body.light .home-clock-date{color:var(--lt-text-soft) !important;}
+
+/* ---- 11) Fixes round 2 ---- */
+body.light .results-list{background:transparent !important;box-shadow:none !important;border-color:transparent !important;}
+body.light .section-head .tab,body.light span.tab{
+  background:#dbe8fa !important;color:var(--lt-blue) !important;border:1px solid var(--lt-blue-2) !important;
+}
+/* round badges / emblems: blue disc, white number */
+body.light .rating-circle,body.light .rating-circle:hover{
+  background:linear-gradient(145deg,#2a7be8,#0b3f94) !important;
+  border:2px solid #c9d2dd !important;color:#ffffff !important;text-shadow:none !important;
+  box-shadow:0 0 0 2px rgba(21,101,216,.18),0 4px 12px rgba(20,60,120,.30) !important;
+}
+body.light :is(.playing-days-circle,.home-status-circle,.days-circle,.days-circle-yellow,.days-circle-red){
+  background:linear-gradient(145deg,#2a7be8,#0b3f94) !important;
+  border:1.5px solid #c9d2dd !important;color:#ffffff !important;box-shadow:0 3px 8px rgba(20,60,120,.28) !important;
+}
+body.light :is(.playing-days-circle,.home-status-circle,.days-circle) :is(strong,span,b){color:#ffffff !important;}
+body.light .days-circle-red{background:linear-gradient(145deg,#e0554b,#b02a22) !important;}
+/* filter toggle button in Library */
+body.light #library-section .library-filter-toggle,
+body.light #library-section .library-filter-toggle:hover,
+body.light #library-section .library-filter-toggle.active{
+  background:linear-gradient(180deg,#ffffff,#dfe6ef) !important;color:var(--lt-blue) !important;
+  border:1px solid var(--lt-silver-3) !important;box-shadow:0 2px 6px rgba(20,60,120,.15) !important;
+}
+body.light #library-section .library-filter-toggle:hover,body.light #library-section .library-filter-toggle.active{border-color:var(--lt-blue-2) !important;background:#e8f0fb !important;}
+/* badges: readable tints */
+body.light .badge{background:#f1f5fa !important;color:var(--lt-text) !important;border-color:var(--lt-silver-3) !important;}
+body.light .badge.hdd{color:#0b4fb3 !important;border-color:#1565d8 !important;background:#e8f0fb !important;}
+body.light .badge.size{color:#0a3a82 !important;border-color:#1565d8 !important;background:#e8f0fb !important;}
+body.light .badge.year{color:#3f67a3 !important;}
+body.light .badge.state-done,body.light .g-row.open .g-badges .badge.state-done{color:#0d7a45 !important;border-color:#2e9d60 !important;background:#e6f6ee !important;}
+body.light .badge.state-brandnew{color:#4a58a0 !important;border-color:#8a93b0 !important;background:#eceefa !important;}
+body.light .badge.state-notcompleted{color:#9a5a00 !important;border-color:#c98a2c !important;background:#fdf1dc !important;}
+body.light .badge.verdict-epic{color:#8a5d00 !important;border-color:#d2a72e !important;background:#fff4cf !important;}
+body.light .badge.verdict-nostalgic{color:#7a5806 !important;border-color:#8f6b08 !important;background:#f8edd2 !important;}
+body.light .badge.verdict-great{color:#7a6a00 !important;border-color:#cdb52f !important;background:#fffadb !important;}
+body.light .badge.verdict-very-good{color:#0d7a45 !important;border-color:#2e9d60 !important;background:#e6f6ee !important;}
+body.light .badge.verdict-good{color:#0a3a82 !important;border-color:#8aa6cf !important;background:#eaf1fb !important;}
+body.light .badge.verdict-not-bad{color:#c22b2b !important;border-color:#c53b3b !important;background:#fdeaea !important;}
+body.light .badge.verdict-bad{color:#8b0000 !important;border-color:#8b0000 !important;background:#fbe4e4 !important;}
+body.light .g-row.open .g-badges .badge.size,body.light .g-row.open .g-badges .badge.hdd,
+body.light .g-row.open .g-badges .badge.play-count-badge{color:#0a3a82 !important;border-color:#1565d8 !important;background:#e8f0fb !important;}
+/* rating label + stars: darker shades so they read on white */
+body.light .g-rating-stars,body.light .g-row.open .g-rating-stars{text-shadow:none !important;}
+body.light .g-rating.verdict-epic .g-rating-label,body.light .g-rating.verdict-epic .g-rating-stars{color:#c88a00 !important;}
+body.light .g-rating.verdict-nostalgic .g-rating-label,body.light .g-rating.verdict-nostalgic .g-rating-stars{color:#8f6b08 !important;}
+body.light .g-rating.verdict-great .g-rating-label,body.light .g-rating.verdict-great .g-rating-stars{color:#b89a00 !important;}
+body.light .g-rating.verdict-very-good .g-rating-label,body.light .g-rating.verdict-very-good .g-rating-stars{color:#16915a !important;}
+body.light .g-rating.verdict-good .g-rating-label,body.light .g-rating.verdict-good .g-rating-stars{color:#1565d8 !important;}
+body.light .g-rating.verdict-not-bad .g-rating-label,body.light .g-rating.verdict-not-bad .g-rating-stars{color:#d12f2f !important;}
+body.light .g-rating.verdict-bad .g-rating-label,body.light .g-rating.verdict-bad .g-rating-stars{color:#8b0000 !important;}
+/* home cards: secondary lines */
+body.light .recent-game .rg-date,body.light .rg-date{color:#2a5aa3 !important;}
+body.light .home-playing-card :is(.rg-name,.game-name-link,a){color:var(--lt-blue-3) !important;}
+body.light .game-name-link{background:transparent !important;border:0 !important;box-shadow:none !important;}
+/* drives */
+body.light :is(.drive-card,.drv-card,.drv-summary,.drv-toolbar,.sz-totals){background:linear-gradient(180deg,#ffffff,#eef3f9) !important;border:1px solid var(--lt-silver-2) !important;}
+body.light :is(.drv-title,.drv-stat b,.drv-summary b,.drv-ring b,.drv-card b,.drv-card small,.drive-card b,.drive-card small){color:var(--lt-blue-3) !important;}
+body.light .drv-stat{background:#eef3f9 !important;}
+body.light :is(.drv-ring,.drv-ring::after,.drv-ring::before){background-color:#ffffff;}
+body.light .sp-track{background:#dfe6ef !important;}
+/* sizes */
+body.light .sz-x,body.light .sz-x-mini{color:#ffffff !important;}
+/* Game Dates toolbar + filters + bulk bar (these had ID-level dark rules) */
+body.light #dates-section :is(.dates-filters,.dt-toolbar,.dt-bulk-toolbar,.dt-add-panel,.dt-game-results,.dt-game-search){
+  background:linear-gradient(180deg,#ffffff,#eef3f9) !important;border:1px solid var(--lt-silver-2) !important;color:var(--lt-text) !important;
+}
+body.light #dates-section :is(.dates-filters .dt-filter,.dates-filters select,.dates-filters input,.dt-choice-select,.dt-date,.dt-end-date-input,.dt-page-size-select){
+  background:#ffffff !important;color:var(--lt-text) !important;border:1px solid var(--lt-silver-3) !important;box-shadow:none !important;
+}
+body.light #dates-section .dates-filters .dt-filter::placeholder{color:#6f90bd !important;}
+body.light #dates-section :is(.dates-filters option,.dt-choice-select option){background:#ffffff !important;color:var(--lt-text) !important;}
+body.light #dates-section :is(.dt-bulk-btn,.dt-now-btn){background:linear-gradient(180deg,#ffffff,#e6ecf4) !important;color:var(--lt-text) !important;border:1px solid var(--lt-silver-3) !important;}
+body.light #dates-section .dt-bulk-btn:hover:not(:disabled){background:#d6e4f7 !important;border-color:var(--lt-blue-2) !important;color:var(--lt-blue) !important;}
+body.light #dates-section :is(.dt-row-editing .dt-choice-select,.dt-row-editing .dt-date,.dt-row-editing .dt-end-date-input){background:#ffffff !important;color:var(--lt-text) !important;border:1px solid var(--lt-blue-2) !important;}
+body.light .dt-history-count{color:var(--lt-blue) !important;}
+body.light .dt-history-status.play-status-new{color:#0d7a45 !important;}
+body.light .dt-history-status.play-status-old{color:#8a5d00 !important;}
+body.light #dates-section :is(b,strong){color:var(--lt-blue-3) !important;}
+body.light .dates-metric b{color:var(--lt-text-soft) !important;}
+body.light .dates-metric strong{color:var(--lt-blue) !important;}
+body.light .dt-resolution-chart:after{background:#ffffff !important;}
+body.light .dt-resolution-chart span{color:var(--lt-blue-3) !important;}
+/* floating buttons: music + stats */
+body.light :is(.gv-music-toggle,.gv-music-panel){background:linear-gradient(180deg,#ffffff,#dfe6ef) !important;color:var(--lt-blue) !important;border:1px solid var(--lt-silver-3) !important;box-shadow:0 4px 12px rgba(20,60,120,.18) !important;}
+body.light .gv-music-toggle *{color:var(--lt-blue) !important;}
+
+/* ---- 12) Fixes round 3 ---- */
+body.light .g-rating.verdict-epic .g-rating-label,body.light .g-rating.verdict-epic .g-rating-stars{color:#b87800 !important;}
+body.light .g-rating.verdict-great .g-rating-label,body.light .g-rating.verdict-great .g-rating-stars{color:#a08400 !important;}
+body.light #dates-section .dt-history-count,body.light #dates-section td.dt-history-count{color:#0b4fb3 !important;}
+body.light #dates-section .dt-selected-count{color:#2a5aa3 !important;}
+
+/* ---- 13) Fixes round 4 ---- */
+/* clock sits on the dark banner → keep its text light */
+body.light .home-clock-digital{color:#ffffff !important;}
+body.light .home-clock-date{color:#cfe3ff !important;}
+body.light .home-clock-label{color:#9cc4ff !important;}
+body.light .home-clock-analog{box-shadow:0 0 8px rgba(120,180,255,.45) !important;}
+/* no nested card around the upcoming-games grid */
+body.light :is(.upcoming-games-grid,.home-planning-games){background:transparent !important;box-shadow:none !important;border-color:transparent !important;}
+body.light .drv-ring{background:radial-gradient(circle at 50% 35%,#ffffff,#e4edfa) !important;background-clip:padding-box !important;box-shadow:0 2px 8px rgba(20,60,120,.18) !important;}
+body.light .drv-ring::before{background:conic-gradient(#1565d8,#8db6ee,#c9d2dd,#1565d8) !important;}
+body.light .drv-ring b{color:#0a3a82 !important;}
+body.light .drv-ring small{color:#2a5aa3 !important;}
+body.light :is(thead th,.dt-table thead th,#dates-section table thead th,#dates-section th,.sizes-table thead th,.report-table thead th){
+  background:#dbe7f7 !important;color:#0a2f6b !important;border-bottom:2px solid #1565d8 !important;text-shadow:none !important;
+}
+body.light thead,body.light thead tr{background:#dbe7f7 !important;}
+body.light .dt-sort::after{color:#2a5aa3 !important;}
+body.light #size-scan-panel{background:#eaf1fb !important;border:1px solid #b9cdea !important;color:#0a3a82 !important;}
+body.light #size-scan-panel :is(.ssp-warn,.ssp-title,.ssp-list,div,span,b,strong){color:#0a3a82 !important;}
+body.light #size-scan-panel button{background:linear-gradient(180deg,#ffffff,#e0e8f3) !important;color:#0a3a82 !important;border:1px solid #aab6c4 !important;}
