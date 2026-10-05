@@ -1804,8 +1804,8 @@
       const d=new Date();
       const h=d.getHours(), m=d.getMinutes(), s=d.getSeconds();
       const hh=(h%12)||12;
-      if(digital) digital.textContent=`${pad(hh)}:${pad(m)} ${h>=12?'PM':'AM'}`;
-      if(dateEl) dateEl.textContent=d.toLocaleDateString('en-US',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+      if(digital) digital.textContent=(localStorage.getItem('gameVault_lang_v1')==='ar')?`${pad(hh)}:${pad(m)} ${h>=12?'م':'ص'}`.replace(/\d/g,d=>'٠١٢٣٤٥٦٧٨٩'[d]):`${pad(hh)}:${pad(m)} ${h>=12?'PM':'AM'}`;
+      if(dateEl) dateEl.textContent=d.toLocaleDateString(localStorage.getItem('gameVault_lang_v1')==='ar'?'ar-EG':'en-US',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
       const hourDeg=(h%12)*30 + m*.5 + s/120;
       const minuteDeg=m*6 + s*.1;
       const secondDeg=s*6;
@@ -2950,77 +2950,127 @@ function matchSizes(list,games,minScore){
     "كارت الشاشة":"Graphics Card",
     "يوم منذ آخر لعب":"days since last played",
     "لم يتم لعبها":"Never played"  };
-  const I18N_REV=Object.fromEntries(Object.entries(I18N).map(([a,e])=>[e,a]));
-  function tr(text){
-    const map=lang==='en'?I18N:I18N_REV;
-    let out=String(text??'');
-    const keys=Object.keys(map).filter(Boolean).sort((a,b)=>b.length-a.length);
-    for(const k of keys) if(out.includes(k)) out=out.split(k).join(map[k]);
-    return out;
+  /* ===== محرك الترجمة الكامل (عربي ⇄ إنجليزي): كلمات + حروف + أرقام + علامات ===== */
+  const GVX = window.GV_I18N_EXTRA || {ar2en:[],en2ar:[],rulesEN2AR:[],rulesAR2EN:[]};
+  const DICT_AR2EN = Object.assign({}, I18N); GVX.ar2en.forEach(([a,e])=>{ DICT_AR2EN[a]=e; });
+  const DICT_EN2AR = {}; Object.keys(DICT_AR2EN).forEach(a=>{ const e=DICT_AR2EN[a]; if(e && !(e in DICT_EN2AR) && !/[\u0600-\u06FF]/.test(e)) DICT_EN2AR[e]=a; });
+  GVX.en2ar.forEach(([e,a])=>{ DICT_EN2AR[e]=a; });
+  const I18N_REV = DICT_EN2AR;
+  const L_AR='\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF', L_EN='A-Za-z0-9';
+  function compileDict(map, cls, exactOnly){
+    const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    const keys=Object.keys(map).filter(k=>k && k.trim() && !exactOnly(k)).sort((a,b)=>b.length-a.length).map(esc);
+    return keys.length ? new RegExp('(?<!['+cls+'])(?:'+keys.join('|')+')(?!['+cls+'])','g') : null;
   }
-
-  // ===== Full bilingual coverage: translate every text node / attribute on the page =====
+  const RE_AR2EN = compileDict(DICT_AR2EN, L_AR, k=>k.length<=2);
+  const RE_EN2AR = compileDict(DICT_EN2AR, L_EN, k=>k.length<=3 || !/\s/.test(k));
+  const RE_EN2AR_MIXED = compileDict(DICT_EN2AR, L_EN, k=>k.length<=1);   // نص عربي فيه كلمات إنجليزية: نترجم حتى الكلمة الواحدة
+  const HAS_AR=/[\u0600-\u06FF]/, HAS_LAT=/[A-Za-z]/;
+  // قيم عربية في القاموس فيها كلمات إنجليزية (من القاموس القديم): نصلّحها مرة واحدة هنا
+  const EXPLICIT_EN2AR=new Set(GVX.en2ar.map(a=>a[0]));
+  Object.keys(DICT_EN2AR).forEach(k=>{ const v=DICT_EN2AR[k]; if(RE_EN2AR_MIXED && !EXPLICIT_EN2AR.has(k) && HAS_AR.test(v) && HAS_LAT.test(v)) DICT_EN2AR[k]=v.replace(RE_EN2AR_MIXED,m=>DICT_EN2AR[m]||m); });
+  const AR_DIG='٠١٢٣٤٥٦٧٨٩', FA_DIG='۰۱۲۳۴۵۶۷۸۹';
+  const UNIT_AR={GB:'جيجا',TB:'تيرا',MB:'ميجا',KB:'كيلو'};
+  const toArNum=t=>t.replace(/\d/g,d=>AR_DIG[d]).replace(/\./g,'٫').replace(/,/g,'٬');
+  function normalizeNums(s){
+    if(lang==='en'){
+      return s.replace(/[٠-٩]/g,d=>String(AR_DIG.indexOf(d))).replace(/[۰-۹]/g,d=>String(FA_DIG.indexOf(d)))
+        .replace(/٫/g,'.').replace(/٬/g,',').replace(/،/g,',').replace(/؟/g,'?').replace(/؛/g,';').replace(/٪/g,'%');
+    }
+    s=s.replace(/(\d[\d,]*(?:\.\d+)?)\s*(GB|TB|MB|KB)\b/g,(m,n,u)=>n+' '+UNIT_AR[u]);
+    if(/[A-Za-z]/.test(s)) return s;            // أسماء ألعاب/بيانات لاتينية: نسيب أرقامها زي ما هي
+    return s.replace(/\d[\d,]*(?:\.\d+)?/g,toArNum).replace(/%/g,'٪').replace(/\?/g,'؟');
+  }
+  const MEMO=new Map();
   function translateNode(raw){
-    const map=lang==='en'?I18N:I18N_REV;
-    const keys=Object.keys(map).filter(Boolean).sort((x,y)=>y.length-x.length);
-    let out=String(raw??'');
-    for(const k of keys) if(out.includes(k)) out=out.split(k).join(map[k]);
-    return out;
-  }
-  function translateAllText(){
-    const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{
-      acceptNode(node){
-        const p=node.parentElement;
-        if(!p) return NodeFilter.FILTER_REJECT;
-        const tag=p.tagName;
-        if(tag==='SCRIPT'||tag==='STYLE'||tag==='TEXTAREA') return NodeFilter.FILTER_REJECT;
-        return NodeFilter.FILTER_ACCEPT;
+    const s=String(raw??''); if(!s.trim()) return s;
+    const mk=lang+'\u0001'+s; if(MEMO.has(mk)) return MEMO.get(mk);
+    const lead=s.match(/^\s*/)[0], trail=s.match(/\s*$/)[0];
+    let out=s.slice(lead.length, s.length-trail.length);
+    const toEn=lang==='en', D=toEn?DICT_AR2EN:DICT_EN2AR, RE=toEn?RE_AR2EN:(HAS_AR.test(out)?RE_EN2AR_MIXED:RE_EN2AR);
+    if(toEn ? HAS_AR.test(out) : HAS_LAT.test(out)){
+      if(Object.prototype.hasOwnProperty.call(D,out)) out=D[out];
+      else{
+        (toEn?GVX.rulesAR2EN:GVX.rulesEN2AR).forEach(([re,rep])=>{ out=out.replace(re,rep); });
+        if(RE){ const before=out; out=out.replace(RE,m=>D[m]);
+          if(!toEn && out!==before && HAS_LAT.test(out) && RE_EN2AR_MIXED) out=out.replace(RE_EN2AR_MIXED,m=>D[m]); }   // تمرير تاني للكلمات المتبقية (جُمل واجهة فقط، مش أسماء ألعاب)
       }
-    });
-    const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
-    nodes.forEach(n=>{ if(n.nodeValue && n.nodeValue.trim()) n.nodeValue=translateNode(n.nodeValue); });
-    document.querySelectorAll('[placeholder],[title],[aria-label]').forEach(el=>{
-      ['placeholder','title','aria-label'].forEach(attr=>{const v=el.getAttribute(attr);if(v)el.setAttribute(attr,translateNode(v));});
-    });
-    // input/select values that carry translatable labels (not user-typed search text)
-    document.querySelectorAll('option').forEach(o=>{ if(o.textContent && o.textContent.trim()) o.textContent=translateNode(o.textContent); });
+    }
+    out=lead+normalizeNums(out)+trail;
+    if(MEMO.size>8000) MEMO.clear();
+    MEMO.set(mk,out); return out;
   }
-
-  // Watches for ANY DOM change (new renders, dynamically added modals, filter chips,
-  // report tables, etc.) and keeps the whole page translated automatically, in both
-  // directions, without needing every render function to remember to call translate.
-  let __translating=false, __translateTimer=null;
-  function scheduleTranslate(){
-    if(__translating) return;
-    clearTimeout(__translateTimer);
-    __translateTimer=setTimeout(()=>{
-      __translating=true;
-      try{ translateAllText(); }catch(e){}
-      setTimeout(()=>{ __translating=false; },0);
-    },100);
+  function tr(text){ return translateNode(text); }
+  window.__gvTr=translateNode;
+  // نحتفظ بالنص الأصلي لكل عقدة عشان الرجوع للغة التانية يبقى مضبوط 100%
+  const TXT_REC=new WeakMap(), ATTR_REC=new WeakMap();
+  const SKIP_TAGS={SCRIPT:1,STYLE:1,TEXTAREA:1,NOSCRIPT:1};
+  const ATTRS=['placeholder','title','aria-label','alt'];
+  function skipEl(el){ return !el || SKIP_TAGS[el.tagName] || (el.closest && el.closest('#lang-toggle,[data-no-translate]')); }
+  function xText(n){
+    const p=n.parentElement; if(skipEl(p)) return;
+    const cur=n.nodeValue; const rec=TXT_REC.get(n);
+    const src=(rec && cur===rec.out)?rec.src:cur;
+    const out=translateNode(src);
+    if(out!==cur) n.nodeValue=out;
+    TXT_REC.set(n,{src,out});
+  }
+  function xAttrs(el){
+    if(skipEl(el)) return;
+    ATTRS.forEach(a=>{
+      if(!el.hasAttribute(a)) return;
+      const cur=el.getAttribute(a); let recs=ATTR_REC.get(el); if(!recs){recs={};ATTR_REC.set(el,recs);}
+      const rec=recs[a]; const src=(rec && cur===rec.out)?rec.src:cur; const out=translateNode(src);
+      if(out!==cur) el.setAttribute(a,out); recs[a]={src,out};
+    });
+  }
+  function translateSubtree(root){
+    if(!root) return;
+    if(root.nodeType===3){ xText(root); return; }
+    if(root.nodeType!==1) return;
+    xAttrs(root);
+    root.querySelectorAll('[placeholder],[title],[aria-label],[alt]').forEach(xAttrs);
+    const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT); const nodes=[]; while(w.nextNode()) nodes.push(w.currentNode);
+    nodes.forEach(xText);
+  }
+  function translateAllText(){ translateSubtree(document.body); }
+  // مراقب خفيف: بيترجم بس العناصر اللي اتضافت أو اتغيرت (نوافذ، رسائل، جداول...) في الاتجاهين
+  let __obs=null, __pending=new Set(), __timer=null;
+  function flushTranslate(){
+    __timer=null; const list=[...__pending]; __pending.clear();
+    list.forEach(n=>{ if(n.isConnected) translateSubtree(n); });
+    if(__obs) __obs.takeRecords();            // نتجاهل التغييرات اللي إحنا عملناها
   }
   function initTranslationObserver(){
-    const target=document.body;
-    if(!target || typeof MutationObserver==='undefined') return;
-    const observer=new MutationObserver(muts=>{
-      if(__translating) return;
-      scheduleTranslate();
+    if(__obs || !document.body || typeof MutationObserver==='undefined') return;
+    __obs=new MutationObserver(muts=>{
+      muts.forEach(m=>{
+        if(m.type==='childList') m.addedNodes.forEach(n=>__pending.add(n));
+        else __pending.add(m.target);
+      });
+      if(!__timer) __timer=setTimeout(flushTranslate,30);
     });
-    observer.observe(target,{childList:true, subtree:true, characterData:true});
+    __obs.observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:ATTRS});
+  }
+  initTranslationObserver();
+  // رسائل alert / confirm / prompt بتتترجم كمان
+  if(!window.__gvDialogsWrapped){
+    window.__gvDialogsWrapped=true;
+    ['alert','confirm','prompt'].forEach(fn=>{ const o=window[fn].bind(window); window[fn]=function(m,...r){ return o(translateNode(m),...r); }; });
   }
 
   function applyLanguage(){
     document.documentElement.lang=lang;
     document.documentElement.dir=lang==='ar'?'rtl':'ltr';
-    const t=document.getElementById('lang-toggle');if(t)t.textContent=lang==='en'?'العربية':'English';
+    const t=document.getElementById('lang-toggle');if(t){t.textContent=lang==='en'?'Arabic':'الإنجليزية';t.title=lang==='en'?'Language':'اللغة';t.setAttribute('aria-label',t.title);}
     try{if(typeof renderDashboard==='function' && document.getElementById('dashboard-section')?.classList.contains('active'))renderDashboard();}catch(e){}
     try{if(typeof renderDrives==='function' && document.getElementById('drives-section')?.classList.contains('active'))renderDrives();}catch(e){}
     try{window.__renderActiveTab?.();}catch(e){}
     try{if(typeof renderReport==='function' && document.getElementById('reports-section')?.classList.contains('active'))renderReport();}catch(e){}
     try{if(typeof renderAddGameForm==='function' && document.getElementById('library-add-game-modal')?.style.display==='block')renderAddGameForm();}catch(e){}
-    __translating=true;
+    if(window.__gvTitleSrc===undefined) window.__gvTitleSrc=document.title;
+    document.title=translateNode(window.__gvTitleSrc);
     translateAllText();
-    setTimeout(()=>{ __translating=false; },0);
     const si=document.getElementById('search-name-input');if(si)si.value=state.searchName||''; const ss=document.getElementById('search-series-input');if(ss)ss.value=state.searchSeries||'';
     const di=document.getElementById('dates-search-input');if(di)di.value=datesSearch||'';
   }
@@ -4236,7 +4286,7 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
       document.querySelectorAll('.tab-page').forEach(p=>p.classList.toggle('active',p.id==='library-section'));
     }
   };
-  document.getElementById('library-add-game-btn')?.addEventListener('click',()=>{const m=document.getElementById('library-add-game-modal');m.style.display='block';renderAddGameForm();if(lang==='en')applyLanguage();});
+  document.getElementById('library-add-game-btn')?.addEventListener('click',()=>{const m=document.getElementById('library-add-game-modal');m.style.display='block';renderAddGameForm();applyLanguage();});
   document.getElementById('close-library-add')?.addEventListener('click',()=>{closeLibraryAddGame();goToLibraryTab();});
   document.getElementById('library-add-game-modal')?.addEventListener('click',e=>{if(e.target.id==='library-add-game-modal'){closeLibraryAddGame();goToLibraryTab();}});
   document.addEventListener('keydown',e=>{
@@ -4247,6 +4297,6 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
     closeLibraryAddGame();
     goToLibraryTab();
   });
-  if(lang==='en') applyLanguage();
+  applyLanguage();
 })();
 

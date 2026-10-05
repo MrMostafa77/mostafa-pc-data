@@ -15,6 +15,8 @@
 
 (function () {
   var AUTH_EMAIL_DOMAIN = '@gamevault.local';
+  // رسائل الخطأ بتتبع لغة الموقع المحفوظة (إنجليزي افتراضيًا)
+  function msg(ar, en) { return (localStorage.getItem('gameVault_lang_v1') || 'en') === 'ar' ? ar : en; }
 
   function usernameToEmail(username) {
     return username.trim().toLowerCase().replace(/\s+/g, '') + AUTH_EMAIL_DOMAIN;
@@ -75,7 +77,7 @@
     // لأي حد يعمل حساب ويقرا/يعدّل بياناتك.
     function closedMsg(e) {
       e.preventDefault();
-      showError('التسجيل الجديد والدخول بجوجل مقفولين. الدخول بحساب مسموح فقط.');
+      showError(msg('التسجيل الجديد والدخول بجوجل مقفولين. الدخول بحساب مسموح فقط.', 'New registration and Google sign-in are disabled. Only authorized accounts can sign in.'));
     }
     overlay.querySelector('#auth-gate-google').addEventListener('click', closedMsg);
     overlay.querySelector('#auth-gate-signup').addEventListener('click', closedMsg);
@@ -102,15 +104,15 @@
       case 'auth/invalid-credential':
       case 'auth/wrong-password':
       case 'auth/user-not-found':
-        return 'اسم المستخدم أو كلمة المرور غلط.';
+        return msg('اسم المستخدم أو كلمة المرور غلط.', 'Wrong username or password.');
       case 'auth/too-many-requests':
-        return 'محاولات كتير غلط، جرب تاني بعد شوية.';
+        return msg('محاولات كتير غلط، جرب تاني بعد شوية.', 'Too many wrong attempts, try again in a while.');
       case 'auth/network-request-failed':
-        return 'مشكلة في الاتصال بالإنترنت.';
+        return msg('مشكلة في الاتصال بالإنترنت.', 'Internet connection problem.');
       case 'auth/user-disabled':
-        return 'الحساب ده متعطّل.';
+        return msg('الحساب ده متعطّل.', 'This account is disabled.');
       default:
-        return 'حصل خطأ (' + (code || 'unknown') + ')، جرب تاني.';
+        return msg('حصل خطأ (' + (code || 'unknown') + ')، جرب تاني.', 'An error occurred (' + (code || 'unknown') + '), try again.');
     }
   }
 
