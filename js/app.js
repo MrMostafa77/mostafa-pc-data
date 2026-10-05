@@ -20,7 +20,7 @@
   const OTHER_KEY = 'gameVault_driveOtherSpace_v1'; // {drive: GB} مساحات أخرى مستخدمة على الهارد (خارج الألعاب) وبتتضاف على المستخدمة
   const FAVORITES_KEY = 'gameVault_favorites_v1';
   const TAGS_KEY = 'gameVault_gameTags_v1';
-  const UPCOMING_GAMES_KEY = 'gameVault_upcomingGames_v1'; // fixed 5 manual Home slots
+  const UPCOMING_GAMES_KEY = 'gameVault_upcomingGames_v1'; // manual Home list (unlimited, same behaviour as Playing Now)
 
   function loadJSON(key, fallback){
     try{ const v = JSON.parse(localStorage.getItem(key) || 'null'); return v===null ? fallback : v; }
@@ -336,6 +336,14 @@
 
 
   /* ================= HOME UPCOMING GAMES ================= */
+  // Upcoming list has no fixed size anymore: a compact array of game ids.
+  // Old saved data (5 slots with nulls) is cleaned automatically on read.
+  function loadUpcomingIds(){
+    const raw=loadJSON(UPCOMING_GAMES_KEY,[]);
+    const out=[];
+    (Array.isArray(raw)?raw:[]).forEach(v=>{const n=Number(v); if(n && !out.includes(n)) out.push(n);});
+    return out;
+  }
   function openUpcomingGamePicker(slot){
     const modal=document.getElementById('upcoming-game-modal');
     const search=document.getElementById('upcoming-game-search');
@@ -344,9 +352,8 @@
     const saveBtn=document.getElementById('upcoming-game-save');
     if(!modal || !search || !results) return;
 
-    const ids=loadJSON(UPCOMING_GAMES_KEY,[null,null,null,null,null]);
-    while(ids.length<5) ids.push(null);
-    const used=new Set(ids.map(Number).filter((id,i)=>id && i!==slot));
+    const ids=loadUpcomingIds();
+    const used=new Set(ids.filter((id,i)=>i!==slot));
     let selectedId=Number(ids[slot])||null;
     const libraryGames=GAMES.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'}));
 
@@ -392,12 +399,11 @@
     search.oninput=()=>renderResults(search.value);
     saveBtn.onclick=()=>{
       if(!selectedId) return;
-      const fresh=loadJSON(UPCOMING_GAMES_KEY,[null,null,null,null,null]);
-      while(fresh.length<5) fresh.push(null);
-      const duplicate=fresh.some((v,i)=>i!==slot && Number(v)===selectedId);
-      if(duplicate){ alert('This game is already in another upcoming slot.'); return; }
-      fresh[slot]=selectedId;
-      saveJSON(UPCOMING_GAMES_KEY,fresh.slice(0,5));
+      const fresh=loadUpcomingIds();
+      const duplicate=fresh.some((v,i)=>i!==slot && v===selectedId);
+      if(duplicate){ alert('This game is already in the upcoming list.'); return; }
+      if(slot>=0 && slot<fresh.length) fresh[slot]=selectedId; else fresh.push(selectedId);
+      saveJSON(UPCOMING_GAMES_KEY,fresh);
       modal.hidden=true;
       renderDashboard();
     };
@@ -451,7 +457,7 @@
     const verdictOrder=['Epic','Great','Very-Good','Good','NOSTALGIC','Not-Bad','Bad'];
     barChart(document.getElementById('chart-verdict'),verdictOrder.filter(v=>verdictCounts[v]).map(v=>({label:VERDICT_LABEL[v]||v,value:verdictCounts[v]})),{brass:true});
     // Home dashboard: Playing Now is driven only by Game Dates rows with a Start Date and no End Date.
-    // Upcoming Games are five fixed, manually selected slots stored in browser local data.
+    // Upcoming Games are a manually selected list (no limit) stored in browser local data.
     const liveDateRecords=ensureDateRecords();
     const activeMap=new Map();
     liveDateRecords.forEach(r=>{
@@ -467,11 +473,8 @@
     });
     const activeGames=[...activeMap.values()].sort((a,b)=>String(b.r.start||'').localeCompare(String(a.r.start||'')));
 
-    const upcomingIds=loadJSON(UPCOMING_GAMES_KEY,[]);
-    const upcomingGames=Array.from({length:5},(_,i)=>{
-      const id=Number(upcomingIds?.[i])||null;
-      return id ? GAMES.find(g=>Number(g.id)===id) || null : null;
-    });
+    // Upcoming Games: unlimited manual list (ids whose game was deleted are skipped).
+    const upcomingGames=loadUpcomingIds().map(id=>GAMES.find(g=>Number(g.id)===id)||null);
 
     // Home history strips: only games that have been played (completed play
     // records), never games that are currently Playing Now.  Last 5 is based
@@ -552,11 +555,13 @@
     };
 
     const renderUpcomingSlots=()=>{
-      return `<div class="recent-games home-planning-games upcoming-games-grid">${upcomingGames.map((g,i)=>{
-        if(!g){
-          return `<button type="button" class="recent-game upcoming-slot upcoming-add-slot" data-upcoming-slot="${i}" aria-label="Add upcoming game">
+      const addTile=`<button type="button" class="recent-game upcoming-slot upcoming-add-slot" data-upcoming-slot="${upcomingGames.length}" aria-label="Add upcoming game">
             <span class="upcoming-plus">+</span><span class="upcoming-add-label">Add Game</span>
           </button>`;
+      return `<div class="recent-games home-planning-games upcoming-games-grid">${upcomingGames.map((g,i)=>{
+        if(!g){
+          // game was deleted from the Library: keep the slot out of the way
+          return '';
         }
         return `<div class="recent-game upcoming-slot" data-upcoming-slot="${i}" title="${esc(g.name)}">
           <button type="button" class="upcoming-change" data-upcoming-slot="${i}" title="Change game" aria-label="Change game">+</button>
@@ -565,7 +570,7 @@
           <div class="rg-date">Upcoming</div>
           <button type="button" class="upcoming-remove" data-upcoming-remove="${i}" title="Remove" aria-label="Remove">×</button>
         </div>`;
-      }).join('')}</div>`;
+      }).join('')}${addTile}</div>`;
     };
 
     const dash=document.getElementById('dashboard-section');
@@ -623,8 +628,8 @@
       btn.addEventListener('click',e=>{
         e.preventDefault(); e.stopPropagation();
         const slot=Number(btn.dataset.upcomingRemove);
-        const ids=loadJSON(UPCOMING_GAMES_KEY,[null,null,null,null,null]);
-        ids[slot]=null;
+        const ids=loadUpcomingIds();
+        if(slot>=0 && slot<ids.length) ids.splice(slot,1);
         saveJSON(UPCOMING_GAMES_KEY,ids);
         renderDashboard();
       });
@@ -3532,6 +3537,43 @@ if(type==='overview'){
       </tbody></table></div>`:empty;
     } else if(type==='series'){
       renderSeriesDirectory(el);
+    } else if(type==='games-in-years'){
+      // Games-in-Years: every Library game grouped by RELEASE year (year only),
+      // years sorted oldest -> newest, each year is a collapsible block.
+      const byYear=new Map();
+      GAMES.forEach(g=>{
+        const y=String(g.releaseDate||g.year||'').slice(0,4);
+        const key=/^\d{4}$/.test(y)?y:'—';
+        if(!byYear.has(key)) byYear.set(key,[]);
+        byYear.get(key).push(g);
+      });
+      const yearKeys=[...byYear.keys()].sort((a,b)=>{
+        if(a==='—') return 1; if(b==='—') return -1;
+        return Number(a)-Number(b);
+      });
+      const openYears=new Set([...el.querySelectorAll('.gy-year[open]')].map(d=>d.dataset.year));
+      if(!yearKeys.length){ el.innerHTML=empty; }
+      else{
+        el.innerHTML=`<div class="report-grid">${statCard(GAMES.length,'إجمالي الألعاب')}${statCard(yearKeys.filter(k=>k!=='—').length,'عدد السنوات')}</div>`+
+        yearKeys.map(y=>{
+          const list=byYear.get(y).slice().sort((a,b)=>String(a.releaseDate||'').localeCompare(String(b.releaseDate||''))||String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'}));
+          return `<details class="panel ramadan-year gy-year" data-year="${esc(y)}"${openYears.has(y)?' open':''}>
+            <summary><div class="ramadan-year-row"><span class="ramadan-year-title">${esc(y)}</span><span class="ramadan-count-circle">${fmt(list.length)}</span></div></summary>
+            <div class="gy-list">
+              <div class="gy-head"><span>Game</span><span>Series</span><span>Plays</span></div>
+              ${list.map(g=>{
+                const plays=getGamePlayCount(g.id,g.name);
+                return `<div class="gy-game-row" data-game-id="${Number(g.id)}" data-game-name="${esc(g.name)}">
+                  <span class="gy-name">${gameNameLink(g.name,'gy-link')}</span>
+                  <span class="gy-series" title="${esc(g.series||'')}">${esc(g.series||'—')}</span>
+                  <span class="gy-plays${plays?'':' zero'}" title="عدد مرات اللعب">${fmt(plays)}</span>
+                </div>`;
+              }).join('')}
+            </div>
+          </details>`;
+        }).join('');
+        el.querySelectorAll('.gy-link[data-game-name]').forEach(link=>link.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();openLibraryGameFromReport(link.dataset.gameName);}));
+      }
     }
   }
   document.getElementById('report-select')?.addEventListener('change',renderReport);
@@ -3560,7 +3602,7 @@ if(type==='overview'){
         hiddenDrives:loadJSON(HIDDEN_DRIVES_KEY,[]),
         favorites:loadJSON(FAVORITES_KEY,[]),
         gameTags:loadJSON(TAGS_KEY,{}),
-        upcomingGames:loadJSON(UPCOMING_GAMES_KEY,[null,null,null,null,null])
+        upcomingGames:loadUpcomingIds()
       };
       zip.file('backup/current-local-data.json',JSON.stringify(snapshot,null,2));
       zip.file('backup/README.txt','This backup contains the complete project files plus the current browser-local data snapshot. Restore the project files first, then restore local data from backup/current-local-data.json if needed.');
@@ -4074,7 +4116,7 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
 
   /* ================= GLOBAL RIGHT-CLICK MENU ================= */
   function contextGameFromTarget(target){
-    const row=target?.closest?.('.g-row, .dt-table tbody tr');
+    const row=target?.closest?.('.g-row, .dt-table tbody tr, .gy-game-row');
     if(!row) return null;
     let id=null, game=null, record=null;
     if(row.classList.contains('g-row')) id=Number(row.dataset.id);
@@ -4083,6 +4125,7 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
       id=record?.gameId!=null?Number(record.gameId):null;
       game=id!=null?GAMES.find(g=>Number(g.id)===id):GAMES.find(g=>normDateSearch(g.name)===normDateSearch(record?.name));
     } else if(row.dataset.sizeId) id=Number(row.dataset.sizeId);
+    else if(row.dataset.gameId) id=Number(row.dataset.gameId);
     if(!game && id!=null) game=GAMES.find(g=>Number(g.id)===id);
     if(!game && row.dataset.gameName) game=GAMES.find(g=>normDateSearch(g.name)===normDateSearch(row.dataset.gameName));
     return {row,game,record};
@@ -4145,18 +4188,13 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
   }
   function contextAddToUpcoming(g){
     if(!g)return;
-    const ids=loadJSON(UPCOMING_GAMES_KEY,[null,null,null,null,null]);
-    if(ids.some(x=>Number(x)===Number(g.id))){
+    const ids=loadUpcomingIds();
+    if(ids.includes(Number(g.id))){
       alert(tr('اللعبة موجودة بالفعل في قائمة الألعاب القادمة.'));
       return;
     }
-    const slot=ids.findIndex(x=>x==null);
-    if(slot===-1){
-      alert(tr('كل خانات الألعاب القادمة الخمسة ممتلئة. احذف واحدة أولًا.'));
-      return;
-    }
-    ids[slot]=Number(g.id);
-    saveJSON(UPCOMING_GAMES_KEY,ids.slice(0,5));
+    ids.push(Number(g.id));
+    saveJSON(UPCOMING_GAMES_KEY,ids);
     renderDashboard();
     showLibrarySaveSuccess();
   }
