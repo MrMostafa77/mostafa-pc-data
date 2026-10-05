@@ -1614,9 +1614,10 @@
       else if(id==='dates-section') renderDatesTab();
       else if(id==='reports-section') { if(typeof renderReport==='function') { rendered.delete(id); renderReport(); } }
     }
-    navBtns.forEach(btn=>btn.addEventListener('click',()=>{
+    navBtns.forEach(btn=>btn.addEventListener('click',(ev)=>{
       const target=btn.dataset.tab;
       if(!target) return;
+      if(ev && ev.isTrusted) window.SoundFX?.playNavigate(); // كليك حقيقي من المستخدم فقط
       navBtns.forEach(b=>b.classList.toggle('active',b===btn));
       pages.forEach(p=>p.classList.toggle('active',p.id===target));
       setPageMode(target);
