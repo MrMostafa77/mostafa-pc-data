@@ -1496,7 +1496,7 @@
           ${editGameHtml(g)}
         </div>`;
       }).join('');
-      container.querySelectorAll('.g-row').forEach(row=>row.addEventListener('click',e=>{if(e.target.closest('.cover-upload-label,.cover-remove,.library-card-actions,.game-edit-panel,.game-name-link'))return;const id=Number(row.dataset.id);state.expandedId=state.expandedId===id?null:id;row.classList.toggle('open');}));
+      container.querySelectorAll('.g-row').forEach(row=>row.addEventListener('click',e=>{if(e.target.closest('.cover-upload-label,.cover-remove,.library-card-actions,.game-edit-panel,.game-name-link'))return;const id=Number(row.dataset.id);state.expandedId=state.expandedId===id?null:id;row.classList.toggle('open');if(row.classList.contains('open'))window.SoundFX?.playOpen();}));
       container.querySelectorAll('.edit-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');row.classList.add('open');snapshotGameEditRow(row);setGameEditMode(row,true);row.querySelector('[data-edit-field]')?.focus();}));
       container.querySelectorAll('.save-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');if(!row.classList.contains('editing')){setGameEditMode(row,true);return;}saveGameEdits(Number(row.dataset.id),row);}));
       container.querySelectorAll('.delete-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();deleteGameCompletely(Number(btn.closest('.g-row').dataset.id));}));
@@ -3130,6 +3130,7 @@ function matchSizes(list,games,minScore){
       if(row){
         state.expandedId=Number(target.id);
         row.classList.add('open');
+        window.SoundFX?.playOpen();
         row.scrollIntoView({behavior:'smooth',block:'center'});
         row.classList.add('game-link-target');
         setTimeout(()=>row.classList.remove('game-link-target'),1400);

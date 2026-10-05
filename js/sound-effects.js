@@ -7,6 +7,9 @@
 const SoundFX = (() => {
   let audioCtx = null;
   let muted = localStorage.getItem('sfx_muted') === 'true';
+  const OPEN_SOUND_FILES = ['assets/sounds/game-open.wav', 'assets/sounds/game-open.mp3'];
+  let openFileIndex = 0;
+  let lastOpenAt = 0;
 
   function getContext() {
     if (!audioCtx) {
@@ -67,6 +70,33 @@ const SoundFX = (() => {
     playError() {
       playTone(220, 0.15, 'square', 0.1, 0);
       playTone(180, 0.2, 'square', 0.1, 0.15);
+    },
+
+    // 🎮 فتح لعبة / الدخول عليها - صوت ويندوز 7
+    // حط ملف الصوت في: assets/sounds/game-open.wav (أو .mp3)
+    // لو الملف مش موجود بيشغّل نغمة قريبة منه بدل الصمت.
+    playOpen() {
+      if (muted) return;
+      const now = Date.now();
+      if (now - lastOpenAt < 250) return; // منع التكرار المزدوج
+      lastOpenAt = now;
+      const fallback = () => {
+        playTone(1318, 0.07, 'sine', 0.10, 0);
+        playTone(1760, 0.14, 'sine', 0.08, 0.05);
+      };
+      try {
+        const a = new Audio(OPEN_SOUND_FILES[openFileIndex]);
+        a.volume = 0.8;
+        a.addEventListener('error', () => {
+          if (openFileIndex < OPEN_SOUND_FILES.length - 1) { openFileIndex++; }
+          else { fallback(); }
+        }, { once: true });
+        const pr = a.play();
+        if (pr && pr.catch) pr.catch(() => {
+          if (openFileIndex < OPEN_SOUND_FILES.length - 1) openFileIndex++;
+          else fallback();
+        });
+      } catch (e) { fallback(); }
     },
 
     // كتم / تشغيل الأصوات
