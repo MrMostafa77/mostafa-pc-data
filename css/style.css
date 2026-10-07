@@ -3963,3 +3963,32 @@ body.light #library-section aside#filters.filters summary::after,body.light #lib
   .hero-actions .users-popup,
   #gv-local-music .gv-music-panel{pointer-events:auto !important;}
 }
+
+/* ===== Delete-game confirm dialog (same navy/gold look as the other modals) ===== */
+.gv-confirm-modal{position:fixed;inset:0;z-index:9000;background:rgba(1,7,16,.78);backdrop-filter:blur(5px);display:grid;place-items:center;padding:22px}
+.gv-confirm-card{width:min(500px,94vw);max-height:90vh;overflow:auto;background:linear-gradient(180deg,#0d1c31,#07111f);border:1px solid rgba(113,174,235,.34);border-radius:18px;box-shadow:0 20px 70px rgba(0,0,0,.5);padding:22px;color:#dceaff}
+.gv-confirm-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.gv-confirm-icon{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:#2a1519;border:1px solid #c0504d;font-size:20px}
+.gv-confirm-head h3{margin:0;color:#e8f1ff;font-size:21px}
+.gv-confirm-q{color:#cfe0f5;line-height:1.7;margin:0 0 12px;font-size:15px}
+.gv-confirm-q b{color:#ffd36d}
+.gv-confirm-note{border-radius:12px;padding:12px 14px;margin-bottom:16px;line-height:1.7;font-size:14px}
+.gv-confirm-note.warn{background:rgba(120,70,10,.28);border:1px solid rgba(227,177,92,.55);color:#ffe3a6}
+.gv-confirm-note.ok{background:rgba(20,90,60,.25);border:1px solid rgba(80,200,140,.4);color:#bdf0d4}
+.gv-confirm-note ul{margin:8px 0 0;padding-inline-start:20px;color:#fff3d0;font-size:13px}
+.gv-confirm-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.gv-confirm-actions button{border-radius:10px;padding:11px 18px;font-weight:900;cursor:pointer;border:1px solid rgba(113,174,235,.35);background:#152a42;color:#dceaff;font-size:14px}
+.gv-confirm-actions button:hover{border-color:#d9a64f;box-shadow:0 0 14px rgba(217,166,79,.18)}
+.gv-confirm-actions .gv-view{border-color:rgba(227,177,92,.55);color:#ffd77e}
+.gv-confirm-actions .gv-danger{background:linear-gradient(180deg,#b3302d,#8a1f1d);border-color:#e0605c;color:#fff}
+.gv-confirm-actions .gv-danger:hover{border-color:#ff9d9d;box-shadow:0 0 16px rgba(255,120,120,.35)}
+body.light .gv-confirm-modal{background:rgba(40,70,110,.35);backdrop-filter:blur(3px)}
+body.light .gv-confirm-card{background:linear-gradient(180deg,#ffffff,#eef3f9);border:1px solid #c9d2dd;box-shadow:0 20px 60px rgba(20,50,100,.28);color:#0a3a82}
+body.light .gv-confirm-head h3,body.light .gv-confirm-q{color:#0a2f6b}
+body.light .gv-confirm-q b{color:#b87800}
+body.light .gv-confirm-icon{background:#fde8e8;border-color:#d23b3b}
+body.light .gv-confirm-note.warn{background:#fff4dc;border-color:#e0a63a;color:#7a4b00}
+body.light .gv-confirm-note.warn ul{color:#7a4b00}
+body.light .gv-confirm-note.ok{background:#e6f7ee;border-color:#58b585;color:#14573a}
+body.light .gv-confirm-actions button{background:linear-gradient(180deg,#ffffff,#dfe6ef);color:#0a3a82;border:1px solid #aab6c4}
+body.light .gv-confirm-actions .gv-danger{background:linear-gradient(180deg,#d23b3b,#a62424);border-color:#8a1f1d;color:#fff}

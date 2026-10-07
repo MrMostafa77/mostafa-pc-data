@@ -1261,9 +1261,67 @@
     rebuildGamesArray(); rebuildNormalizedMaps(); renderHeroStats(); renderDashboard(); renderFilters(); renderResults();
     showLibrarySaveSuccess();
   }
+  /* ===== نافذة تأكيد حذف اللعبة (بنفس تصميم المشروع) — بتنبّه لو للعبة سجلات في تواريخ الألعاب ===== */
+  function gvEscHtml(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function deleteDialogHTML(g,records,ar){
+    const n=records.length;
+    const shown=records.slice().sort((a,b)=>String(playDateKey(b)).localeCompare(String(playDateKey(a)))).slice(0,5);
+    const T=ar?{
+      title:'حذف لعبة',
+      q:'هتحذف اللعبة <b>('+gvEscHtml(g.name)+')</b> بالكامل؟',
+      warnT:'⚠️ اللعبة دي ليها '+n+(n===1?' سجل':' سجلات')+' في تواريخ الألعاب',
+      warnB:'لو كمّلت، السجلات دي هتتحذف معاها ومش هينفع ترجعها. راجعها الأول لو محتاج تحتفظ بأي حاجة منها.',
+      more:'… وكمان '+(n-5)+' تانيين',
+      ok:'✅ مفيش أي سجلات لعب للعبة دي في تواريخ الألعاب.',
+      cancel:'إلغاء', view:'📅 شوف السجلات الأول', del:n?'🗑️ احذف اللعبة والسجلات':'🗑️ احذف اللعبة'
+    }:{
+      title:'Delete game',
+      q:'Delete the game <b>('+gvEscHtml(g.name)+')</b> completely?',
+      warnT:'⚠️ This game has '+n+(n===1?' record':' records')+' in Game Dates',
+      warnB:'If you continue, these records will be deleted too and cannot be restored. Review them first if you need to keep anything.',
+      more:'… and '+(n-5)+' more',
+      ok:'✅ This game has no play records in Game Dates.',
+      cancel:'Cancel', view:'📅 View records first', del:n?'🗑️ Delete game & records':'🗑️ Delete game'
+    };
+    const list=shown.map(r=>'<li>'+gvEscHtml(r.start||'—')+' → '+gvEscHtml(r.end||'—')+'</li>').join('')+(n>5?'<li>'+gvEscHtml(T.more)+'</li>':'');
+    const note=n
+      ? '<div class="gv-confirm-note warn"><strong>'+T.warnT+'</strong><div>'+T.warnB+'</div><ul>'+list+'</ul></div>'
+      : '<div class="gv-confirm-note ok">'+T.ok+'</div>';
+    return '<div class="gv-confirm-card" role="dialog" aria-modal="true">'
+      +'<div class="gv-confirm-head"><span class="gv-confirm-icon">🗑️</span><h3>'+T.title+'</h3></div>'
+      +'<p class="gv-confirm-q">'+T.q+'</p>'+note
+      +'<div class="gv-confirm-actions">'
+      +'<button type="button" class="gv-cancel">'+T.cancel+'</button>'
+      +(n?'<button type="button" class="gv-view">'+T.view+'</button>':'')
+      +'<button type="button" class="gv-danger">'+T.del+'</button></div></div>';
+  }
+  function showDeleteGameDialog(g,records,onConfirm){
+    const ar=(localStorage.getItem('gameVault_lang_v1')==='ar');
+    document.querySelectorAll('.gv-confirm-modal').forEach(x=>x.remove());
+    const modal=document.createElement('div'); modal.className='gv-confirm-modal';
+    modal.innerHTML=deleteDialogHTML(g,records,ar);
+    document.body.appendChild(modal);
+    const close=()=>{ document.removeEventListener('keydown',onKey,true); modal.remove(); };
+    function onKey(e){ if(e.key==='Escape'){ e.stopPropagation(); close(); } }
+    document.addEventListener('keydown',onKey,true);
+    modal.addEventListener('click',e=>{ if(e.target===modal) close(); });
+    modal.querySelector('.gv-cancel').addEventListener('click',close);
+    const viewBtn=modal.querySelector('.gv-view');
+    if(viewBtn) viewBtn.addEventListener('click',()=>{
+      close();
+      const tab=document.querySelector('.tabnav-btn[data-tab="dates-section"]'); if(tab) tab.click();
+      setTimeout(()=>{ const inp=document.getElementById('dates-search-input'); if(inp){ inp.value=g.name; inp.dispatchEvent(new Event('input',{bubbles:true})); } },250);
+    });
+    modal.querySelector('.gv-danger').addEventListener('click',()=>{ close(); onConfirm(); });
+    setTimeout(()=>{ const c=modal.querySelector('.gv-cancel'); if(c) c.focus(); },0); // التركيز على "إلغاء" عشان Enter ميحذفش بالغلط
+  }
   function deleteGameCompletely(id){
     const g=GAMES.find(x=>Number(x.id)===Number(id)); if(!g)return;
-    if(!confirm(tr(`حذف اللعبة "${g.name}" بالكامل؟ سيتم حذف سجلات التواريخ المرتبطة بها أيضًا.`)))return;
+    const nn=normDateSearch(g.name);
+    const records=ensureDateRecords().filter(r=>Number(r.gameId)===Number(id) || normDateSearch(r.name)===nn);
+    showDeleteGameDialog(g,records,()=>performDeleteGame(id,g));
+  }
+  function performDeleteGame(id,g){
     window.SoundFX?.playDelete();
     userGames=userGames.filter(x=>Number(x.id)!==Number(id));
     const del=loadJSON('mostafa_pc_deleted_games_v1',[]); if(!del.includes(Number(id)))del.push(Number(id));
