@@ -3891,3 +3891,19 @@ body.light .g-row.open,body.light .g-row.open .g-row-top{background-image:linear
 body.light .g-row.open::before,body.light .g-row.open::after{display:none !important;}
 /* group chevrons */
 body.light #library-section aside#filters.filters summary::after,body.light #library-section aside#filters.filters summary::marker,body.light #library-section aside#filters.filters .filter-group-chevron{color:#0b4fb3 !important;border-color:#0b4fb3 !important;}
+
+/* ===== Library card actions: icons only (name shows on hover via title) ===== */
+.library-card-actions .game-quick-inline span{display:none!important;}
+.library-card-actions .game-quick-inline{
+  width:34px!important;
+  min-width:34px!important;
+  padding:0!important;
+  justify-content:center!important;
+  gap:0!important;
+  font-size:16px!important;
+}
+.library-card-actions .game-quick-inline:first-child{padding-inline:0!important;}
+.library-card-actions .game-quick-inline::first-letter{font-size:16px!important;}
+@media(max-width:700px){
+  .library-card-actions .game-quick-inline{width:32px!important;min-width:32px!important;padding:0!important;}
+}
