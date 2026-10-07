@@ -164,6 +164,17 @@ function queueCloudWrite(key, value) {
 // كل مفتاح بقى ليه مستند خاص بيه تحت gamevault_store/{key} + subcollection
 // chunks — بالظبط نفس أسلوب صور الأغلفة، فمفيش سقف 1 ميجا مشترك بين كل
 // المفاتيح تاني، وأي مفتاح ممكن يكبر لوحده براحته.
+// اسم المستخدم الحالي (نفس طريقة user-presence.js) — بيتسجل مع كل تعديل عشان الإشعارات تقول مين عدّل
+function currentEditorName() {
+  try {
+    const u = firebase.auth().currentUser;
+    if (!u) return '';
+    const email = String(u.email || '');
+    const name = email.split('@')[0] || u.displayName || u.uid || '';
+    return String(name).replace(/\s+/g, '');
+  } catch (e) { return ''; }
+}
+
 async function uploadKeyToCloud(key, value, version) {
   const keyRef = db.collection(FS_KEYS_COLLECTION).doc(key);
   const chunksRef = keyRef.collection('chunks');
@@ -178,7 +189,7 @@ async function uploadKeyToCloud(key, value, version) {
   const batch = db.batch();
   oldChunksSnap.forEach(docSnap => batch.delete(docSnap.ref));
   chunks.forEach((chunk, idx) => batch.set(chunksRef.doc(String(idx)), { d: chunk }));
-  batch.set(keyRef, { totalChunks: chunks.length, v: version, updatedAt: version });
+  batch.set(keyRef, { totalChunks: chunks.length, v: version, updatedAt: version, by: currentEditorName() });
   await batch.commit();
   GVUsage.writes(chunks.length + 1);
   GVUsage.deletes(oldChunksSnap.size);
@@ -211,6 +222,8 @@ function nativeSetLocal(key, value) {
 // غير ما يقارن أرقام خالص).
 async function reconcileMeta(metaByKey) {
   const changedKeys = [];
+  const prevValues = {}; // القيمة القديمة لكل مفتاح اتغير (للإشعارات التفصيلية)
+  const editedBy = {};   // مين عدّل كل مفتاح
   for (const key of SYNC_KEYS) {
     const meta = metaByKey[key];
     if (!meta) continue;
@@ -227,6 +240,8 @@ async function reconcileMeta(metaByKey) {
       if (current !== value) {
         applyingRemote = true;
         try { nativeSetLocal(key, value); } finally { applyingRemote = false; }
+        prevValues[key] = current;
+        editedBy[key] = meta.by || '';
         changedKeys.push(key);
       }
     } catch (e) {
@@ -234,7 +249,7 @@ async function reconcileMeta(metaByKey) {
     }
   }
   if (changedKeys.length) {
-    window.dispatchEvent(new CustomEvent('gamevault:cloud-update', { detail: { keys: changedKeys } }));
+    window.dispatchEvent(new CustomEvent('gamevault:cloud-update', { detail: { keys: changedKeys, prev: prevValues, by: editedBy } }));
   }
 }
 

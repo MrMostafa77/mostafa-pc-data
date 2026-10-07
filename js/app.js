@@ -3138,6 +3138,14 @@ function matchSizes(list,games,minScore){
       }
     });
   }
+  // يستخدمه js/notifications.js: الضغط على إشعار يفتح اللعبة في المكتبة
+  window.__gvOpenLibraryGame=function(name){
+    try{
+      const k=normDateSearch(name);
+      if(!GAMES.find(g=>normDateSearch(g.name)===k)) return false;
+      openLibraryGameFromReport(name); return true;
+    }catch(e){ return false; }
+  };
 
   document.addEventListener('click',e=>{
     const link=e.target.closest('.game-name-link');
