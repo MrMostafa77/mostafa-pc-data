@@ -3907,3 +3907,59 @@ body.light #library-section aside#filters.filters summary::after,body.light #lib
 @media(max-width:700px){
   .library-card-actions .game-quick-inline{width:32px!important;min-width:32px!important;padding:0!important;}
 }
+
+/* ===== Floating dock (right-bottom): hidden until hover =====
+   Only on devices that have a mouse. Phones/tablets keep the bar visible,
+   because they cannot hover. */
+@media (hover:hover){
+  /* the two containers don't catch the mouse themselves; only the thin edge strip does */
+  .hero-actions,
+  #gv-local-music{pointer-events:none !important;}
+
+  /* buttons slide out of the screen and fade (hide is delayed a bit so the mouse can cross the gaps) */
+  .hero-actions > .ui-btn,
+  .hero-actions > .logout-btn,
+  #gv-local-music .gv-music-toggle{
+    transform:translateX(90px) !important;
+    opacity:0 !important;
+    pointer-events:none !important;
+    transition:transform .22s ease .35s, opacity .22s ease .35s, border-color .18s, background .18s !important;
+  }
+
+  /* thin hover strip at the screen edge (with a small golden handle so you know where to point) */
+  .hero-actions::before,
+  #gv-local-music::before{
+    content:"";
+    position:absolute;
+    top:0; bottom:0;
+    right:-16px;
+    width:20px;
+    pointer-events:auto;
+    background:linear-gradient(to left, rgba(227,177,92,.45) 0 3px, transparent 3px);
+    border-radius:3px;
+  }
+
+  /* shown while hovering the strip / any dock button / music button, or while a popup is open */
+  body:has(.hero-actions:hover, #gv-local-music:hover) .hero-actions > .ui-btn,
+  body:has(.hero-actions:hover, #gv-local-music:hover) .hero-actions > .logout-btn,
+  body:has(.hero-actions:hover, #gv-local-music:hover) #gv-local-music .gv-music-toggle,
+  .hero-actions:has(.users-popup:not([hidden])) > .ui-btn,
+  .hero-actions:has(.users-popup:not([hidden])) > .logout-btn,
+  #gv-local-music:has(.gv-music-panel:not([hidden])) .gv-music-toggle{
+    transform:translateX(0) !important;
+    opacity:1 !important;
+    pointer-events:auto !important;
+    transition-delay:0s !important;
+  }
+
+  /* widen the strip while open so moving the mouse towards the buttons never loses hover */
+  body:has(.hero-actions:hover, #gv-local-music:hover) .hero-actions::before,
+  body:has(.hero-actions:hover, #gv-local-music:hover) #gv-local-music::before{
+    width:90px;
+    background:none;
+  }
+
+  /* popups (users list / music player) must stay clickable */
+  .hero-actions .users-popup,
+  #gv-local-music .gv-music-panel{pointer-events:auto !important;}
+}
