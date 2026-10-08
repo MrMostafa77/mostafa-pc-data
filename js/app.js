@@ -659,6 +659,20 @@
     });
     return driveStats;
   }
+  // تحديث قوايم الهارد المفتوحة (فورم إضافة لعبة + تعديل اللعبة في Library) فورًا بدون ريفرش
+  function refreshDriveSelects(){
+    try{
+      const names=uniqueValues('hdd');
+      document.querySelectorAll('#ag-hdd, select[data-edit-field="hdd"]').forEach(sel=>{
+        const cur=sel.value;
+        const isAdd=sel.id==='ag-hdd';
+        const first=isAdd?'<option value="">— None —</option>':'<option value="">—</option>';
+        const list=names.slice(); if(cur && !list.includes(cur)) list.push(cur);
+        sel.innerHTML=first+list.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+        sel.value=cur;
+      });
+    }catch(e){ console.warn('refreshDriveSelects failed',e); }
+  }
   function renderDrives(){
     const grid=document.getElementById('drives-grid'); if(!grid)return;
     // لو فيه تعديل شغال وحصل إعادة رسم (مزامنة مثلاً) نحافظ على اللي اتكتب
@@ -752,7 +766,7 @@
       if(!n||!(c>0)){alert('اكتب اسم الهارد والسعة أولاً.');return;}
       capacities[n]=c; saveJSON(CAP_KEY,capacities);
       if(hiddenDrives.delete(n)) saveJSON(HIDDEN_DRIVES_KEY,[...hiddenDrives]);
-      renderDrives();
+      renderDrives(); refreshDriveSelects();
     });
     document.getElementById('drives-edit-all').addEventListener('click',()=>{ drivesEditing=true; drivesDraft={}; renderDrives(); grid.querySelector('.cap-input')?.focus(); });
     const stopEdit=()=>{ drivesEditing=false; drivesDraft={}; renderDrives(); };
@@ -781,7 +795,7 @@
       delete capacities[d]; saveJSON(CAP_KEY,capacities);
       delete otherSpace[d]; saveJSON(OTHER_KEY,otherSpace);
       hiddenDrives.add(d); saveJSON(HIDDEN_DRIVES_KEY,[...hiddenDrives]);
-      renderDrives();
+      renderDrives(); refreshDriveSelects();
     }));
   }
 
@@ -1689,6 +1703,8 @@
   function uniqueValues(key){
     const set = new Set();
     GAMES.forEach(g=>{ if(g[key]!=null && g[key]!=='') set.add(String(g[key])); });
+    // الهاردات اللي اتضافت من تبويب Drives تظهر في قايمة الهارد حتى لو لسه مفيهاش ألعاب
+    if(key==='hdd') Object.keys(capacities||{}).forEach(d=>{ if(d && !hiddenDrives.has(String(d))) set.add(String(d)); });
     return Array.from(set).sort((a,b)=>a.localeCompare(b));
   }
 
@@ -4366,6 +4382,7 @@ nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
         renderDrives();
         renderFilters();
         renderResults();
+        refreshDriveSelects();
         try{ renderDatesTab(); }catch(err){}
         try{ renderSizesTab(); }catch(err){}
         try{ window.__renderActiveTab?.(); }catch(err){}

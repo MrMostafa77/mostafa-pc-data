@@ -4,5 +4,5 @@
     fetch('data/play-logs.json',{cache:'force-cache'}).then(r=>{if(!r.ok)throw new Error('play-logs.json');return r.json()})
   ]);
   window.GameVaultData={games,playLogs};
-  const s=document.createElement('script');s.src='js/app.js?v=20261005-snd-2';s.defer=true;document.body.appendChild(s);
+  const s=document.createElement('script');s.src='js/app.js?v=20261008-drives-1';s.defer=true;document.body.appendChild(s);
 })().catch(err=>{console.error(err);document.getElementById('boot-error').hidden=false;});
