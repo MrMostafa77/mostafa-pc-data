@@ -3605,6 +3605,27 @@ if(type==='overview'){
       el.querySelectorAll('.report-game-link[data-game-name]').forEach(link=>link.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();openLibraryGameFromReport(link.dataset.gameName);}));
     } else if(type==='years'){
       const c={};completedGames.forEach(g=>{if(g.year)c[g.year]=(c[g.year]||0)+1;});el.innerHTML=reportBars(Object.entries(c).map(([label,value])=>({label,value})).sort((a,b)=>Number(a.label)-Number(b.label)));
+    } else if(type==='year-status'){
+      // Play Status by Year: one row per year (2003 -> latest year found / current year),
+      // built live from ALL Game Dates records (any state), so it updates itself
+      // when a play date or a new year is added.
+      const allRecs=liveDateRecords.filter(r=>r && (r.start||r.end));
+      const yOfRec=r=>{const m=String(r.start||r.end||'').match(/^(\d{4})/);return m?Number(m[1]):null;};
+      const stateOfRec=r=>{const st=derivePlayingState(r.start||null,r.end||null,r.playingState||r.status||'');return st==='Done'?'done':(st==='Not-Completed'?'nc':'playing');};
+      const recYears=allRecs.map(yOfRec).filter(Number.isFinite);
+      const firstY=Math.min(2003,...recYears), lastY=Math.max(2026,new Date().getFullYear(),...recYears);
+      const rowsByYear=new Map();
+      for(let y=firstY;y<=lastY;y++)rowsByYear.set(y,{year:y,total:0,done:0,nc:0,playing:0});
+      allRecs.forEach(r=>{const y=yOfRec(r);const row=rowsByYear.get(y);if(!row)return;row.total++;row[stateOfRec(r)]++;});
+      const rows=[...rowsByYear.values()];
+      const pct=(n,t)=>t?((n/t)*100).toFixed(1)+'%':'—';
+      const sum=k=>rows.reduce((a,x)=>a+x[k],0);
+      const tTotal=sum('total'), tDone=sum('done'), tNc=sum('nc'), tPlaying=sum('playing');
+      el.innerHTML=`<div class="report-grid">${statCard(tTotal,'Total Plays')}${statCard(tDone,'Done')}${statCard(tNc,'Not-Completed')}</div>
+      <div class="dt-table-wrap report-table-wrap"><table class="dt-table report-table"><thead><tr>
+        <th>Year</th><th>Total</th><th>Done</th><th>Done %</th><th>Not-Completed</th><th>Not-Completed %</th><th>Playing</th>
+      </tr></thead><tbody>${rows.map(x=>`<tr><td>${x.year}</td><td><b>${fmt(x.total)}</b></td><td>${fmt(x.done)}</td><td>${pct(x.done,x.total)}</td><td>${fmt(x.nc)}</td><td>${pct(x.nc,x.total)}</td><td>${fmt(x.playing)}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><th>All</th><th>${fmt(tTotal)}</th><th>${fmt(tDone)}</th><th>${pct(tDone,tTotal)}</th><th>${fmt(tNc)}</th><th>${pct(tNc,tTotal)}</th><th>${fmt(tPlaying)}</th></tr></tfoot></table></div>`;
     } else if(type==='last30'){
       const last30=sortedRecords.slice(0,30);
       el.innerHTML=last30.length?`<div class="report-grid">${statCard(last30.length,'آخر سجلات اللعب')}${statCard(last30.filter(isNewPlay).length,'ألعاب جديدة')}${statCard(last30.filter(r=>!isNewPlay(r)).length,'ألعاب قديمة')}</div>
