@@ -2049,11 +2049,18 @@
     });
     // Same behaviour as the Library search: prefer names that START with the typed text,
     // and only if nothing starts with it, fall back to names that CONTAIN it anywhere.
-    const datesNameQ=normDateSearch(datesSearch);
+    // Multiple searches are separated by a comma (, or Arabic ،), e.g. "odyssey, origins".
+    // Each term is matched on its own (starts-with first, then contains) and the results are combined.
+    const datesTerms=String(datesSearch||'').split(/[,،]/).map(normDateSearch).filter(Boolean);
     let filtered=baseFiltered;
-    if(datesNameQ){
-      filtered=baseFiltered.filter(r=>normDateSearch(r.name).startsWith(datesNameQ));
-      if(!filtered.length) filtered=baseFiltered.filter(r=>normDateSearch(r.name).includes(datesNameQ));
+    if(datesTerms.length){
+      const matchedSet=new Set();
+      datesTerms.forEach(term=>{
+        let m=baseFiltered.filter(r=>normDateSearch(r.name).startsWith(term));
+        if(!m.length) m=baseFiltered.filter(r=>normDateSearch(r.name).includes(term));
+        m.forEach(r=>matchedSet.add(r));
+      });
+      filtered=baseFiltered.filter(r=>matchedSet.has(r));
     }
     const key=state.dateSortKey||'start',dir=state.dateSortDir||1;
     // Date columns must be sorted as real calendar dates, not as display/text values.
