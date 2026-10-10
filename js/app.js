@@ -2040,14 +2040,21 @@
     const resolutionOptions=['4k','1440P','1080P','720P','480P'];
     const screenOptions=[...new Set((Array.isArray(dateRecords)?dateRecords:[]).map(r=>String(r.screenType||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
     const statusOptions=[...new Set((Array.isArray(dateRecords)?dateRecords:[]).map(r=>String(r.playingState||r.status||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
-    const filtered=(Array.isArray(dateRecords)?dateRecords:[]).filter(r=>{
-      const matchesName=!datesSearch||normDateSearch(r.name).startsWith(normDateSearch(datesSearch));
+    const baseFiltered=(Array.isArray(dateRecords)?dateRecords:[]).filter(r=>{
       const matchesYear=!datesYearFilter||String(r.start||'').slice(0,4)===datesYearFilter;
       const matchesScreen=!datesScreenFilter||String(r.screenType||'')===datesScreenFilter;
       const matchesResolution=!datesResolutionFilter||String(r.resolution||'').toLowerCase()===datesResolutionFilter.toLowerCase();
       const matchesStatus=!datesStatusFilter||String(r.playingState||r.status||'')===datesStatusFilter;
-      return matchesName&&matchesYear&&matchesScreen&&matchesResolution&&matchesStatus;
+      return matchesYear&&matchesScreen&&matchesResolution&&matchesStatus;
     });
+    // Same behaviour as the Library search: prefer names that START with the typed text,
+    // and only if nothing starts with it, fall back to names that CONTAIN it anywhere.
+    const datesNameQ=normDateSearch(datesSearch);
+    let filtered=baseFiltered;
+    if(datesNameQ){
+      filtered=baseFiltered.filter(r=>normDateSearch(r.name).startsWith(datesNameQ));
+      if(!filtered.length) filtered=baseFiltered.filter(r=>normDateSearch(r.name).includes(datesNameQ));
+    }
     const key=state.dateSortKey||'start',dir=state.dateSortDir||1;
     // Date columns must be sorted as real calendar dates, not as display/text values.
     // Keep missing/Postponed End Dates at the bottom in either direction.
@@ -2315,7 +2322,8 @@
 
     function renderGameResults(q=''){
       const nq=normDateSearch(q);
-      const list=available.filter(g=>!nq||normDateSearch(g.name).startsWith(nq));
+      let list=available.filter(g=>!nq||normDateSearch(g.name).startsWith(nq));
+      if(nq && !list.length) list=available.filter(g=>normDateSearch(g.name).includes(nq));
       results.innerHTML=list.length
         ? list.map(g=>`<button type="button" class="dt-game-result" data-gid="${g.id}"><span class="dt-result-icon">🎮</span><span>${esc(g.name)}</span></button>`).join('')
         : '<div class="dt-no-results">No games found</div>';
