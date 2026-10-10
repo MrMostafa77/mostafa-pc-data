@@ -3588,18 +3588,6 @@ function matchSizes(list,games,minScore){
 if(type==='overview'){
       const total=completedGames.length, size=completedGames.reduce((a,g)=>a+(Number(g.sizeGB)||0),0), playedGames=new Set(records.map(gameKey)).size;
       el.innerHTML=`<div class="report-grid">${statCard(total,'الألعاب المكتملة')}${statCard(size.toFixed(2)+' GB','حجم الألعاب المكتملة')}${statCard(playedGames,'ألعاب مكتملة تم لعبها')}${statCard(records.length,'سجلات اللعب للألعاب المكتملة')}</div>`;
-    } else if(type==='backlog'){
-      const activeIds=new Set();
-      liveDateRecords.forEach(r=>{
-        const derived=derivePlayingState(r.start||null,r.end||null,r.playingState||r.status||'');
-        if(derived==='Playing Now' && r.gameId!=null) activeIds.add(Number(r.gameId));
-      });
-      const neverPlayed=GAMES.filter(g=>getGamePlayCount(g.id,g.name)===0 && !activeIds.has(Number(g.id)))
-        .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'}));
-      el.innerHTML=`<div class="report-grid">${statCard(neverPlayed.length,'Backlog / Never Played')}</div>
-        <div class="dt-table-wrap report-table-wrap"><table class="dt-table report-table"><thead><tr><th>#</th><th>Game</th><th>Series</th><th>Genre</th><th>Release Year</th><th>Size</th></tr></thead><tbody>
-        ${neverPlayed.length?neverPlayed.map((g,i)=>`<tr><td>${i+1}</td><td>${gameNameLink(g.name)}</td><td>${esc(g.series||'—')}</td><td>${esc(g.genre||'—')}</td><td>${esc(g.year||'—')}</td><td>${sizeValueGB(g)?fmt(sizeValueGB(g),2)+' GB':'—'}</td></tr>`).join(''):`<tr><td colspan="6">No backlog games found.</td></tr>`}
-        </tbody></table></div>`;
     } else if(type==='ramadan'){
       const ramadanWindows={
         'Ramadan-2005':['2005-10-05','2005-11-03'],'Ramadan-2006':['2006-09-24','2006-10-23'],'Ramadan-2007':['2007-09-13','2007-10-12'],'Ramadan-2008':['2008-09-01','2008-09-30'],'Ramadan-2009':['2009-08-22','2009-09-19'],'Ramadan-2010':['2010-08-11','2010-09-08'],'Ramadan-2011':['2011-08-01','2011-08-29'],'Ramadan-2012':['2012-07-20','2012-08-18'],'Ramadan-2013':['2013-07-10','2013-08-07'],'Ramadan-2014':['2014-06-29','2014-07-27'],'Ramadan-2015':['2015-06-18','2015-07-16'],'Ramadan-2016':['2016-06-06','2016-07-05'],'Ramadan-2017':['2017-05-27','2017-06-24'],'Ramadan-2018':['2018-05-16','2018-06-14'],'Ramadan-2019':['2019-05-06','2019-06-03'],'Ramadan-2020':['2020-04-24','2020-05-23'],'Ramadan-2021':['2021-04-13','2021-05-12'],'Ramadan-2022':['2022-04-02','2022-05-01'],'Ramadan-2023':['2023-03-23','2023-04-20'],'Ramadan-2024':['2024-03-11','2024-04-09'],'Ramadan-2025':['2025-03-01','2025-03-30'],'Ramadan-2026':['2026-02-18','2026-03-19']
@@ -3610,12 +3598,6 @@ if(type==='overview'){
       const cards=Object.entries(groups).filter(([,rs])=>rs.length).map(([k,rs])=>{const unique=Array.from(new Map(rs.map(r=>[gameKey(r),String(r.name||'Unnamed Game')])).entries()).sort((a,b)=>a[1].localeCompare(b[1]));const count=unique.length;return `<details class="panel ramadan-year"><summary><div class="ramadan-year-row"><span class="ramadan-year-title">${esc(k)}</span><span class="ramadan-count-circle">${fmt(count)}</span></div></summary><div class="ramadan-games-list">${unique.map(([,name])=>`<div class="ramadan-game-item">${gameNameLink(name)}</div>`).join('')}</div></details>`;}).join('');
       const top=yearCounts.length?`<div class="panel ramadan-top-years"><h3>Most Played Ramadan Years</h3><p>${yearCounts.slice(0,3).map(x=>`${esc(x.year)} (${fmt(x.count)} games)`).join(' · ')}</p></div>`:'';
       el.innerHTML=cards+top||empty;
-    } else if(type==='epic-nostalgic'){
-      const selected=completedGames.filter(g=>{const v=String(g.verdict||g.rating||g.category||'').trim().toLowerCase(); return v==='epic'||v==='nostalgic'||v.includes('epic')||v.includes('nostalgic')||String(g.epicNostalgic||'').toLowerCase()==='true';});
-      el.innerHTML=selected.length?`<div class="report-grid">${statCard(selected.length,'Epic & Nostalgic Games')}</div>${selected.map(g=>`<div class="panel"><div>${gameNameLink(g.name||'Unnamed Game')}</div><div class="note">${esc(g.series||'')}</div></div>`).join('')}`:empty;
-    } else if(type==='genres'){
-
-      const c={};completedGames.forEach(g=>{if(g.genre)c[g.genre]=(c[g.genre]||0)+1;});el.innerHTML=reportBars(Object.entries(c).map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value));
     } else if(type==='year-summary'){
       const map={}; for(let y=2003;y<=2026;y++)map[y]={year:String(y),newCount:0,oldCount:0,total:0};
       records.forEach(r=>{const y=yearOf(r); if(map[y]){if(isNewPlay(r))map[y].newCount++;else map[y].oldCount++;map[y].total++;}});
@@ -3623,39 +3605,6 @@ if(type==='overview'){
       el.querySelectorAll('.report-game-link[data-game-name]').forEach(link=>link.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();openLibraryGameFromReport(link.dataset.gameName);}));
     } else if(type==='years'){
       const c={};completedGames.forEach(g=>{if(g.year)c[g.year]=(c[g.year]||0)+1;});el.innerHTML=reportBars(Object.entries(c).map(([label,value])=>({label,value})).sort((a,b)=>Number(a.label)-Number(b.label)));
-    } else if(type==='hardware'){
-      const screens={},res={},gpu={};completedGames.forEach(g=>{if(g.screenType)screens[g.screenType]=(screens[g.screenType]||0)+1;if(g.resolution)res[g.resolution]=(res[g.resolution]||0)+1;if(g.gpu)gpu[g.gpu]=(gpu[g.gpu]||0)+1;});
-      el.innerHTML=`<div class="dash-grid"><div class="panel"><h3>الشاشات</h3>${reportBars(Object.entries(screens).map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value))}</div><div class="panel"><h3>الدقة</h3>${reportBars(Object.entries(res).map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value))}</div><div class="panel"><h3>كروت الشاشة</h3>${reportBars(Object.entries(gpu).map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value))}</div></div>`;
-    } else if(type==='dates' || type==='yearly-play'){
-      const map={};
-      records.forEach(r=>{const y=yearOf(r); if(!map[y])map[y]={year:y,newCount:0,oldCount:0,total:0}; if(isNewPlay(r))map[y].newCount++;else map[y].oldCount++;map[y].total++;});
-      el.innerHTML=`<div class="report-grid">${statCard(records.length,'إجمالي مرات اللعب')}${statCard(new Set(records.map(gameKey)).size,'عدد الألعاب التي تم لعبها')}${statCard(records.filter(isNewPlay).length,'مرات لعب جديدة')}${statCard(records.filter(r=>!isNewPlay(r)).length,'مرات لعب قديمة')}</div><h3 class="report-subtitle">عدد الألعاب التي لعبت في كل سنة</h3>${yearTable(years.map(y=>map[y]))}`;
-    } else if(type==='played-summary'){
-      const map={};
-      records.forEach(r=>{const y=yearOf(r); if(!map[y])map[y]={year:y,newCount:0,oldCount:0,total:0}; if(isNewPlay(r))map[y].newCount++;else map[y].oldCount++;map[y].total++;});
-      const rows=years.map(y=>map[y]);
-      const maxBy=k=>rows.length?rows.reduce((a,b)=>b[k]>a[k]?b:a):null;
-      const minBy=k=>rows.length?rows.reduce((a,b)=>b[k]<a[k]?b:a):null;
-      const item=(title,x,k)=>x?`<div class="report-rank"><span>${title}</span><b>${esc(x.year)}</b><em>${fmt(x[k])}</em></div>`:'';
-      el.innerHTML=`<div class="dash-grid report-rank-grid">
-        <div class="panel"><h3>أكثر السنوات لعبًا</h3>${item('جديدة',maxBy('newCount'),'newCount')}${item('قديمة',maxBy('oldCount'),'oldCount')}${item('الإجمالي',maxBy('total'),'total')}</div>
-        <div class="panel"><h3>أقل السنوات لعبًا</h3>${item('جديدة',minBy('newCount'),'newCount')}${item('قديمة',minBy('oldCount'),'oldCount')}${item('الإجمالي',minBy('total'),'total')}</div>
-      </div><h3 class="report-subtitle">مقارنة جميع السنوات</h3>${yearTable(rows)}`;
-    } else if(type==='series-completion'){
-      const groups={};
-      GAMES.forEach(g=>{
-        const s=String(g.series||'').trim();
-        if(!s || s.toUpperCase()==='SOLO')return;
-        if(!groups[s])groups[s]={series:s,total:0,done:0};
-        groups[s].total++;
-        if(String(g.playingState||'').toLowerCase()==='done')groups[s].done++;
-      });
-      const rows=Object.values(groups).map(x=>({...x,pct:x.total?x.done/x.total*100:0})).sort((a,b)=>b.pct-a.pct||b.total-a.total);
-      const total=rows.reduce((s,x)=>s+x.total,0), done=rows.reduce((s,x)=>s+x.done,0), pct=total?done/total*100:0;
-      el.innerHTML=`<div class="report-grid">${statCard(rows.length,'عدد Series')}${statCard(done,'ألعاب مكتملة داخل Series')}${statCard(total,'إجمالي ألعاب Series')}${statCard(pct.toFixed(1)+'%','نسبة إكمال Series')}</div>
-      <div class="dt-table-wrap report-table-wrap"><table class="dt-table report-table"><thead><tr><th>السلسلة</th><th>المكتمل</th><th>الإجمالي</th><th>نسبة الإكمال</th></tr></thead><tbody>
-      ${rows.map(x=>`<tr><td>${esc(x.series)}</td><td>${fmt(x.done)}</td><td>${fmt(x.total)}</td><td><div class="report-progress"><span style="width:${Math.min(100,x.pct)}%"></span></div><b>${x.pct.toFixed(1)}%</b></td></tr>`).join('')}
-      </tbody></table></div>`;
     } else if(type==='last30'){
       const last30=sortedRecords.slice(0,30);
       el.innerHTML=last30.length?`<div class="report-grid">${statCard(last30.length,'آخر سجلات اللعب')}${statCard(last30.filter(isNewPlay).length,'ألعاب جديدة')}${statCard(last30.filter(r=>!isNewPlay(r)).length,'ألعاب قديمة')}</div>
