@@ -1045,7 +1045,10 @@
     const suggBox = document.getElementById('search-sugg');
     let suggActive = -1;
     const isSeries = searchInput.id === 'search-series-input';
-    const q = ((isSeries ? state.searchSeries : state.searchName)||'').toLowerCase();
+    const rawQ = ((isSeries ? state.searchSeries : state.searchName)||'');
+    const lastSep = isSeries ? -1 : Math.max(rawQ.lastIndexOf(','), rawQ.lastIndexOf('،'));
+    const prefixQ = lastSep>=0 ? rawQ.slice(0,lastSep+1)+' ' : '';
+    const q = (lastSep>=0 ? rawQ.slice(lastSep+1) : rawQ).replace(/^\s+/,'').toLowerCase();
     if(!q){ suggBox.classList.remove('open'); return; }
     const field=g=>(isSeries ? (g.series||'') : (g.name||'')).toLowerCase();
     let matches = GAMES.filter(g=>field(g).startsWith(q));
@@ -1063,7 +1066,7 @@
     scheduleOnlineCovers(matches);
     suggBox.querySelectorAll('.sugg-item').forEach(item=>{
       item.addEventListener('click', ()=>{
-        searchInput.value = item.getAttribute('data-name');
+        searchInput.value = (isSeries ? '' : prefixQ) + item.getAttribute('data-name');
         if(isSeries) state.searchSeries = searchInput.value; else state.searchName = searchInput.value;
         suggBox.classList.remove('open');
         state.page=1;
@@ -1109,8 +1112,11 @@
 
   /* ================= FILTERING + RENDER RESULTS ================= */
   function getFiltered(nameMode){
-    return GAMES.filter(g=>{
-      if(!searchMatch(g, state.searchName, state.searchSeries, nameMode)) return false;
+    // Name search accepts several terms separated by a comma (, or Arabic ،), e.g. "odyssey, origins".
+    // Each term: starts-with first, then contains-anywhere if nothing starts with it. Results are combined.
+    const nameTerms=String(state.searchName||'').split(/[,،]/).map(t=>t.toLowerCase().trim()).filter(Boolean);
+    const passBase=g=>{
+      if(!searchMatch(g, '', state.searchSeries)) return false;
       if(state.genres.size && !state.genres.has(g._genreKey)) return false;
       if(state.series.size && !state.series.has(g._seriesKey)) return false;
       if(state.hdds.size && !state.hdds.has(g.hdd)) return false;
@@ -1124,7 +1130,16 @@
       if(state.sizeMin!=null && g.sizeGB < state.sizeMin) return false;
       if(state.sizeMax!=null && g.sizeGB > state.sizeMax) return false;
       return true;
+    };
+    const base=GAMES.filter(passBase);
+    if(!nameTerms.length) return base;
+    const matched=new Set();
+    nameTerms.forEach(term=>{
+      let m=base.filter(g=>(g.name||'').toLowerCase().startsWith(term));
+      if(!m.length) m=base.filter(g=>(g.name||'').toLowerCase().includes(term));
+      m.forEach(g=>matched.add(g));
     });
+    return base.filter(g=>matched.has(g));
   }
 
   function sortList(list){
@@ -2400,7 +2415,8 @@
     const wrap=document.getElementById('sizes-wrap'); if(!wrap)return;
     const search=document.getElementById('sizes-search-input');
     const filter=document.getElementById('sizes-drive-filter');
-    const q=String(search?.value||'').toLocaleLowerCase('ar');
+    // Several searches can be separated by a comma (, or Arabic ،), e.g. "odyssey, origins".
+    const qTerms=String(search?.value||'').split(/[,،]/).map(t=>t.toLocaleLowerCase('ar').trim()).filter(Boolean);
     const drives=[...new Set(GAMES.map(g=>g.hdd).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:'base'}));
     if(filter){
       const cur=filter.value;
@@ -2418,15 +2434,27 @@
       if(!stFilter.dataset.bound){stFilter.dataset.bound='1';stFilter.addEventListener('change',renderSizesTab);}
     }
     const stSel=stFilter?.value||'';
-    const rows=GAMES.filter(g=>{
+    const rowsBase=GAMES.filter(g=>{
       if(sizeDeleted.has(Number(g.id))) return false;
-      const text=`${g.name||''} ${g.hdd||''}`.toLocaleLowerCase('ar');
       const st=scanStatus[g.id];
       if(stSel==='missing'&&st!=='missing')return false;
       if(stSel==='found'&&st!=='found')return false;
       if(stSel==='none'&&(st==='missing'||st==='found'))return false;
-      return (!q||text.startsWith(q))&&(!filter?.value||String(g.hdd||'')===filter.value);
-    }).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{numeric:true,sensitivity:'base'}));
+      return (!filter?.value||String(g.hdd||'')===filter.value);
+    });
+    // Per term: starts-with first, then contains-anywhere if nothing starts with it. Results are combined.
+    let rowsMatched=rowsBase;
+    if(qTerms.length){
+      const szText=g=>`${g.name||''} ${g.hdd||''}`.toLocaleLowerCase('ar');
+      const matchedSet=new Set();
+      qTerms.forEach(term=>{
+        let m=rowsBase.filter(g=>szText(g).startsWith(term));
+        if(!m.length) m=rowsBase.filter(g=>szText(g).includes(term));
+        m.forEach(g=>matchedSet.add(g));
+      });
+      rowsMatched=rowsBase.filter(g=>matchedSet.has(g));
+    }
+    const rows=rowsMatched.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{numeric:true,sensitivity:'base'}));
     const iconEdit='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17.25V20h2.75L18.81 7.94l-2.75-2.75L4 17.25Zm15.71-10.46c.39-.39.39-1.03 0-1.42l-1.08-1.08a1.003 1.003 0 0 0-1.42 0l-1.07 1.07 2.75 2.75 1.07-1.07Z"/></svg>';
     const iconSave='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4Zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6ZM6 5h8v4H6V5Z"/></svg>';
     const iconDelete='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12ZM8 9h8v10H8V9Zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5Z"/></svg>';
