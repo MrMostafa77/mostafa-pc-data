@@ -3615,17 +3615,25 @@ if(type==='overview'){
       const recYears=allRecs.map(yOfRec).filter(Number.isFinite);
       const firstY=Math.min(2003,...recYears), lastY=Math.max(2026,new Date().getFullYear(),...recYears);
       const rowsByYear=new Map();
-      for(let y=firstY;y<=lastY;y++)rowsByYear.set(y,{year:y,total:0,done:0,nc:0,playing:0});
-      allRecs.forEach(r=>{const y=yOfRec(r);const row=rowsByYear.get(y);if(!row)return;row.total++;row[stateOfRec(r)]++;});
+      for(let y=firstY;y<=lastY;y++)rowsByYear.set(y,{year:y,total:0,done:0,nc:0,playing:0,oldC:0,newC:0});
+      allRecs.forEach(r=>{const y=yOfRec(r);const row=rowsByYear.get(y);if(!row)return;row.total++;row[stateOfRec(r)]++;if(isNewPlay(r))row.newC++;else row.oldC++;});
       const rows=[...rowsByYear.values()];
       const pct=(n,t)=>t?((n/t)*100).toFixed(1)+'%':'—';
       const sum=k=>rows.reduce((a,x)=>a+x[k],0);
-      const tTotal=sum('total'), tDone=sum('done'), tNc=sum('nc'), tPlaying=sum('playing');
-      el.innerHTML=`<div class="report-grid">${statCard(tTotal,'Total Plays')}${statCard(tDone,'Done')}${statCard(tNc,'Not-Completed')}</div>
+      const tTotal=sum('total'), tDone=sum('done'), tNc=sum('nc'), tPlaying=sum('playing'), tOld=sum('oldC'), tNew=sum('newC');
+      const Y='#facc15';
+      const pctBar=(n,o)=>{const t=n+o; if(!t) return '<span style="opacity:.5">—</span>';
+        const np=(n/t)*100, op=100-np;
+        return `<div role="img" aria-label="New ${np.toFixed(1)} percent, Old ${op.toFixed(1)} percent" style="display:flex;width:100%;min-width:170px;height:22px;border-radius:11px;overflow:hidden;background:rgba(255,255,255,.08)">`
+          +(np>0?`<div style="width:${np}%;background:#22c55e;color:#06260f;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden">${np.toFixed(0)}%</div>`:'')
+          +(op>0?`<div style="width:${op}%;background:#f97316;color:#2b1100;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden">${op.toFixed(0)}%</div>`:'')
+          +`</div>`;};
+      el.innerHTML=`<div class="report-grid">${statCard(tTotal,'Total Plays')}${statCard(tDone,'Done')}${statCard(tNc,'Not-Completed')}${statCard(tPlaying,'Playing Now')}</div>
+      <div style="display:flex;gap:14px;align-items:center;margin:8px 4px;font-size:12px;opacity:.9"><span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#22c55e"></i> New</span><span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#f97316"></i> Old</span></div>
       <div class="dt-table-wrap report-table-wrap"><table class="dt-table report-table"><thead><tr>
-        <th>Year</th><th>Total</th><th>Done</th><th>Done %</th><th>Not-Completed</th><th>Not-Completed %</th><th>Playing</th>
-      </tr></thead><tbody>${rows.map(x=>`<tr><td>${x.year}</td><td><b>${fmt(x.total)}</b></td><td>${fmt(x.done)}</td><td>${pct(x.done,x.total)}</td><td>${fmt(x.nc)}</td><td>${pct(x.nc,x.total)}</td><td>${fmt(x.playing)}</td></tr>`).join('')}</tbody>
-      <tfoot><tr><th>All</th><th>${fmt(tTotal)}</th><th>${fmt(tDone)}</th><th>${pct(tDone,tTotal)}</th><th>${fmt(tNc)}</th><th>${pct(tNc,tTotal)}</th><th>${fmt(tPlaying)}</th></tr></tfoot></table></div>`;
+        <th>Year</th><th>Done</th><th>Not-Completed</th><th>Playing Now</th><th style="color:${Y}">Total</th><th>Old</th><th>New</th><th>Percent</th>
+      </tr></thead><tbody>${rows.map(x=>`<tr><td>${x.year}</td><td>${fmt(x.done)}</td><td>${fmt(x.nc)}</td><td>${fmt(x.playing)}</td><td style="color:${Y};font-weight:700">${fmt(x.total)}</td><td>${fmt(x.oldC)}</td><td>${fmt(x.newC)}</td><td>${pctBar(x.newC,x.oldC)}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><th>All</th><th>${fmt(tDone)}</th><th>${fmt(tNc)}</th><th>${fmt(tPlaying)}</th><th style="color:${Y}">${fmt(tTotal)}</th><th>${fmt(tOld)}</th><th>${fmt(tNew)}</th><th>${pctBar(tNew,tOld)}</th></tr></tfoot></table></div>`;
     } else if(type==='last30'){
       const last30=sortedRecords.slice(0,30);
       el.innerHTML=last30.length?`<div class="report-grid">${statCard(last30.length,'آخر سجلات اللعب')}${statCard(last30.filter(isNewPlay).length,'ألعاب جديدة')}${statCard(last30.filter(r=>!isNewPlay(r)).length,'ألعاب قديمة')}</div>
