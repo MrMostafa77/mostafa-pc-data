@@ -91,6 +91,7 @@
   let otherSpace = loadJSON(OTHER_KEY, {});
   let drivesEditing = false, drivesDraft = {};
   let favorites = new Set(loadJSON(FAVORITES_KEY, []).map(Number));
+  const favStarSvg=(on)=>`<svg class="fav-star-svg" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style="vertical-align:-3px"><path d="M12 2.5l2.95 6.1 6.7.9-4.9 4.65 1.2 6.65L12 17.6 6.05 20.8l1.2-6.65-4.9-4.65 6.7-.9z" fill="${on?'#facc15':'none'}" stroke="${on?'#facc15':'currentColor'}" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
   let gameTags = loadJSON(TAGS_KEY, {});
 
   let GAMES = [];
@@ -863,7 +864,7 @@
   const state = {
     search:'',
     genres:new Set(), hdds:new Set(), states:new Set(), verdicts:new Set(), persp:new Set(), arabic:new Set(), series:new Set(),
-    gotyOnly:false,
+    gotyOnly:false, favOnly:false,
     yearMin:null, yearMax:null,
     sizeMin:null, sizeMax:null,
     sort:'name-asc',
@@ -944,6 +945,9 @@
           <input type="number" id="size-max" placeholder="max" value="${state.sizeMax??''}">
         </div>
       </details>
+      <div class="f-group filter-fav-group" style="border-bottom:none;">
+        <label class="toggle-row"><input type="checkbox" id="fav-toggle" ${state.favOnly?'checked':''}> ${favStarSvg(true)} عرض الألعاب المفضّلة فقط</label>
+      </div>
       <div class="f-group filter-goty-group" style="border-bottom:none;">
         <label class="toggle-row"><input type="checkbox" id="goty-toggle" ${state.gotyOnly?'checked':''}> عرض اختياراتي المفضّلة فقط (GOTY)</label>
       </div>
@@ -971,9 +975,10 @@
     document.getElementById('size-min').addEventListener('input', e=>{ state.sizeMin = e.target.value?parseFloat(e.target.value):null; state.page=1; renderResults(); });
     document.getElementById('size-max').addEventListener('input', e=>{ state.sizeMax = e.target.value?parseFloat(e.target.value):null; state.page=1; renderResults(); });
     document.getElementById('goty-toggle').addEventListener('change', e=>{ state.gotyOnly = e.target.checked; state.page=1; renderResults(); });
+    document.getElementById('fav-toggle').addEventListener('change', e=>{ state.favOnly = e.target.checked; state.page=1; renderResults(); });
     document.getElementById('clear-filters').addEventListener('click', ()=>{
       state.genres.clear(); state.hdds.clear(); state.states.clear(); state.verdicts.clear(); state.persp.clear(); state.arabic.clear(); state.series.clear();
-      state.gotyOnly=false; state.yearMin=null; state.yearMax=null; state.sizeMin=null; state.sizeMax=null; state.search=''; state.searchName=''; state.searchSeries='';
+      state.gotyOnly=false; state.favOnly=false; state.yearMin=null; state.yearMax=null; state.sizeMin=null; state.sizeMax=null; state.search=''; state.searchName=''; state.searchSeries='';
       const sn=document.getElementById('search-name-input'); if(sn) sn.value=''; const ss=document.getElementById('search-series-input'); if(ss) ss.value='';
       state.page=1;
       renderFilters(); renderResults();
@@ -1125,6 +1130,7 @@
       if(state.persp.size && !state.persp.has(g.perspective)) return false;
       if(state.arabic.size && !state.arabic.has(g.arabic)) return false;
       if(state.gotyOnly && g.goty!=='Y') return false;
+      if(state.favOnly && !favorites.has(Number(g.id))) return false;
       if(state.yearMin && (!g.year || g.year < state.yearMin)) return false;
       if(state.yearMax && (!g.year || g.year > state.yearMax)) return false;
       if(state.sizeMin!=null && g.sizeGB < state.sizeMin) return false;
@@ -1441,7 +1447,7 @@
     title.textContent=`${g.name} — ${mode==='history'?'Game Session History':mode==='tags'?'Tags & Collections':mode==='rating'?'Edit Game Rating (1-10)':'Quick Actions'}`;
     const icons={favorite:'⭐',tags:'🏷️',history:'📜',play:'▶️',size:'💽'};
     const quick=`<div class="game-quick-actions">
-      <button type="button" class="game-quick-btn ${d.favorite?'is-active':''}" data-tool="favorite"><span>${icons.favorite}</span><b>Favorite</b></button>
+      <button type="button" class="game-quick-btn ${d.favorite?'is-active':''}" data-tool="favorite"><span>${favStarSvg(d.favorite)}</span><b>Favorite</b></button>
       <button type="button" class="game-quick-btn" data-tool="tags"><span>${icons.tags}</span><b>Tags</b></button>
       <button type="button" class="game-quick-btn" data-tool="history"><span>${icons.history}</span><b>History</b></button>
       <button type="button" class="game-quick-btn" data-tool="play"><span>${icons.play}</span><b>Add Play Date</b></button>
@@ -1571,7 +1577,7 @@
             </div>${ratingEmblem(g,'rating-emblem-expanded')}
           </div>
           <div class="library-card-actions">
-            <button type="button" class="game-quick-inline ${favorites.has(Number(g.id))?'is-favorite':''}" data-tool-inline="favorite" title="Favorite">⭐ <span>Favorite</span></button>
+            <button type="button" class="game-quick-inline ${favorites.has(Number(g.id))?'is-favorite':''}" data-tool-inline="favorite" title="Favorite" aria-pressed="${favorites.has(Number(g.id))?'true':'false'}">${favStarSvg(favorites.has(Number(g.id)))} <span>Favorite</span></button>
             <button type="button" class="game-quick-inline" data-tool-inline="tags" title="Tags">🏷️ <span>Tags</span></button>
             <button type="button" class="game-quick-inline" data-tool-inline="history" title="History">📜 <span>History</span></button>
             <button type="button" class="game-quick-inline" data-tool-inline="play" title="Add Play Date">▶️ <span>Add Play Date</span></button>
@@ -2752,6 +2758,7 @@ function matchSizes(list,games,minScore){
     "فهرسة كاملة لمقتنياتك عبر Drives، مع بحث وفرز وتحليل للمجموعة":"Complete catalog of your collection across drives, with search, sorting, and collection analysis",
     "أدخل السعة الكلية لكل هارد لمعرفة المساحة المتبقية (تُحفظ في متصفحك)":"Enter the total capacity of each drive to calculate remaining space (saved in your browser)",
     "عرض اختياراتي المفضّلة فقط (GOTY)":"Show only my favorites (GOTY)",
+    "عرض الألعاب المفضّلة فقط":"Show only Favorites",
     "مسح كل الفلاتر":"Clear All Filters",
     "لا توجد ألعاب مطابقة لهذا البحث أو الفلاتر المحددة.":"No games match this search or the selected filters.",
     "طور لعب مميز":"Featured Gameplay",
@@ -2969,6 +2976,7 @@ function matchSizes(list,games,minScore){
     "لا توجد ألعاب مطابقة لهذا البحث أو الفلاتر المحددة.":"No games match this search or the selected filters.",
     "مسح كل الفلاتر":"Clear All Filters",
     "عرض اختياراتي المفضّلة فقط (GOTY)":"Show only my favorites (GOTY)",
+    "عرض الألعاب المفضّلة فقط":"Show only Favorites",
     "Dynamic Reports":"Dynamic Reports",
     "Collection Summary":"Collection Summary",
     "Genres":"Genres",
@@ -3227,7 +3235,7 @@ function matchSizes(list,games,minScore){
     state.searchSeries='';
     state.genres.clear(); state.hdds.clear(); state.states.clear();
     state.verdicts.clear(); state.persp.clear(); state.arabic.clear(); state.series.clear();
-    state.gotyOnly=false; state.yearMin=null; state.yearMax=null;
+    state.gotyOnly=false; state.favOnly=false; state.yearMin=null; state.yearMax=null;
     state.sizeMin=null; state.sizeMax=null;
     state.sort='name-asc';
     state.expandedId=Number(target.id);
