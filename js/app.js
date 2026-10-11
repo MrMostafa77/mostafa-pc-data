@@ -146,7 +146,9 @@
   }
 
   const STATE_LABEL = {'Done':'مكتملة','Brand-New':'لم تُلعب بعد','Not-Completed':'غير مكتملة','Not-Rankable':'غير قابلة للتقييم','Installed':'مثبّتة','Playing Now':'قيد اللعب حاليًا'};
-  const VERDICT_LABEL = {'Epic':'أسطورية','Great':'رائعة','Very-Good':'جيدة جدًا','Good':'جيدة','Not-Bad':'مقبولة','Bad':'ضعيفة','NOSTALGIC':'حنين للماضي'};
+  // Final Rating: stored value -> display name (stored values stay as-is so existing data/sync is untouched)
+  const VERDICT_LABEL = {'Epic':'Legendary','NOSTALGIC':'Nostalgic','Great':'Great','Very-Good':'Very Good','Good':'Good','Not-Bad':'Not Bad','Bad':'Bad'};
+  const VERDICT_ORDER = ['Epic','NOSTALGIC','Great','Very-Good','Good','Not-Bad','Bad'];
   const PERSP_LABEL = {'FIRST PERSON':'منظور أول','THIRD PERSON':'منظور ثالث','FIRST&THIRD':'أول وثالث','2D PLATFORMER':'منصات ثنائية الأبعاد','2.5D PLATEFORMER':'منصات 2.5D','3D TOP-DOWN':'علوي ثلاثي الأبعاد'};
   const ARABIC_LABEL = {'Ar':'مدعوم من الشركة','No':'مدعوم كامل معربين','S':'مدعوم جزئي معربين'};
   const SERIES_LABEL = {'SOLO':'بدون سلسلة (مستقلة)'};
@@ -455,7 +457,7 @@
     const stateCounts={}; GAMES.forEach(g=>{if(g.playingState) stateCounts[g.playingState]=(stateCounts[g.playingState]||0)+1;});
     barChart(document.getElementById('chart-state'),Object.entries(stateCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({label:STATE_LABEL[k]||k,value:v})));
     const verdictCounts={}; GAMES.forEach(g=>{if(g.verdict) verdictCounts[g.verdict]=(verdictCounts[g.verdict]||0)+1;});
-    const verdictOrder=['Epic','Great','Very-Good','Good','NOSTALGIC','Not-Bad','Bad'];
+    const verdictOrder=VERDICT_ORDER;
     barChart(document.getElementById('chart-verdict'),verdictOrder.filter(v=>verdictCounts[v]).map(v=>({label:VERDICT_LABEL[v]||v,value:verdictCounts[v]})),{brass:true});
     // Home dashboard: Playing Now is driven only by Game Dates rows with a Start Date and no End Date.
     // Upcoming Games are a manually selected list (no limit) stored in browser local data.
@@ -889,7 +891,7 @@
   }
 
   function buildChipGroup(title, valueCounts, activeSet, labelMap){
-    const ratingOrder = ['Bad','Not-Bad','Good','Very-Good','Great','NOSTALGIC','Epic'];
+    const ratingOrder = VERDICT_ORDER;
     const isRating = title === 'التقييم';
     const rows = isRating
       ? ratingOrder.filter(v => Object.prototype.hasOwnProperty.call(valueCounts, v)).map(v => [v, valueCounts[v]])
@@ -899,7 +901,7 @@
       <div class="chip-list ${isRating?'rating-chip-list':''}">
         ${rows.map(([val,count],idx)=>{
           const label = labelMap && labelMap[val] ? labelMap[val] : val;
-          const stars = isRating ? '★'.repeat(idx+1) : '';
+          const stars = isRating ? '★'.repeat(Math.max(1,ratingOrder.length-ratingOrder.indexOf(val))) : '';
           return `<button type="button" class="chip ${activeSet.has(val)?'active':''} ${isRating?'rating-chip rating-'+String(val).toLowerCase().replace(/\s+/g,'-'):''}" data-group="${title}" data-val="${esc(val)}"><span class="chip-main">${isRating?`<span class="rating-stars" aria-hidden="true">${stars}</span>`:`<span class="chip-mark" aria-hidden="true">◆</span>`}<span class="chip-label">${esc(label)}</span></span><span class="n">${count}</span></button>`;
         }).join('')}
       </div>
@@ -1552,7 +1554,7 @@
         const tags=[]; if(g.gameplay)tags.push('طور لعب مميز');if(g.graphic)tags.push('جرافيك مميز');if(g.world)tags.push('عالم مفتوح مميز');if(g.theme)tags.push('أجواء مميزة');if(g.story)tags.push('قصة مميزة');if(g.bugs)tags.push('بها أعطال');
         const isOpen=state.expandedId===g.id; const last=latestPlayDate(g.id,g.name); const libraryState=derivedLibraryPlayingState(g);
         return `<div class="g-row ${isOpen?'open':''}" data-id="${g.id}">
-          ${g.verdict?`<span class="g-rating ${verdictBadgeClass(g.verdict)}" title="${esc(tr(VERDICT_LABEL[g.verdict]||g.verdict))}" aria-label="${esc(tr(VERDICT_LABEL[g.verdict]||g.verdict))}"><span class="g-rating-label">${esc(g.verdict)}</span><span class="g-rating-stars">${'★'.repeat({'Bad':1,'Not-Bad':2,'Good':3,'Very-Good':4,'Great':5,'NOSTALGIC':6,'Epic':7}[g.verdict]||0)}</span>${ratingEmblem(g,'rating-emblem-collapsed')}</span>`:''}
+          ${g.verdict?`<span class="g-rating ${verdictBadgeClass(g.verdict)}" title="${esc(tr(VERDICT_LABEL[g.verdict]||g.verdict))}" aria-label="${esc(tr(VERDICT_LABEL[g.verdict]||g.verdict))}"><span class="g-rating-label">${esc(VERDICT_LABEL[g.verdict]||g.verdict)}</span><span class="g-rating-stars">${'★'.repeat({'Bad':1,'Not-Bad':2,'Good':3,'Very-Good':4,'Great':5,'NOSTALGIC':6,'Epic':7}[g.verdict]||0)}</span>${ratingEmblem(g,'rating-emblem-collapsed')}</span>`:''}
           <div class="g-row-top"><img class="g-thumb" data-cover-id="${g.id}" loading="lazy" decoding="async" src="${coverSvgDataUri(g)}" onerror="this.onerror=null;this.src='assets/new-badge.png'" alt=""><div class="g-idx">${fmt(start+i+1)}</div><div class="g-name">${gameNameLink(g.name, 'library-game-name')}${isNewLibraryGame(g)?` <img class="library-new-badge" src="assets/new-badge.png" alt="New">`:''}${g.series&&g.series!==g.name?`<span class="g-series">${esc(SERIES_LABEL[g.series]||g.series)}</span>`:''}</div><div class="g-badges">${g.genre?`<span class="badge">${esc(g.genre)}</span>`:''}${g.hdd?`<span class="badge hdd">${esc(g.hdd)}</span>`:''}${g.year?`<span class="badge year">${g.year}</span>`:''}${g.sizeGB?`<span class="badge size">${fmt(g.sizeGB,1)} GB</span>`:''}${getGamePlayCount(g.id,g.name)?`<span class="badge play-count-badge">🎮 ${fmt(getGamePlayCount(g.id,g.name))} مرة</span>`:''}${libraryState?`<span class="badge ${stateBadgeClass(libraryState)}">${STATE_LABEL[libraryState]||libraryState}</span>`:''}${g.verdict?`<span class="badge ${verdictBadgeClass(g.verdict)}">${VERDICT_LABEL[g.verdict]||g.verdict}</span>`:''}</div></div>
           <div class="g-detail">
             <div class="g-detail-cover"><img class="game-cover-real" data-cover-id="${g.id}" loading="lazy" decoding="async" src="${coverSvgDataUri(g)}" onerror="this.onerror=null;this.src='assets/new-badge.png'" alt=""><div class="cover-tools"><label class="icon-btn cover-upload-label" title="${g.cover?tr('تحديث الصورة'):tr('إضافة صورة')}">🖼️<input type="file" accept="image/*" class="cover-upload" data-id="${g.id}" hidden></label>${g.cover?`<button type="button" class="icon-btn cover-remove" data-id="${g.id}" title="${tr('حذف الصورة')}">🗑️</button>`:''}</div></div>
@@ -1722,6 +1724,7 @@
 
   /* ================= ADD GAME TAB ================= */
   function uniqueValues(key){
+    if(key==='verdict'){ const extra=new Set(); GAMES.forEach(g=>{ if(g.verdict && !VERDICT_ORDER.includes(String(g.verdict))) extra.add(String(g.verdict)); }); return VERDICT_ORDER.concat(Array.from(extra)); }
     const set = new Set();
     GAMES.forEach(g=>{ if(g[key]!=null && g[key]!=='') set.add(String(g[key])); });
     // الهاردات اللي اتضافت من تبويب Drives تظهر في قايمة الهارد حتى لو لسه مفيهاش ألعاب
