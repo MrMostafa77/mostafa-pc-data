@@ -24,7 +24,8 @@ const SYNC_KEYS = [
   'mostafa_pc_deleted_games_v1',
   'gameVault_favorites_v1',
   'gameVault_gameTags_v1',
-  'gameVault_upcomingGames_v1'
+  'gameVault_upcomingGames_v1',
+  'gameVault_goty_v1'
 ];
 // ملحوظة: صور الأغلفة (gameVault_coverOverrides_v1 سابقًا) مش في القايمة دي —
 // ليها نظامها الخاص تحت (uploadCoverToCloud / hydrateCovers) لأسباب مشابهة.

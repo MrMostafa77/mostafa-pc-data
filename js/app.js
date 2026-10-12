@@ -20,6 +20,7 @@
   const OTHER_KEY = 'gameVault_driveOtherSpace_v1'; // {drive: GB} مساحات أخرى مستخدمة على الهارد (خارج الألعاب) وبتتضاف على المستخدمة
   const FAVORITES_KEY = 'gameVault_favorites_v1';
   const TAGS_KEY = 'gameVault_gameTags_v1';
+  const GOTY_KEY = 'gameVault_goty_v1';
   const UPCOMING_GAMES_KEY = 'gameVault_upcomingGames_v1'; // manual Home list (unlimited, same behaviour as Playing Now)
 
   function loadJSON(key, fallback){
@@ -3547,6 +3548,136 @@ function matchSizes(list,games,minScore){
     });
   }
 
+  /* ================= GAME OF THE YEAR REPORT ================= */
+  // Years come straight from the release dates of the Library games, so a new year
+  // appears by itself. Choices are stored in localStorage (GOTY_KEY) and synced to the cloud:
+  //   { "2021": { nominees: { "<gameId>": { cards: ["Gameplay","Story"] } }, winner: "<gameId>"|null } }
+  const GOTY_CARDS=[
+    {id:'Gameplay',icon:'🎮'},{id:'Soundtracks',icon:'🎵'},{id:'Graphic',icon:'🎨'},{id:'Missions',icon:'🎯'},
+    {id:'Story',icon:'📖'},{id:'Performance',icon:'⚡'},{id:'Characters',icon:'🧑'}
+  ];
+  // UI state that must survive re-renders (picker open, card tray open, search text)
+  const gotyUI=(window.__gotyUI=window.__gotyUI||{picker:{},tray:{},search:{}});
+  function gotyLoad(){const d=loadJSON(GOTY_KEY,{}); return (d&&typeof d==='object'&&!Array.isArray(d))?d:{};}
+  function gotyYearOf(g){const y=String(g?.releaseDate||g?.year||'').slice(0,4); return /^\d{4}$/.test(y)?y:null;}
+  function gotyGamesByYear(){
+    const m=new Map();
+    GAMES.forEach(g=>{const y=gotyYearOf(g); if(!y)return; if(!m.has(y))m.set(y,[]); m.get(y).push(g);});
+    return m;
+  }
+  function gotyYearData(data,y){
+    const d=(data&&data[y])||{};
+    return {nominees:(d.nominees&&typeof d.nominees==='object')?d.nominees:{}, winner:d.winner!=null?String(d.winner):null};
+  }
+  function gotyMutate(y,fn){
+    const data=gotyLoad(), yd=gotyYearData(data,y);
+    fn(yd);
+    data[y]={nominees:yd.nominees,winner:yd.winner};
+    saveJSON(GOTY_KEY,data);
+  }
+  function gotyYearParts(y,games,data){
+    const yd=gotyYearData(data,y);
+    const pickerOpen=!!gotyUI.picker[y];
+    const byId=new Map(games.map(g=>[String(g.id),g]));
+    const winnerGame=yd.winner?byId.get(yd.winner):null;
+    const nomCount=games.filter(g=>yd.nominees[String(g.id)]).length;
+    const list=(pickerOpen?games:games.filter(g=>yd.nominees[String(g.id)])).slice()
+      .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'}));
+    const summary=`<span class="goty-year-title">${y}</span><span class="goty-winner-label">${winnerGame?'🏆 '+esc(winnerGame.name):''}</span><span class="ramadan-count-circle" title="Nominees">${fmt(nomCount)}</span>`;
+    const rows=list.map(g=>{
+      const id=String(g.id), nom=yd.nominees[id], isWin=yd.winner===id;
+      const cards=(nom&&Array.isArray(nom.cards))?nom.cards:[];
+      const trayOpen=!!(nom&&gotyUI.tray[y+':'+id]);
+      const chips=cards.map(c=>{const def=GOTY_CARDS.find(x=>x.id===c); return `<span class="goty-chip">${def?def.icon+' ':''}${esc(c)}<button type="button" class="goty-chip-x" data-card="${esc(c)}" title="Remove card">×</button></span>`;}).join('');
+      return `<div class="goty-row${nom?' is-nominee':''}${isWin?' is-winner':''}" data-gid="${esc(id)}" data-name="${esc(String(g.name||'').toLowerCase())}">
+        <div class="goty-line">
+          <label class="goty-nom-wrap" title="Nominee for Game of the Year"><input type="checkbox" class="goty-nom"${nom?' checked':''}><span>Nominee</span></label>
+          <span class="goty-name">${gameNameLink(g.name,'goty-link')}</span>
+          ${nom?`<span class="goty-chips">${chips}</span>
+          <button type="button" class="goty-addcard${trayOpen?' active':''}">${trayOpen?'Done':'+ Add card'}</button>
+          <label class="goty-win${isWin?' on':''}" title="Mark as Game of the Year"><input type="checkbox" class="goty-winner"${isWin?' checked':''}><span>🏆 Game of the Year</span></label>`:''}
+        </div>
+        ${trayOpen?`<div class="goty-tray">${GOTY_CARDS.map(c=>{const has=cards.includes(c.id); return `<button type="button" class="goty-tray-btn${has?' has':''}" data-card="${c.id}"${has?' disabled':''}>${c.icon} ${c.id}${has?' ✓':''}</button>`;}).join('')}</div>`:''}
+      </div>`;
+    }).join('');
+    const body=`<div class="goty-toolbar">
+        <button type="button" class="goty-plus${pickerOpen?' active':''}" title="${pickerOpen?'Close':'Add games released in '+y}">${pickerOpen?'×':'+'}</button>
+        <span class="goty-hint">${pickerOpen?`Tick the nominees — ${fmt(games.length)} games released in ${y}`:'Nominees'}</span>
+        ${pickerOpen?`<input type="search" class="goty-search" placeholder="Search…" value="${esc(gotyUI.search[y]||'')}">`:''}
+      </div>
+      <div class="goty-list">${rows||`<div class="goty-empty">No nominees yet — press + to add games released in ${y}.</div>`}</div>`;
+    return {summary,body};
+  }
+  function gotyApplySearch(det){
+    const y=det.dataset.year, q=String(gotyUI.search[y]||'').trim().toLowerCase();
+    det.querySelectorAll('.goty-row').forEach(r=>{r.hidden=!!q && !r.dataset.name.includes(q);});
+  }
+  function gotyRefreshYear(el,y){
+    const det=el.querySelector(`.goty-year[data-year="${y}"]`); if(!det)return;
+    const p=gotyYearParts(y,gotyGamesByYear().get(y)||[],gotyLoad());
+    det.querySelector('summary').innerHTML=p.summary;
+    det.querySelector('.goty-body').innerHTML=p.body;
+    gotyApplySearch(det);
+  }
+  function gotyBind(el){
+    if(el.__gotyBound) return; el.__gotyBound=true;
+    const ctx=t=>{const row=t.closest('.goty-row'), det=t.closest('.goty-year'); return {row,y:det?det.dataset.year:null,id:row?row.dataset.gid:null};};
+    el.addEventListener('click',e=>{
+      const t=e.target; if(!t.closest||!t.closest('.goty-year')) return;
+      const {row,y,id}=ctx(t);
+      if(t.closest('.goty-plus')){gotyUI.picker[y]=!gotyUI.picker[y]; gotyRefreshYear(el,y); return;}
+      if(!row) return;
+      if(t.closest('.goty-addcard')){const k=y+':'+id; gotyUI.tray[k]=!gotyUI.tray[k]; gotyRefreshYear(el,y); return;}
+      const tb=t.closest('.goty-tray-btn');
+      if(tb&&!tb.disabled){
+        gotyMutate(y,yd=>{const n=yd.nominees[id]; if(!n)return; n.cards=Array.isArray(n.cards)?n.cards:[]; if(!n.cards.includes(tb.dataset.card))n.cards.push(tb.dataset.card);});
+        gotyRefreshYear(el,y); return;
+      }
+      const cx=t.closest('.goty-chip-x');
+      if(cx){
+        gotyMutate(y,yd=>{const n=yd.nominees[id]; if(n&&Array.isArray(n.cards))n.cards=n.cards.filter(c=>c!==cx.dataset.card);});
+        gotyRefreshYear(el,y); return;
+      }
+    });
+    el.addEventListener('change',e=>{
+      const t=e.target; if(!t.classList) return;
+      const {row,y,id}=ctx(t); if(!row) return;
+      if(t.classList.contains('goty-nom')){
+        if(t.checked){
+          gotyMutate(y,yd=>{if(!yd.nominees[id])yd.nominees[id]={cards:[]};});
+        }else{
+          const yd=gotyYearData(gotyLoad(),y), n=yd.nominees[id];
+          const hasWork=!!(n&&((n.cards&&n.cards.length)||yd.winner===id));
+          if(hasWork && !confirm('Remove this game from the nominees? Its cards will be deleted.')){gotyRefreshYear(el,y); return;}
+          gotyMutate(y,d=>{delete d.nominees[id]; if(d.winner===id)d.winner=null;});
+          delete gotyUI.tray[y+':'+id];
+        }
+        gotyRefreshYear(el,y); return;
+      }
+      if(t.classList.contains('goty-winner')){
+        gotyMutate(y,yd=>{ if(t.checked) yd.winner=id; else if(yd.winner===id) yd.winner=null; });
+        gotyRefreshYear(el,y); return;
+      }
+    });
+    el.addEventListener('input',e=>{
+      const t=e.target; if(!t.classList||!t.classList.contains('goty-search')) return;
+      const det=t.closest('.goty-year'); if(!det) return;
+      gotyUI.search[det.dataset.year]=t.value; gotyApplySearch(det);
+    });
+  }
+  function renderGameOfTheYear(el){
+    const data=gotyLoad(), byYear=gotyGamesByYear();
+    const years=[...byYear.keys()].sort((a,b)=>Number(a)-Number(b));
+    if(!years.length){ el.innerHTML='<div class="report-empty">لا توجد ألعاب.</div>'; return; }
+    const open=new Set([...el.querySelectorAll('.goty-year[open]')].map(d=>d.dataset.year));
+    el.innerHTML=years.map(y=>{
+      const p=gotyYearParts(y,byYear.get(y),data);
+      return `<details class="panel goty-year" data-year="${y}"${open.has(y)?' open':''}><summary>${p.summary}</summary><div class="goty-body">${p.body}</div></details>`;
+    }).join('');
+    el.querySelectorAll('.goty-year').forEach(gotyApplySearch);
+    gotyBind(el);
+  }
+
   function renderReport(){
     const el=document.getElementById('dynamic-report'); if(!el)return;
     const type=document.getElementById('report-select')?.value||'overview';
@@ -3698,6 +3829,8 @@ if(type==='overview'){
       }));
       el.querySelectorAll('.ys-chip').forEach(b=>b.addEventListener('click',()=>{ysState.year=b.dataset.year; renderReport();}));
       el.querySelectorAll('.ys-game-link[data-game-name]').forEach(link=>link.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();openLibraryGameFromReport(link.dataset.gameName);}));
+    } else if(type==='goty'){
+      renderGameOfTheYear(el);
     } else if(type==='years'){
       const c={};completedGames.forEach(g=>{if(g.year)c[g.year]=(c[g.year]||0)+1;});el.innerHTML=reportBars(Object.entries(c).map(([label,value])=>({label,value})).sort((a,b)=>Number(a.label)-Number(b.label)));
     } else if(type==='year-status'){
@@ -3802,6 +3935,7 @@ if(type==='overview'){
         hiddenDrives:loadJSON(HIDDEN_DRIVES_KEY,[]),
         favorites:loadJSON(FAVORITES_KEY,[]),
         gameTags:loadJSON(TAGS_KEY,{}),
+        gameOfTheYear:loadJSON(GOTY_KEY,{}),
         upcomingGames:loadUpcomingIds()
       };
       zip.file('backup/current-local-data.json',JSON.stringify(snapshot,null,2));
