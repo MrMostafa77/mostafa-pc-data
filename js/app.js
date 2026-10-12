@@ -3610,10 +3610,70 @@ if(type==='overview'){
       const top=yearCounts.length?`<div class="panel ramadan-top-years"><h3>Most Played Ramadan Years</h3><p>${yearCounts.slice(0,3).map(x=>`${esc(x.year)} (${fmt(x.count)} games)`).join(' · ')}</p></div>`:'';
       el.innerHTML=cards+top||empty;
     } else if(type==='year-summary'){
-      const map={}; for(let y=2003;y<=2026;y++)map[y]={year:String(y),newCount:0,oldCount:0,total:0};
+      // Year Summary: year picker on top + one collapsible panel per year.
+      // Years are generated automatically from 2003 up to the newest year found
+      // in the data (or the current year), so a new year appears by itself.
+      const ysState=(window.__yearSummaryState=window.__yearSummaryState||{year:'all',sort:'date',dir:'asc'});
+      const recYears=records.map(r=>Number(yearOf(r))).filter(Number.isFinite);
+      const firstY=Math.min(2003,...recYears), lastY=Math.max(2026,new Date().getFullYear(),...recYears);
+      const map={}; for(let y=firstY;y<=lastY;y++)map[y]={year:String(y),newCount:0,oldCount:0,total:0};
       records.forEach(r=>{const y=yearOf(r); if(map[y]){if(isNewPlay(r))map[y].newCount++;else map[y].oldCount++;map[y].total++;}});
-      el.innerHTML=Object.values(map).map(x=>{const ys=records.filter(r=>yearOf(r)===x.year); const names=[...new Map(ys.map(r=>[gameKey(r),String(r.name||'Unnamed Game')])).entries()].sort((a,b)=>a[1].localeCompare(b[1])); return `<details class="panel report-year-fold"><summary><span>Year-${x.year}</span><span class="ramadan-count-circle">${fmt(names.length)}</span></summary><div class="report-year-detail"><span class="report-metric report-new-metric"><b>New</b>: ${fmt(x.newCount)} <b class="report-percent">(${x.total ? ((x.newCount/x.total)*100).toFixed(1) : '0.0'}%)</b></span><span class="report-metric report-old-metric"><b>Old</b>: ${fmt(x.oldCount)} <b class="report-percent">(${x.total ? ((x.oldCount/x.total)*100).toFixed(1) : '0.0'}%)</b></span><span class="report-metric report-total-metric"><b>Total</b>: ${fmt(x.total)}</span><div class="report-data-bar" role="img" aria-label="New ${x.total ? ((x.newCount/x.total)*100).toFixed(1) : '0.0'} percent, Old ${x.total ? ((x.oldCount/x.total)*100).toFixed(1) : '0.0'} percent"><div class="report-data-bar-new" style="width:${x.total ? (x.newCount/x.total)*100 : 0}%"><span>New ${x.total ? ((x.newCount/x.total)*100).toFixed(1) : '0.0'}%</span></div><div class="report-data-bar-old" style="width:${x.total ? (x.oldCount/x.total)*100 : 0}%"><span>Old ${x.total ? ((x.oldCount/x.total)*100).toFixed(1) : '0.0'}%</span></div></div></div><div class="report-year-games">${names.length?names.map(([,n])=>`${gameNameLink(n, 'report-year-game report-game-link')}`).join(''):'<div class="report-year-game empty">No games played</div>'}</div></details>`;}).join('');
-      el.querySelectorAll('.report-game-link[data-game-name]').forEach(link=>link.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();openLibraryGameFromReport(link.dataset.gameName);}));
+      if(ysState.year!=='all' && !map[ysState.year]) ysState.year='all';
+      const openYears=new Set([...el.querySelectorAll('.ys-year[open]')].map(d=>d.dataset.year));
+      const pctOf=(n,t)=>t?((n/t)*100):0;
+      const allYears=Object.values(map);
+      const shownYears=ysState.year==='all'?allYears:allYears.filter(x=>x.year===ysState.year);
+      const chipsHtml=`<div class="ys-chips" aria-label="Select year"><button type="button" class="ys-chip${ysState.year==='all'?' active':''}" data-year="all">All</button>${allYears.map(x=>`<button type="button" class="ys-chip${ysState.year===x.year?' active':''}${x.total?'':' empty'}" data-year="${x.year}">${x.year}</button>`).join('')}</div>`;
+      const sortHtml=`<div class="ys-sortbar"><span class="ys-sort-title">Sort games</span><button type="button" class="ys-sort-btn" data-sort="date"></button><button type="button" class="ys-sort-btn" data-sort="name"></button></div>`;
+      const panelsHtml=shownYears.map(x=>{
+        const byGame=new Map();
+        records.filter(r=>yearOf(r)===x.year).forEach(r=>{
+          const k=gameKey(r), d=playDateKey(r), cur=byGame.get(k);
+          if(!cur) byGame.set(k,{name:String(r.name||'Unnamed Game'),date:d});
+          else if(d<cur.date) cur.date=d;
+        });
+        const games=[...byGame.values()];
+        const np=pctOf(x.newCount,x.total), op=pctOf(x.oldCount,x.total);
+        const isOpen=(ysState.year!=='all'||openYears.has(x.year))?' open':'';
+        return `<details class="panel ys-year" data-year="${x.year}"${isOpen}>
+          <summary><span class="ys-year-title">${x.year}</span><span class="ramadan-count-circle">${fmt(games.length)}</span></summary>
+          <div class="ys-body">
+            <div class="ys-stats">
+              <div class="ys-stat ys-stat-new"><span class="ys-stat-label">New</span><span class="ys-stat-val">${fmt(x.newCount)}</span><span class="ys-stat-pct">${np.toFixed(1)}%</span></div>
+              <div class="ys-stat ys-stat-old"><span class="ys-stat-label">Old</span><span class="ys-stat-val">${fmt(x.oldCount)}</span><span class="ys-stat-pct">${op.toFixed(1)}%</span></div>
+              <div class="ys-stat ys-stat-total"><span class="ys-stat-label">Total</span><span class="ys-stat-val">${fmt(x.total)}</span></div>
+              <div class="ys-bar" role="img" title="New ${np.toFixed(1)}% · Old ${op.toFixed(1)}%" aria-label="New ${np.toFixed(1)} percent, Old ${op.toFixed(1)} percent"><div class="ys-bar-new" style="width:${np}%"></div><div class="ys-bar-old" style="width:${op}%"></div></div>
+            </div>
+            <div class="ys-games">${games.length?games.map(g=>`<div class="ys-game-row" data-name="${esc(g.name)}" data-date="${esc(g.date)}">${gameNameLink(g.name,'ys-game-link')}<span class="ys-game-date">${esc(g.date)}</span></div>`).join(''):'<div class="ys-empty">No games played</div>'}</div>
+          </div>
+        </details>`;
+      }).join('');
+      el.innerHTML=chipsHtml+sortHtml+panelsHtml;
+
+      const applyYsSort=()=>{
+        const m=ysState.dir==='desc'?-1:1;
+        const nameCmp=(a,b)=>a.dataset.name.localeCompare(b.dataset.name,undefined,{sensitivity:'base'});
+        el.querySelectorAll('.ys-games').forEach(box=>{
+          const rows=[...box.querySelectorAll('.ys-game-row')];
+          rows.sort((a,b)=>ysState.sort==='name'?m*nameCmp(a,b):(m*a.dataset.date.localeCompare(b.dataset.date)||nameCmp(a,b)));
+          rows.forEach(r=>box.appendChild(r));
+        });
+        el.querySelectorAll('.ys-sort-btn').forEach(b=>{
+          const active=b.dataset.sort===ysState.sort, asc=ysState.dir!=='desc';
+          b.classList.toggle('active',active);
+          b.textContent=b.dataset.sort==='date'
+            ?(active?(asc?'Date ↑ Oldest first':'Date ↓ Newest first'):'Date')
+            :(active?(asc?'Name ↑ A → Z':'Name ↓ Z → A'):'Name');
+        });
+      };
+      applyYsSort();
+      el.querySelectorAll('.ys-sort-btn').forEach(b=>b.addEventListener('click',()=>{
+        if(ysState.sort===b.dataset.sort) ysState.dir=(ysState.dir==='desc'?'asc':'desc');
+        else {ysState.sort=b.dataset.sort; ysState.dir='asc';}
+        applyYsSort();
+      }));
+      el.querySelectorAll('.ys-chip').forEach(b=>b.addEventListener('click',()=>{ysState.year=b.dataset.year; renderReport();}));
+      el.querySelectorAll('.ys-game-link[data-game-name]').forEach(link=>link.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();openLibraryGameFromReport(link.dataset.gameName);}));
     } else if(type==='years'){
       const c={};completedGames.forEach(g=>{if(g.year)c[g.year]=(c[g.year]||0)+1;});el.innerHTML=reportBars(Object.entries(c).map(([label,value])=>({label,value})).sort((a,b)=>Number(a.label)-Number(b.label)));
     } else if(type==='year-status'){
