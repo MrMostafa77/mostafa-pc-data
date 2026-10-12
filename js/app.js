@@ -3549,15 +3549,26 @@ function matchSizes(list,games,minScore){
   }
 
   /* ================= GAME OF THE YEAR REPORT ================= */
-  // Years come straight from the release dates of the Library games, so a new year
-  // appears by itself. Choices are stored in localStorage (GOTY_KEY) and synced to the cloud:
+  // Years come from the release dates of the Library games, so a new year appears by itself.
+  // The "+" button opens a separate list of every game released that year; only the games
+  // you tick there (nominees) are shown in the report, where you add cards and pick the winner.
+  // Stored in localStorage (GOTY_KEY) and synced to the cloud:
   //   { "2021": { nominees: { "<gameId>": { cards: ["Gameplay","Story"] } }, winner: "<gameId>"|null } }
   const GOTY_CARDS=[
-    {id:'Gameplay',icon:'🎮'},{id:'Soundtracks',icon:'🎵'},{id:'Graphic',icon:'🎨'},{id:'Missions',icon:'🎯'},
-    {id:'Story',icon:'📖'},{id:'Performance',icon:'⚡'},{id:'Characters',icon:'🧑'}
+    {id:'Gameplay',   rgb:'34,197,94',  svg:'<path d="M7 9h10a5 5 0 0 1 4.6 6.9l-1.1 2.6a2 2 0 0 1-3.5.4L15 16H9l-2 2.9a2 2 0 0 1-3.5-.4l-1.1-2.6A5 5 0 0 1 7 9Z"/><path d="M8 12v4M6 14h4"/><circle cx="16.5" cy="13" r=".8"/><circle cx="18.5" cy="15" r=".8"/>'},
+    {id:'Soundtracks',rgb:'168,85,247', svg:'<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>'},
+    {id:'Graphic',    rgb:'236,72,153', svg:'<circle cx="13.5" cy="6.5" r=".6"/><circle cx="17.5" cy="10.5" r=".6"/><circle cx="8.5" cy="7.5" r=".6"/><circle cx="6.5" cy="12.5" r=".6"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16c3.3 0 6-2.7 6-6 0-4.9-4.5-8.6-10-8.6Z"/>'},
+    {id:'Missions',   rgb:'249,115,22', svg:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>'},
+    {id:'Story',      rgb:'59,130,246', svg:'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>'},
+    {id:'Performance',rgb:'250,204,21', svg:'<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>'},
+    {id:'Characters', rgb:'20,184,166', svg:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'}
   ];
-  // UI state that must survive re-renders (picker open, card tray open, search text)
-  const gotyUI=(window.__gotyUI=window.__gotyUI||{picker:{},tray:{},search:{}});
+  const GOTY_TROPHY='<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>';
+  const gotyIcon=(inner,size)=>`<svg class="goty-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="${size}" height="${size}" aria-hidden="true">${inner}</svg>`;
+  const gotyCardDef=id=>GOTY_CARDS.find(c=>c.id===id);
+  // UI state that must survive re-renders (which card tray is open)
+  const gotyUI=(window.__gotyUI=window.__gotyUI||{}); gotyUI.tray=gotyUI.tray||{};
+  const gotyByName=(a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'});
   function gotyLoad(){const d=loadJSON(GOTY_KEY,{}); return (d&&typeof d==='object'&&!Array.isArray(d))?d:{};}
   function gotyYearOf(g){const y=String(g?.releaseDate||g?.year||'').slice(0,4); return /^\d{4}$/.test(y)?y:null;}
   function gotyGamesByYear(){
@@ -3575,49 +3586,97 @@ function matchSizes(list,games,minScore){
     data[y]={nominees:yd.nominees,winner:yd.winner};
     saveJSON(GOTY_KEY,data);
   }
+  // true when removing this nominee would throw away cards or the winner mark
+  function gotyHasWork(y,id){
+    const yd=gotyYearData(gotyLoad(),y), n=yd.nominees[id];
+    return !!(n&&((Array.isArray(n.cards)&&n.cards.length)||yd.winner===id));
+  }
+  function gotyRemoveNominee(y,id){
+    gotyMutate(y,d=>{delete d.nominees[id]; if(d.winner===id)d.winner=null;});
+    delete gotyUI.tray[y+':'+id];
+  }
   function gotyYearParts(y,games,data){
     const yd=gotyYearData(data,y);
-    const pickerOpen=!!gotyUI.picker[y];
     const byId=new Map(games.map(g=>[String(g.id),g]));
     const winnerGame=yd.winner?byId.get(yd.winner):null;
-    const nomCount=games.filter(g=>yd.nominees[String(g.id)]).length;
-    const list=(pickerOpen?games:games.filter(g=>yd.nominees[String(g.id)])).slice()
-      .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'}));
-    const summary=`<span class="goty-year-title">${y}</span><span class="goty-winner-label">${winnerGame?'🏆 '+esc(winnerGame.name):''}</span><span class="ramadan-count-circle" title="Nominees">${fmt(nomCount)}</span>`;
+    const list=games.filter(g=>yd.nominees[String(g.id)]).sort(gotyByName);
+    const summary=`<span class="goty-year-title">${y}</span><span class="goty-winner-label">${winnerGame?gotyIcon(GOTY_TROPHY,16)+'<span>'+esc(winnerGame.name)+'</span>':''}</span><span class="ramadan-count-circle" title="Nominees">${fmt(list.length)}</span>`;
     const rows=list.map(g=>{
       const id=String(g.id), nom=yd.nominees[id], isWin=yd.winner===id;
-      const cards=(nom&&Array.isArray(nom.cards))?nom.cards:[];
-      const trayOpen=!!(nom&&gotyUI.tray[y+':'+id]);
-      const chips=cards.map(c=>{const def=GOTY_CARDS.find(x=>x.id===c); return `<span class="goty-chip">${def?def.icon+' ':''}${esc(c)}<button type="button" class="goty-chip-x" data-card="${esc(c)}" title="Remove card">×</button></span>`;}).join('');
-      return `<div class="goty-row${nom?' is-nominee':''}${isWin?' is-winner':''}" data-gid="${esc(id)}" data-name="${esc(String(g.name||'').toLowerCase())}">
+      const cards=Array.isArray(nom.cards)?nom.cards:[];
+      const trayOpen=!!gotyUI.tray[y+':'+id];
+      const chips=cards.map(c=>{const def=gotyCardDef(c); return `<span class="goty-chip" style="--c:${def?def.rgb:'212,167,44'}">${def?gotyIcon(def.svg,16):''}<span>${esc(c)}</span><button type="button" class="goty-chip-x" data-card="${esc(c)}" title="Remove card" aria-label="Remove ${esc(c)}">×</button></span>`;}).join('');
+      const tiles=GOTY_CARDS.map(c=>{const has=cards.includes(c.id); return `<button type="button" class="goty-tile${has?' has':''}" data-card="${c.id}" style="--c:${c.rgb}" title="${has?'Click to remove':'Click to add'}"><span class="goty-tile-ic">${gotyIcon(c.svg,24)}</span><span>${c.id}</span></button>`;}).join('');
+      return `<div class="goty-row${isWin?' is-winner':''}" data-gid="${esc(id)}">
         <div class="goty-line">
-          <label class="goty-nom-wrap" title="Nominee for Game of the Year"><input type="checkbox" class="goty-nom"${nom?' checked':''}><span>Nominee</span></label>
           <span class="goty-name">${gameNameLink(g.name,'goty-link')}</span>
-          ${nom?`<span class="goty-chips">${chips}</span>
+          <span class="goty-chips">${chips}</span>
           <button type="button" class="goty-addcard${trayOpen?' active':''}">${trayOpen?'Done':'+ Add card'}</button>
-          <label class="goty-win${isWin?' on':''}" title="Mark as Game of the Year"><input type="checkbox" class="goty-winner"${isWin?' checked':''}><span>🏆 Game of the Year</span></label>`:''}
+          <label class="goty-win${isWin?' on':''}" title="Mark as Game of the Year"><input type="checkbox" class="goty-winner"${isWin?' checked':''}>${gotyIcon(GOTY_TROPHY,16)}<span>Game of the Year</span></label>
+          <button type="button" class="goty-remove" title="Remove from nominees" aria-label="Remove from nominees">×</button>
         </div>
-        ${trayOpen?`<div class="goty-tray">${GOTY_CARDS.map(c=>{const has=cards.includes(c.id); return `<button type="button" class="goty-tray-btn${has?' has':''}" data-card="${c.id}"${has?' disabled':''}>${c.icon} ${c.id}${has?' ✓':''}</button>`;}).join('')}</div>`:''}
+        ${trayOpen?`<div class="goty-tray">${tiles}</div>`:''}
       </div>`;
     }).join('');
     const body=`<div class="goty-toolbar">
-        <button type="button" class="goty-plus${pickerOpen?' active':''}" title="${pickerOpen?'Close':'Add games released in '+y}">${pickerOpen?'×':'+'}</button>
-        <span class="goty-hint">${pickerOpen?`Tick the nominees — ${fmt(games.length)} games released in ${y}`:'Nominees'}</span>
-        ${pickerOpen?`<input type="search" class="goty-search" placeholder="Search…" value="${esc(gotyUI.search[y]||'')}">`:''}
+        <button type="button" class="goty-plus" title="Choose from the games released in ${y}"><b>+</b><span>Add game</span></button>
+        <span class="goty-hint">${list.length?fmt(list.length)+' nominee'+(list.length>1?'s':''):'No nominees yet'}</span>
       </div>
-      <div class="goty-list">${rows||`<div class="goty-empty">No nominees yet — press + to add games released in ${y}.</div>`}</div>`;
+      <div class="goty-list">${rows||`<div class="goty-empty">Press <b>+ Add game</b> to choose the nominees from the games released in ${y}.</div>`}</div>`;
     return {summary,body};
-  }
-  function gotyApplySearch(det){
-    const y=det.dataset.year, q=String(gotyUI.search[y]||'').trim().toLowerCase();
-    det.querySelectorAll('.goty-row').forEach(r=>{r.hidden=!!q && !r.dataset.name.includes(q);});
   }
   function gotyRefreshYear(el,y){
     const det=el.querySelector(`.goty-year[data-year="${y}"]`); if(!det)return;
     const p=gotyYearParts(y,gotyGamesByYear().get(y)||[],gotyLoad());
     det.querySelector('summary').innerHTML=p.summary;
     det.querySelector('.goty-body').innerHTML=p.body;
-    gotyApplySearch(det);
+  }
+  // ----- separate picker window: every game released in the year, tick the nominees -----
+  function gotyClosePicker(){
+    const m=document.getElementById('goty-modal'); if(m)m.remove();
+    document.body.classList.remove('goty-modal-open');
+    if(gotyUI.escHandler){document.removeEventListener('keydown',gotyUI.escHandler,true); gotyUI.escHandler=null;}
+  }
+  function gotyOpenPicker(el,y){
+    gotyClosePicker();
+    const games=(gotyGamesByYear().get(y)||[]).slice().sort(gotyByName);
+    const yd0=gotyYearData(gotyLoad(),y);
+    const rowHtml=g=>{const on=!!yd0.nominees[String(g.id)]; return `<label class="goty-pick-row${on?' on':''}" data-gid="${esc(g.id)}" data-name="${esc(String(g.name||'').toLowerCase())}"><input type="checkbox" class="goty-pick-cb"${on?' checked':''}><span class="goty-pick-name">${esc(g.name)}</span><span class="goty-pick-date">${esc(String(g.releaseDate||g.year||'').slice(0,10))}</span></label>`;};
+    const modal=document.createElement('div'); modal.className='goty-modal'; modal.id='goty-modal';
+    modal.innerHTML=`<div class="goty-modal-dialog" role="dialog" aria-modal="true" aria-label="Games released in ${y}">
+      <div class="goty-modal-head"><div><div class="goty-modal-title">Games released in ${y}</div><div class="goty-modal-sub"><b class="goty-modal-count"></b> · ${fmt(games.length)} games</div></div><button type="button" class="goty-modal-x" aria-label="Close">×</button></div>
+      <input type="search" class="goty-modal-search" placeholder="Search games…" autocomplete="off">
+      <div class="goty-modal-list">${games.map(rowHtml).join('')||`<div class="goty-empty">No games released in ${y}.</div>`}</div>
+      <div class="goty-modal-foot"><button type="button" class="goty-modal-done">Done</button></div>
+    </div>`;
+    document.body.appendChild(modal);
+    document.body.classList.add('goty-modal-open');
+    const countEl=modal.querySelector('.goty-modal-count');
+    const updateCount=()=>{const n=modal.querySelectorAll('.goty-pick-cb:checked').length; countEl.textContent=n+' selected';};
+    updateCount();
+    modal.addEventListener('click',e=>{
+      if(e.target===modal || e.target.closest('.goty-modal-x') || e.target.closest('.goty-modal-done')) gotyClosePicker();
+    });
+    modal.addEventListener('change',e=>{
+      const cb=e.target; if(!cb.classList||!cb.classList.contains('goty-pick-cb')) return;
+      const row=cb.closest('.goty-pick-row'), id=row.dataset.gid;
+      if(cb.checked){
+        gotyMutate(y,yd=>{if(!yd.nominees[id])yd.nominees[id]={cards:[]};});
+      }else{
+        if(gotyHasWork(y,id) && !confirm('Remove this game from the nominees? Its cards will be deleted.')){cb.checked=true; return;}
+        gotyRemoveNominee(y,id);
+      }
+      row.classList.toggle('on',cb.checked);
+      updateCount();
+      gotyRefreshYear(document.getElementById('dynamic-report')||el,y);
+    });
+    modal.querySelector('.goty-modal-search').addEventListener('input',e=>{
+      const q=e.target.value.trim().toLowerCase();
+      modal.querySelectorAll('.goty-pick-row').forEach(r=>{r.hidden=!!q && !r.dataset.name.includes(q);});
+    });
+    gotyUI.escHandler=e=>{if(e.key==='Escape'){e.stopPropagation(); gotyClosePicker();}};
+    document.addEventListener('keydown',gotyUI.escHandler,true);
+    setTimeout(()=>{try{modal.querySelector('.goty-modal-search').focus({preventScroll:true});}catch(_){}} ,30);
   }
   function gotyBind(el){
     if(el.__gotyBound) return; el.__gotyBound=true;
@@ -3625,12 +3684,13 @@ function matchSizes(list,games,minScore){
     el.addEventListener('click',e=>{
       const t=e.target; if(!t.closest||!t.closest('.goty-year')) return;
       const {row,y,id}=ctx(t);
-      if(t.closest('.goty-plus')){gotyUI.picker[y]=!gotyUI.picker[y]; gotyRefreshYear(el,y); return;}
+      if(t.closest('.goty-plus')){gotyOpenPicker(el,y); return;}
       if(!row) return;
       if(t.closest('.goty-addcard')){const k=y+':'+id; gotyUI.tray[k]=!gotyUI.tray[k]; gotyRefreshYear(el,y); return;}
-      const tb=t.closest('.goty-tray-btn');
-      if(tb&&!tb.disabled){
-        gotyMutate(y,yd=>{const n=yd.nominees[id]; if(!n)return; n.cards=Array.isArray(n.cards)?n.cards:[]; if(!n.cards.includes(tb.dataset.card))n.cards.push(tb.dataset.card);});
+      const tile=t.closest('.goty-tile');
+      if(tile){
+        const card=tile.dataset.card;
+        gotyMutate(y,yd=>{const n=yd.nominees[id]; if(!n)return; const cs=Array.isArray(n.cards)?n.cards:[]; n.cards=cs.includes(card)?cs.filter(c=>c!==card):cs.concat(card);});
         gotyRefreshYear(el,y); return;
       }
       const cx=t.closest('.goty-chip-x');
@@ -3638,31 +3698,16 @@ function matchSizes(list,games,minScore){
         gotyMutate(y,yd=>{const n=yd.nominees[id]; if(n&&Array.isArray(n.cards))n.cards=n.cards.filter(c=>c!==cx.dataset.card);});
         gotyRefreshYear(el,y); return;
       }
+      if(t.closest('.goty-remove')){
+        if(gotyHasWork(y,id) && !confirm('Remove this game from the nominees? Its cards will be deleted.')) return;
+        gotyRemoveNominee(y,id); gotyRefreshYear(el,y); return;
+      }
     });
     el.addEventListener('change',e=>{
-      const t=e.target; if(!t.classList) return;
+      const t=e.target; if(!t.classList||!t.classList.contains('goty-winner')) return;
       const {row,y,id}=ctx(t); if(!row) return;
-      if(t.classList.contains('goty-nom')){
-        if(t.checked){
-          gotyMutate(y,yd=>{if(!yd.nominees[id])yd.nominees[id]={cards:[]};});
-        }else{
-          const yd=gotyYearData(gotyLoad(),y), n=yd.nominees[id];
-          const hasWork=!!(n&&((n.cards&&n.cards.length)||yd.winner===id));
-          if(hasWork && !confirm('Remove this game from the nominees? Its cards will be deleted.')){gotyRefreshYear(el,y); return;}
-          gotyMutate(y,d=>{delete d.nominees[id]; if(d.winner===id)d.winner=null;});
-          delete gotyUI.tray[y+':'+id];
-        }
-        gotyRefreshYear(el,y); return;
-      }
-      if(t.classList.contains('goty-winner')){
-        gotyMutate(y,yd=>{ if(t.checked) yd.winner=id; else if(yd.winner===id) yd.winner=null; });
-        gotyRefreshYear(el,y); return;
-      }
-    });
-    el.addEventListener('input',e=>{
-      const t=e.target; if(!t.classList||!t.classList.contains('goty-search')) return;
-      const det=t.closest('.goty-year'); if(!det) return;
-      gotyUI.search[det.dataset.year]=t.value; gotyApplySearch(det);
+      gotyMutate(y,yd=>{ if(t.checked) yd.winner=id; else if(yd.winner===id) yd.winner=null; });
+      gotyRefreshYear(el,y);
     });
   }
   function renderGameOfTheYear(el){
@@ -3674,7 +3719,6 @@ function matchSizes(list,games,minScore){
       const p=gotyYearParts(y,byYear.get(y),data);
       return `<details class="panel goty-year" data-year="${y}"${open.has(y)?' open':''}><summary>${p.summary}</summary><div class="goty-body">${p.body}</div></details>`;
     }).join('');
-    el.querySelectorAll('.goty-year').forEach(gotyApplySearch);
     gotyBind(el);
   }
 
