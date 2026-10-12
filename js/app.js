@@ -3603,8 +3603,32 @@ if(type==='overview'){
       const ramadanWindows={
         'Ramadan-2005':['2005-10-05','2005-11-03'],'Ramadan-2006':['2006-09-24','2006-10-23'],'Ramadan-2007':['2007-09-13','2007-10-12'],'Ramadan-2008':['2008-09-01','2008-09-30'],'Ramadan-2009':['2009-08-22','2009-09-19'],'Ramadan-2010':['2010-08-11','2010-09-08'],'Ramadan-2011':['2011-08-01','2011-08-29'],'Ramadan-2012':['2012-07-20','2012-08-18'],'Ramadan-2013':['2013-07-10','2013-08-07'],'Ramadan-2014':['2014-06-29','2014-07-27'],'Ramadan-2015':['2015-06-18','2015-07-16'],'Ramadan-2016':['2016-06-06','2016-07-05'],'Ramadan-2017':['2017-05-27','2017-06-24'],'Ramadan-2018':['2018-05-16','2018-06-14'],'Ramadan-2019':['2019-05-06','2019-06-03'],'Ramadan-2020':['2020-04-24','2020-05-23'],'Ramadan-2021':['2021-04-13','2021-05-12'],'Ramadan-2022':['2022-04-02','2022-05-01'],'Ramadan-2023':['2023-03-23','2023-04-20'],'Ramadan-2024':['2024-03-11','2024-04-09'],'Ramadan-2025':['2025-03-01','2025-03-30'],'Ramadan-2026':['2026-02-18','2026-03-19']
       };
+      // Auto-update: Ramadan windows after the fixed table (2026) are generated from the Islamic
+      // (Umm al-Qura) calendar up to the newest year found in Game Dates (or the current year).
+      // A play date saved in Game Dates (e.g. 2027-02-10) then lands in its Ramadan card by itself.
+      const autoRamadanKeys=new Set();
+      (function addAutoRamadanWindows(){
+        const lastKnown=Math.max(...Object.keys(ramadanWindows).map(k=>Number(k.slice(-4))));
+        const recY=liveDateRecords.flatMap(r=>[r&&r.start,r&&r.end]).map(v=>Number(String(v||'').slice(0,4))).filter(Number.isFinite);
+        const lastY=Math.max(new Date().getFullYear(),...recY);
+        if(lastY<=lastKnown) return;
+        let f; try{f=new Intl.DateTimeFormat('en-u-ca-islamic-umalqura-nu-latn',{month:'numeric',timeZone:'UTC'});}catch(e){return;}
+        const perYear={}; let cur=null;
+        for(let t=Date.UTC(lastKnown+1,0,1,12); t<=Date.UTC(lastY,11,31,12); t+=864e5){
+          const month=Number(f.formatToParts(new Date(t)).find(x=>x.type==='month')?.value);
+          const iso=new Date(t).toISOString().slice(0,10);
+          if(month===9){
+            if(!cur){const y=iso.slice(0,4); perYear[y]=(perYear[y]||0)+1; cur={key:'Ramadan-'+y+(perYear[y]>1?' ('+perYear[y]+')':'')}; ramadanWindows[cur.key]=[iso,iso]; autoRamadanKeys.add(cur.key);}
+            else ramadanWindows[cur.key][1]=iso;
+          } else cur=null;
+        }
+      })();
       const groups={}; Object.keys(ramadanWindows).forEach(k=>groups[k]=[]);
-      records.forEach(r=>{const d=String(r.end||r.start||'').slice(0,10); if(!d)return; Object.entries(ramadanWindows).forEach(([k,w])=>{if(d>=w[0]&&d<=w[1])groups[k].push(r);});});
+      // Years up to 2026 keep their original rule (completed games, end date first).
+      records.forEach(r=>{const d=String(r.end||r.start||'').slice(0,10); if(!d)return; Object.entries(ramadanWindows).forEach(([k,w])=>{if(!autoRamadanKeys.has(k)&&d>=w[0]&&d<=w[1])groups[k].push(r);});});
+      // Auto years: every dated record in Game Dates counts (the game need not be finished),
+      // if its START date or END date falls inside that Ramadan.
+      liveDateRecords.forEach(r=>{if(!r||!(r.start||r.end))return; const ds=[r.start,r.end].map(v=>String(v||'').slice(0,10)).filter(Boolean); autoRamadanKeys.forEach(k=>{const w=ramadanWindows[k]; if(ds.some(d=>d>=w[0]&&d<=w[1]))groups[k].push(r);});});
       const yearCounts=Object.entries(groups).map(([year,rs])=>({year,count:new Set(rs.map(gameKey)).size})).filter(x=>x.count>0).sort((a,b)=>b.count-a.count||a.year.localeCompare(b.year));
       const cards=Object.entries(groups).filter(([,rs])=>rs.length).map(([k,rs])=>{const unique=Array.from(new Map(rs.map(r=>[gameKey(r),String(r.name||'Unnamed Game')])).entries()).sort((a,b)=>a[1].localeCompare(b[1]));const count=unique.length;return `<details class="panel ramadan-year"><summary><div class="ramadan-year-row"><span class="ramadan-year-title">${esc(k)}</span><span class="ramadan-count-circle">${fmt(count)}</span></div></summary><div class="ramadan-games-list">${unique.map(([,name])=>`<div class="ramadan-game-item">${gameNameLink(name)}</div>`).join('')}</div></details>`;}).join('');
       const top=yearCounts.length?`<div class="panel ramadan-top-years"><h3>Most Played Ramadan Years</h3><p>${yearCounts.slice(0,3).map(x=>`${esc(x.year)} (${fmt(x.count)} games)`).join(' · ')}</p></div>`:'';
