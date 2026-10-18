@@ -1224,13 +1224,30 @@
     const diff = Math.floor((today - played) / 86400000);
     return diff >= 0 ? diff : 0;
   }
+  // ---- Library dates: added to library / game last update / last edit ----
+  function parseVersionDate(v){
+    if(v==null) return null;
+    const re=/(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})/g; let m,last=null;
+    while((m=re.exec(String(v)))){ last=m; }
+    if(!last) return null;
+    const dd=Number(last[1]), mm=Number(last[2]), yy=Number(last[3]);
+    if(mm<1||mm>12||dd<1||dd>31||yy<1990||yy>2100) return null;
+    return `${yy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+  }
+  function gameUpdatedISO(g){ return (g&&g.gameUpdatedDate?String(g.gameUpdatedDate).slice(0,10):null) || parseVersionDate(g&&g.gameVersion); }
+  function libDateRow(label,raw,emptyKey){
+    const iso=raw?String(raw).slice(0,10):'';
+    const days=iso?daysSinceLastPlayed(iso):null;
+    const ago=days!=null?`<span class="last-played-days">${fmt(days)} ${esc(tr('يوم'))}</span>`:'';
+    return `<div class="last-played-detail lib-date-row"><span class="dk">${tr(label)}</span><span class="dv last-played-value">${esc(iso||'—')}${ago}</span></div>`;
+  }
   const SYSTEM_OPTIONS=['Low','Low-Up','Medium','Medium-Up','High','High-Up','Very-High','VeryHigh-Up','Maxed'];
 
   const EDIT_GAME_FIELDS=[
     ['name','اسم اللعبة','text'],['system','System','select'],['series','السلسلة','select'],['genre','النوع','select'],['hdd','الهارد','select'],
     ['developer','الشركة المطوّرة','select'],['mainChar','الشخصية Home','select'],['playingState','Playing State','select'],
     ['verdict','Final Rating','select'],['rating','Game Rating (1-10)','number'],['perspective','المنظور','select'],['versionType','نوع النسخة','select'],['rem','نوع الإصدار','select'],
-    ['arabic','الدعم العربي','select'],['goty','GOTY','select'],['ledTv','LED TV','select'],['gameVersion','إصدار اللعبة','text'],
+    ['arabic','الدعم العربي','select'],['goty','GOTY','select'],['ledTv','LED TV','select'],['gameVersion','إصدار اللعبة','text'],['gameUpdatedDate','آخر تحديث للعبة','date'],['createdAt','تاريخ الإضافة للمكتبة','date'],
     ['installTime','وقت التثبيت','text'],['releaseDate','تاريخ الإصدار','date'],['sizeGB','الحجم (GB)','number']
   ];
   function editFieldOptions(key,g){
@@ -1242,7 +1259,7 @@
     const fields=EDIT_GAME_FIELDS.map(([key,label,type],idx)=>{
       if(key==='mainChar') return `<div class="game-edit-field"><label>${esc(label)}</label><div class="side-select"><select data-edit-field="${key}" disabled>${editFieldOptions(key,g)}</select><button type="button" class="add-field-value-btn" data-add-field="${key}" disabled title="${tr('إضافة شخصية جديدة')}" aria-label="${tr('إضافة شخصية جديدة')}">＋</button></div></div>`;
       if(type==='select') return `<div class="game-edit-field"><label>${esc(label)}</label><select data-edit-field="${key}" disabled>${editFieldOptions(key,g)}</select></div>`;
-      return `<div class="game-edit-field"><label>${esc(label)}</label><input data-edit-field="${key}" type="${type}" value="${esc(g[key]??'')}" readonly ${key==='rating'?'step="0.1" min="1" max="10" inputmode="decimal"':type==='number'?'step="0.01" min="0"':''}></div>`;
+      return `<div class="game-edit-field"><label>${esc(label)}</label><input data-edit-field="${key}" type="${type}" value="${esc(key==='gameUpdatedDate'?(gameUpdatedISO(g)||''):type==='date'?String(g[key]??'').slice(0,10):(g[key]??''))}" readonly ${key==='rating'?'step="0.1" min="1" max="10" inputmode="decimal"':type==='number'?'step="0.01" min="0"':''}></div>`;
     }).join('');
     return `<div class="game-edit-panel"><div class="game-edit-grid">${fields}</div><div class="game-edit-actions"><button type="button" class="cancel-edit">↩️</button><button type="button" class="save-edit">💾</button></div></div>`;
   }
@@ -1288,6 +1305,14 @@
     const g=GAMES.find(x=>Number(x.id)===Number(id)); if(!g)return;
     const changed={};
     row.querySelectorAll('[data-edit-field]').forEach(el=>{let v=el.value;if(el.type==='number')v=v===''?null:Number(v);else v=v||null;changed[el.dataset.editField]=v;});
+    (function(){
+      const k='createdAt'; if(k in changed){ if(!changed[k] || String(g[k]||'').slice(0,10)===changed[k]) delete changed[k]; }
+      const diff=Object.keys(changed).some(key=>{
+        const before=key==='gameUpdatedDate'?(gameUpdatedISO(g)||''):(key==='createdAt'?String(g[key]||'').slice(0,10):String(g[key]??''));
+        return String(changed[key]??'')!==before;
+      });
+      if(diff) changed.editedAt=new Date().toISOString();
+    })();
     if(changed.rating!=null){ const n=Number(changed.rating); changed.rating=Number.isFinite(n)?Math.min(10,Math.max(1,Math.round(n*10)/10)):null; }
     if(changed.releaseDate) changed.year=parseInt(String(changed.releaseDate).slice(0,4))||null;
     changed.age=computeAge(changed.releaseDate);
@@ -1574,6 +1599,9 @@
               <div><span class="dk">${tr('الدقة')}</span><span class="dv">${esc(g.resolution||'—')}</span></div>
               <div><span class="dk">${tr('الدعم العربي')}</span><span class="dv">${esc(ARABIC_LABEL[g.arabic]||g.arabic||'—')}</span></div>
               <div><span class="dk">${tr('إصدار اللعبة')}</span><span class="dv">${esc(g.gameVersion||'—')}</span></div>
+              ${libDateRow('آخر تحديث للعبة',gameUpdatedISO(g))}
+              ${libDateRow('تاريخ الإضافة للمكتبة',g.createdAt||g.addedAt||g.dateAdded)}
+              ${libDateRow('آخر تعديل في المكتبة',g.editedAt)}
               <div><span class="dk">${tr('اختيار مفضّل')}</span><span class="dv">${g.goty==='Y'?tr('نعم'):tr('لا')}</span></div>
               <div><span class="dk">${tr('وقت التثبيت')}</span><span class="dv">${esc(g.installTime||'—')}</span></div>
               ${tags.length?`<div class="tag-strip">${tags.map(t=>`<span class="tag-pill">${esc(tr(t))}</span>`).join('')}</div>`:''}${Array.isArray(gameTags[g.id])&&gameTags[g.id].length?`<div class="tag-strip custom-tags">${gameTags[g.id].map(t=>`<span class="tag-pill custom-tag">${esc(t)}</span>`).join('')}</div>`:''}
@@ -2783,6 +2811,9 @@ function matchSizes(list,games,minScore){
     "مدة اللعب (أيام)":"Play Duration (Days)",
     "الدعم العربي":"Arabic Support",
     "إصدار اللعبة":"Game Version",
+    "آخر تحديث للعبة":"Last Game Update",
+    "تاريخ الإضافة للمكتبة":"Added to Library",
+    "آخر تعديل في المكتبة":"Last Edited in Library",
     "اختيار مفضّل":"Favorite",
     "وقت التثبيت":"Install Time",
     "إضافة صورة":"Add Image",
@@ -2952,6 +2983,9 @@ function matchSizes(list,games,minScore){
     "اختيار مفضّل (GOTY)":"Favorite (GOTY)",
     "شوهدت على LED TV":"Seen on LED TV",
     "إصدار اللعبة":"Game Version",
+    "آخر تحديث للعبة":"Last Game Update",
+    "تاريخ الإضافة للمكتبة":"Added to Library",
+    "آخر تعديل في المكتبة":"Last Edited in Library",
     "وقت التثبيت":"Install Time",
     "تاريخ الإصدار":"Release Date",
     "مدة اللعب (أيام)":"Play Duration (Days)",
