@@ -3215,45 +3215,8 @@ a.auth-contact-icon:hover{border-color:#8fb4ff;background:#2f6bff;}
 @media(max-height:700px){#auth-gate-overlay{padding-bottom:20px;justify-content:flex-start;overflow-y:auto;}.auth-gate-contact{position:static;margin-top:16px;}}
 
 
-/* ============ SOUNDTRACK PLAYER (music-player.js) ============ */
-.music-btn.is-playing{border-color:rgba(227,177,92,.7);}
-.music-btn-floating{position:fixed;right:14px;bottom:14px;z-index:5000;}
-.music-popup{position:fixed;top:74px;right:18px;width:260px;max-width:calc(100vw - 28px);z-index:5000;background:var(--panel-2);border:1px solid var(--line-strong);border-radius:12px;box-shadow:0 18px 45px rgba(0,0,0,.45);overflow:hidden;}
-/* لما اللوحة تتقفل بنسيب الفيديو شغال برا الشاشة (مش display:none) عشان الصوت ما يقفش */
-.music-popup:not(.is-open){left:-9999px;right:auto;top:0;}
-.music-popup-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);font-family:var(--font-head);color:var(--parchment);}
-.music-popup-close{border:0;background:transparent;color:var(--muted);font-size:24px;line-height:1;cursor:pointer;padding:0 3px;}
-.music-popup-close:hover{color:var(--parchment);}
-.music-video{width:200px;height:200px;margin:12px auto 8px;background:#000;border-radius:8px;overflow:hidden;}
-.music-video iframe{width:100%;height:100%;display:block;border:0;pointer-events:none;}
-.music-title{padding:0 14px;text-align:center;font-size:13px;font-weight:700;color:var(--parchment);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.music-count{text-align:center;font-size:11px;color:var(--muted);margin:2px 0 8px;font-family:var(--font-mono);}
-.music-controls{display:flex;align-items:center;justify-content:center;gap:6px;padding:0 12px 14px;}
-.music-controls button{width:34px;height:34px;flex:none;display:grid;place-items:center;border:1px solid var(--line-strong);background:rgba(255,255,255,.05);color:var(--parchment);border-radius:9px;cursor:pointer;font-size:14px;padding:0;}
-.music-controls button:hover{border-color:var(--brass);}
-.music-controls input[type=range]{flex:1;min-width:0;height:4px;accent-color:var(--brass);cursor:pointer;}
-.music-note{margin:0 12px 12px;padding:8px 10px;font-size:11.5px;line-height:1.45;color:#f2c9a5;background:rgba(181,80,47,.16);border:1px solid rgba(181,80,47,.5);border-radius:8px;text-align:center;}
-.music-note[hidden]{display:none;}
-@media(max-width:900px){.music-popup{top:74px;right:10px;}}
-@media(max-width:600px){.music-popup{top:120px;}}
-
-/* ============ LOCAL MUSIC PLAYER v20260919-23 ============ */
-#gv-local-music{position:fixed;right:16px;bottom:16px;z-index:10001;font-family:inherit;color:var(--parchment,#f2e7d0)}
-.gv-music-toggle{width:42px;height:42px;border-radius:50%;border:1px solid var(--line-strong,#4d6178);background:linear-gradient(145deg,#10233d,#07111f);color:var(--parchment,#f2e7d0);box-shadow:0 8px 24px rgba(0,0,0,.35);cursor:pointer;font-size:19px;display:grid;place-items:center;transition:.18s}
-.gv-music-toggle:hover,.gv-music-toggle.is-playing{border-color:#e3b15c;transform:translateY(-1px)}
-.gv-music-panel{position:absolute;right:0;bottom:52px;width:330px;max-width:calc(100vw - 24px);padding:12px;background:rgba(8,18,32,.98);border:1px solid var(--line-strong,#344a62);border-radius:14px;box-shadow:0 18px 45px rgba(0,0,0,.5);backdrop-filter:blur(10px)}
-.gv-music-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.08)}
-.gv-music-label{font-size:9px;letter-spacing:1.4px;color:#7ea7d5;font-weight:800}.gv-music-track{font-size:12px;font-weight:700;color:#f2e7d0;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:270px}
-.gv-music-close{border:0;background:transparent;color:#9aabba;font-size:20px;cursor:pointer}.gv-music-close:hover{color:#fff}
-.gv-music-progress{display:grid;grid-template-columns:35px 1fr 35px;align-items:center;gap:6px;margin:10px 0 4px}.gv-music-time{font-size:9px;color:#91a4b7;font-variant-numeric:tabular-nums}.gv-time-total{text-align:right}
-.gv-music-progress input,.gv-music-volume input{width:100%;accent-color:#4d8fd3;cursor:pointer}
-.gv-music-controls{display:flex;justify-content:center;align-items:center;gap:7px;margin:8px 0 11px}.gv-music-controls button{width:36px;height:34px;border:1px solid #31475e;border-radius:9px;background:rgba(255,255,255,.045);color:#e9eef4;cursor:pointer;font-size:14px}.gv-music-controls button:hover{border-color:#e3b15c;background:rgba(227,177,92,.08)}
-.gv-music-controls .gv-play{width:42px;background:rgba(65,130,190,.18);border-color:#4d8fd3}.gv-music-volume{display:grid;grid-template-columns:30px 1fr 38px;gap:7px;align-items:center}.gv-music-volume span{font-size:9px;color:#91a4b7}.gv-volume-value{text-align:right;font-variant-numeric:tabular-nums}.gv-music-status{text-align:center;font-size:9px;color:#6f879e;margin-top:8px}
-@media(max-width:600px){#gv-local-music{right:10px;bottom:10px}.gv-music-panel{width:300px}.gv-music-toggle{width:40px;height:40px}}
-
 /* ===== Floating utility dock =====
-   Icon-only buttons styled exactly like the music button (.gv-music-toggle),
-   stacked in the SAME bottom-right column, directly ABOVE the music button.
+   Icon-only buttons stacked in the bottom-right column.
    Every button keeps its id and JS behaviour; only the look/position changed. */
 .hero-actions{
   visibility:hidden; /* revealApp() in auth-gate.js shows it after login, same as .wrap */
@@ -3261,7 +3224,7 @@ a.auth-contact-icon:hover{border-color:#8fb4ff;background:#2f6bff;}
   right:16px !important;
   left:auto !important;
   top:auto !important;
-  bottom:66px !important; /* 16px (music bottom) + 42px (music button) + 8px gap */
+  bottom:16px !important;
   width:42px !important;
   display:flex !important;
   flex-direction:column !important;
@@ -3333,7 +3296,7 @@ body.light .hero-actions #theme-toggle{--dock-ico:url("data:image/svg+xml,%3Csvg
 }
 .hero-actions > .ui-btn:disabled{opacity:.55;cursor:progress;}
 
-/* Popups open to the LEFT of the column (same 12px gap as the music panel). */
+/* Popups open to the LEFT of the column (12px gap). */
 .hero-actions .users-popup{
   position:fixed !important;
   top:auto !important;
@@ -3355,20 +3318,13 @@ body.light .hero-actions #theme-toggle{--dock-ico:url("data:image/svg+xml,%3Csvg
   top:auto !important;
   bottom:16px !important;
 }
-.gv-music-toggle{color:#f2e7d0 !important;} /* same fixed colour as the dock buttons (readable in light theme) */
-/* The music panel used to open upwards over the column; open it to the left instead. */
-.gv-music-panel{
-  right:54px !important;
-  bottom:0 !important;
-}
 @media(max-width:600px){
-  .hero-actions{right:10px !important;bottom:58px !important;width:40px !important;} /* 10 + 40 + 8 */
+  .hero-actions{right:10px !important;bottom:10px !important;width:40px !important;}
   .hero-actions > .ui-btn,
   .hero-actions > .logout-btn{width:40px !important;min-width:40px !important;max-width:40px !important;height:40px !important;min-height:40px !important;max-height:40px !important;}
   .hero-actions .users-popup,
   .notify-panel,
   .backup-status{right:64px !important;bottom:10px !important;}
-  .gv-music-panel{right:52px !important;}
 }
 @media print{
   .hero-actions{display:none !important;}
@@ -3773,9 +3729,6 @@ body.light .dates-metric b{color:var(--lt-text-soft) !important;}
 body.light .dates-metric strong{color:var(--lt-blue) !important;}
 body.light .dt-resolution-chart:after{background:#ffffff !important;}
 body.light .dt-resolution-chart span{color:var(--lt-blue-3) !important;}
-/* floating buttons: music + stats */
-body.light :is(.gv-music-toggle,.gv-music-panel){background:linear-gradient(180deg,#ffffff,#dfe6ef) !important;color:var(--lt-blue) !important;border:1px solid var(--lt-silver-3) !important;box-shadow:0 4px 12px rgba(20,60,120,.18) !important;}
-body.light .gv-music-toggle *{color:var(--lt-blue) !important;}
 
 /* ---- 12) Fixes round 3 ---- */
 body.light .g-rating.verdict-epic .g-rating-label,body.light .g-rating.verdict-epic .g-rating-stars{color:#b87800 !important;}
@@ -3913,13 +3866,11 @@ body.light #library-section aside#filters.filters summary::after,body.light #lib
    because they cannot hover. */
 @media (hover:hover){
   /* the two containers don't catch the mouse themselves; only the thin edge strip does */
-  .hero-actions,
-  #gv-local-music{pointer-events:none !important;}
+  .hero-actions{pointer-events:none !important;}
 
   /* buttons slide out of the screen and fade (hide is delayed a bit so the mouse can cross the gaps) */
   .hero-actions > .ui-btn,
-  .hero-actions > .logout-btn,
-  #gv-local-music .gv-music-toggle{
+  .hero-actions > .logout-btn{
     transform:translateX(90px) !important;
     opacity:0 !important;
     pointer-events:none !important;
@@ -3927,8 +3878,7 @@ body.light #library-section aside#filters.filters summary::after,body.light #lib
   }
 
   /* thin hover strip at the screen edge (with a small golden handle so you know where to point) */
-  .hero-actions::before,
-  #gv-local-music::before{
+  .hero-actions::before{
     content:"";
     position:absolute;
     top:0; bottom:0;
@@ -3939,13 +3889,11 @@ body.light #library-section aside#filters.filters summary::after,body.light #lib
     border-radius:3px;
   }
 
-  /* shown while hovering the strip / any dock button / music button, or while a popup is open */
-  body:has(.hero-actions:hover, #gv-local-music:hover) .hero-actions > .ui-btn,
-  body:has(.hero-actions:hover, #gv-local-music:hover) .hero-actions > .logout-btn,
-  body:has(.hero-actions:hover, #gv-local-music:hover) #gv-local-music .gv-music-toggle,
+  /* shown while hovering the strip / any dock button, or while a popup is open */
+  body:has(.hero-actions:hover) .hero-actions > .ui-btn,
+  body:has(.hero-actions:hover) .hero-actions > .logout-btn,
   .hero-actions:has(.users-popup:not([hidden])) > .ui-btn,
-  .hero-actions:has(.users-popup:not([hidden])) > .logout-btn,
-  #gv-local-music:has(.gv-music-panel:not([hidden])) .gv-music-toggle{
+  .hero-actions:has(.users-popup:not([hidden])) > .logout-btn{
     transform:translateX(0) !important;
     opacity:1 !important;
     pointer-events:auto !important;
@@ -3953,15 +3901,13 @@ body.light #library-section aside#filters.filters summary::after,body.light #lib
   }
 
   /* widen the strip while open so moving the mouse towards the buttons never loses hover */
-  body:has(.hero-actions:hover, #gv-local-music:hover) .hero-actions::before,
-  body:has(.hero-actions:hover, #gv-local-music:hover) #gv-local-music::before{
+  body:has(.hero-actions:hover) .hero-actions::before{
     width:90px;
     background:none;
   }
 
-  /* popups (users list / music player) must stay clickable */
-  .hero-actions .users-popup,
-  #gv-local-music .gv-music-panel{pointer-events:auto !important;}
+  /* popups (users list) must stay clickable */
+  .hero-actions .users-popup{pointer-events:auto !important;}
 }
 
 /* ===== Delete-game confirm dialog (same navy/gold look as the other modals) ===== */

@@ -10,12 +10,12 @@ Settings → Pages → Deploy from a branch → `main` → `/ (root)`.
 المشروع يستخدم إعدادات Firebase الموجودة في `firebase-config.js`.
 يجب أن تكون Firestore Rules مطابقة لملف `firestore.rules` حتى تعمل المزامنة من كل الأجهزة.
 
-> مهم: هذه القواعد تسمح بالقراءة والكتابة بدون تسجيل دخول. هذا مناسب لموقع شخصي خاص بالرابط، لكنه يعني أن أي شخص يعرف رابط الموقع يمكنه تعديل البيانات. إذا أردت حماية حقيقية بحساب دخول، يمكن إضافة Firebase Authentication لاحقًا.
+> مهم: القواعد تسمح بالقراءة والكتابة لأي حساب مسجّل دخول فقط. عطّل إنشاء حسابات جديدة من Firebase Console ← Authentication ← Settings ← User actions.
 
 ## 4) المزامنة
 - البيانات المشتركة محفوظة في Firestore.
 - التغييرات تصل للأجهزة المفتوحة عبر Firestore realtime listener.
-- يوجد fallback polling كل ثانيتين في حال انقطع realtime على بعض الشبكات/الأجهزة.
+- يوجد fallback polling كل 15 ثانية (والتبويب ظاهر فقط) في حال انقطع realtime على بعض الشبكات/الأجهزة.
 - صور الأغلفة تُحفظ في IndexedDB محليًا وتُزامن مع Firestore على أجزاء.
 
 ## 5) لا تفتح index.html بـ file://

@@ -12,4 +12,4 @@
 ## التشغيل
 اضغط `run-local.bat`. لا يحتاج Python أو PHP أو Node.js؛ يستخدم PowerShell الموجود في Windows.
 
-فتح `index.html` مباشرة عبر `file://` قد يمنع المتصفح من قراءة JSON.
+يفضل التشغيل عبر `run-local.bat` أو رابط الموقع وليس فتح `index.html` مباشرة.
