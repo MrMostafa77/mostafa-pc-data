@@ -30,6 +30,12 @@
     now: ['Playing now', 'قيد اللعب حاليًا'], since: ['started', 'بدأت في'],
     noend: ['No end date recorded', 'لا يوجد تاريخ نهاية مسجّل'],
     today: ['today', 'اليوم'], ago: ['ago', 'مضت'], day: ['day', 'يوم'], days: ['days', 'يوم'],
+    top_t: ['Most Played Games', 'أكثر الألعاب لعبًا'],
+    order: ['Order', 'الترتيب'], desc: ['Most played first', 'الأكثر لعبًا أولًا (تنازلي)'], asc: ['Least played first', 'الأقل لعبًا أولًا (تصاعدي)'],
+    played_n: ['Games played', 'ألعاب تم لعبها'], total_plays: ['Total plays', 'إجمالي مرات اللعب'],
+    col_game: ['Game', 'اللعبة'], col_plays: ['Times played', 'عدد مرات اللعب'], col_last: ['Last played', 'آخر لعب'],
+    more: ['Show more', 'عرض المزيد'], shown: ['Showing', 'المعروض'], of: ['of', 'من'],
+    top_note: ['Only games with at least one play record are listed. Ties are ordered by most recent play.', 'بتظهر الألعاب اللي ليها سجل لعب واحد على الأقل. لو العدد متساوي بيترتبوا بالأحدث لعبًا.'],
     hint: ['Start typing a game name to see matches.', 'اكتب اسم لعبة لتظهر لك الألعاب المشابهة.']
   };
   function t(k) { var v = T[k]; return v ? v[L() === 'ar' ? 1 : 0] : k; }
@@ -95,7 +101,8 @@
     root.setAttribute('dir', L() === 'ar' ? 'rtl' : 'ltr');
     root.innerHTML = '<div class="gvi-head"><h2>' + esc(t('title')) + '</h2><p>' + esc(t('sub')) + '</p></div>' +
       '<div class="gvi-search"><input autocomplete="off" class="search-input" id="gvi-q" type="text" placeholder="' + esc(t('ph')) + '"/><div class="search-sugg" id="gvi-sugg"></div></div>' +
-      '<div id="gvi-out"><div class="gvi-empty">' + esc(t('hint')) + '</div></div>';
+      '<div id="gvi-out"><div class="gvi-empty">' + esc(t('hint')) + '</div></div><div id="gvi-top"></div>';
+    topLimit = 25; renderTop();
     input = root.querySelector('#gvi-q'); sugg = root.querySelector('#gvi-sugg'); out = root.querySelector('#gvi-out');
     input.addEventListener('input', function () { showSugg(); });
     input.addEventListener('focus', function () { showSugg(); });
@@ -130,6 +137,47 @@
     sugg.classList.add('open');
   }
 
+  function lastText(s) {
+    if (s.last) {
+      var a = daysAgo(s.last), rel = a == null ? '' : (a <= 0 ? t('today') : (L() === 'ar' ? t('ago') + ' ' + dig(a) + ' ' + (a === 1 ? t('day') : t('days')) : dig(a) + ' ' + (a === 1 ? t('day') : t('days')) + ' ' + t('ago')));
+      return esc(dig(s.last)) + (rel ? '<small class="gvi-rel">' + esc(rel) + '</small>' : '');
+    }
+    if (s.open) return esc(t('now')) + '<small class="gvi-rel">' + esc(t('since')) + ' ' + esc(dig(s.open)) + '</small>';
+    return esc(s.count ? t('noend') : t('never'));
+  }
+
+  /* ---------- تقرير: أكثر الألعاب لعبًا ---------- */
+  var topDir = 'desc', topLimit = 25;
+  function renderTop() {
+    var el = root && root.querySelector('#gvi-top'); if (!el) return;
+    D = build();
+    var seen = {}, rows = [];
+    D.games.forEach(function (g) {
+      var k = norm(g.name); if (seen[k]) return; seen[k] = 1;
+      var st = stats(g, D); if (st.count > 0) rows.push({ g: g, s: st });
+    });
+    rows.sort(function (a, b) {
+      var d = topDir === 'asc' ? a.s.count - b.s.count : b.s.count - a.s.count; if (d) return d;
+      var la = a.s.last || '', lb = b.s.last || ''; if (la !== lb) return la < lb ? 1 : -1;
+      return String(a.g.name).localeCompare(String(b.g.name));
+    });
+    var maxC = rows.reduce(function (m, r) { return Math.max(m, r.s.count); }, 1);
+    var total = rows.reduce(function (m, r) { return m + r.s.count; }, 0);
+    var shown = rows.slice(0, topLimit);
+    var body = shown.map(function (r, i) {
+      var series = (!r.g.series || r.g.series === 'SOLO') ? '' : '<small class="gvi-rel">' + esc(r.g.series) + '</small>';
+      return '<tr><td>' + dig(i + 1) + '</td><td class="gvi-tg"><span class="gvi-name">' + esc(r.g.name) + '</span>' + series + '</td>' +
+        '<td><div class="gvi-cnt"><b>' + esc(dig(r.s.count)) + '</b><span class="gvi-bt"><i style="width:' + Math.max(3, r.s.count / maxC * 100).toFixed(1) + '%"></i></span></div></td>' +
+        '<td>' + lastText(r.s) + '</td></tr>';
+    }).join('');
+    el.innerHTML = '<h3 class="gvi-sec">' + esc(t('top_t')) + '</h3>' +
+      '<div class="gvi-kpis gvi-kpis-s"><div class="gvi-kpi"><span>' + esc(t('played_n')) + '</span><b>' + esc(dig(rows.length)) + '</b></div><div class="gvi-kpi"><span>' + esc(t('total_plays')) + '</span><b>' + esc(dig(total)) + '</b></div></div>' +
+      '<div class="gvi-tool">' + esc(t('order')) + ' <select class="gvi-sel" data-act="dir"><option value="desc"' + (topDir === 'desc' ? ' selected' : '') + '>' + esc(t('desc')) + '</option><option value="asc"' + (topDir === 'asc' ? ' selected' : '') + '>' + esc(t('asc')) + '</option></select></div>' +
+      (rows.length ? '<div class="gvi-scroll"><table class="gvi-table"><thead><tr><th>#</th><th>' + esc(t('col_game')) + '</th><th>' + esc(t('col_plays')) + '</th><th>' + esc(t('col_last')) + '</th></tr></thead><tbody>' + body + '</tbody></table></div>' : '<div class="gvi-empty">' + esc(t('never')) + '</div>') +
+      '<p class="gvi-note">' + esc(t('shown')) + ' ' + esc(dig(shown.length)) + ' ' + esc(t('of')) + ' ' + esc(dig(rows.length)) + ' — ' + esc(t('top_note')) + '</p>' +
+      (rows.length > shown.length ? '<button type="button" class="gvi-more" data-act="more">' + esc(t('more')) + '</button>' : '');
+  }
+
   function row(k, v) { return '<div class="gvi-kpi"><span>' + esc(t(k)) + '</span><b>' + v + '</b></div>'; }
 
   function pick(g) {
@@ -139,15 +187,7 @@
     var fresh = D.games.filter(function (x) { return Number(x.id) === Number(g.id); })[0] || g;
     var s = stats(fresh, D);
     var series = (!fresh.series || fresh.series === 'SOLO') ? t('solo') : fresh.series;
-    var lastHtml;
-    if (s.last) {
-      var a = daysAgo(s.last), rel = a == null ? '' : (a <= 0 ? t('today') : (L() === 'ar' ? t('ago') + ' ' + dig(a) + ' ' + (a === 1 ? t('day') : t('days')) : dig(a) + ' ' + (a === 1 ? t('day') : t('days')) + ' ' + t('ago')));
-      lastHtml = esc(dig(s.last)) + (rel ? '<small class="gvi-rel">' + esc(rel) + '</small>' : '');
-    } else if (s.open) {
-      lastHtml = esc(t('now')) + '<small class="gvi-rel">' + esc(t('since')) + ' ' + esc(dig(s.open)) + '</small>';
-    } else {
-      lastHtml = esc(s.count ? t('noend') : t('never'));
-    }
+    var lastHtml = lastText(s);
     out.innerHTML = '<div class="gvi-card"><img class="gvi-cover" src="assets/covers/' + esc(fresh.id) + '.jpg" onerror="this.style.display=\'none\'" alt="">' +
       '<div class="gvi-card-body"><h3 class="gvi-gname">' + esc(fresh.name) + '</h3><div class="gvi-kpis">' +
       row('series', esc(series)) + row('plays', esc(dig(s.count))) + row('last', lastHtml) + '</div></div></div>';
@@ -161,6 +201,10 @@
     '.gvi-card-body{flex:1;min-width:0}.gvi-gname{margin:0 0 10px;font-size:20px}' +
     '.gvi-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}.gvi-kpi{background:var(--panel-2,rgba(255,255,255,.05));border:1px solid var(--line,rgba(255,255,255,.12));padding:10px 12px;border-radius:6px}' +
     '.gvi-kpi b{display:block;font-size:17px;color:var(--brass-bright,#e3b15c);margin-top:4px}.gvi-kpi span{font-size:12px;opacity:.75}.gvi-rel{display:block;font-size:12px;font-weight:400;opacity:.7;color:inherit;margin-top:2px}' +
+    '.gvi-sec{margin:26px 0 8px;font-size:17px}.gvi-kpis-s{margin-bottom:10px}.gvi-tool{margin:8px 0;font-size:13px}.gvi-sel{background:var(--panel-2,#262b1d);color:inherit;border:1px solid var(--line,rgba(255,255,255,.2));border-radius:4px;padding:4px 8px;margin-inline-start:6px}' +
+    '.gvi-scroll{overflow-x:auto}.gvi-table{width:100%;border-collapse:collapse;font-size:13px}.gvi-table th,.gvi-table td{padding:7px 8px;text-align:start;border-bottom:1px solid var(--line,rgba(255,255,255,.1));vertical-align:middle}.gvi-table th{opacity:.7;font-weight:600;white-space:nowrap}.gvi-tg{min-width:180px}.gvi-name{font-weight:600}' +
+    '.gvi-cnt{display:flex;align-items:center;gap:10px;min-width:130px}.gvi-cnt b{min-width:26px;color:var(--brass-bright,#e3b15c)}.gvi-bt{flex:1;height:8px;background:rgba(127,127,127,.18);border-radius:4px;overflow:hidden;display:block}.gvi-bt i{display:block;height:100%;background:var(--brass,#c9963f);border-radius:4px}' +
+    '.gvi-note{font-size:12px;opacity:.65;margin:10px 0 0}.gvi-more{margin-top:8px;padding:7px 18px;background:var(--panel-2,rgba(255,255,255,.06));color:inherit;border:1px solid var(--line-strong,rgba(255,255,255,.25));border-radius:4px;cursor:pointer}.gvi-more:hover{border-color:var(--brass,#c9963f)}' +
     '@media(min-width:1001px){.tabnav{grid-template-columns:repeat(7,minmax(0,1fr)) !important}}@media(max-width:640px){.gvi-card{flex-direction:column}}';
 
   function inject() {
@@ -185,6 +229,8 @@
       if (b === navBtn) return;
       b.addEventListener('click', function () { navBtn.classList.remove('active'); root.classList.remove('active'); });
     });
+    root.addEventListener('change', function (e) { if (e.target && e.target.getAttribute('data-act') === 'dir') { topDir = e.target.value === 'asc' ? 'asc' : 'desc'; topLimit = 25; renderTop(); } });
+    root.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-act="more"]'); if (b) { topLimit += 25; renderTop(); } });
     document.addEventListener('click', function (e) { if (sugg && !(e.target.closest && e.target.closest('.gvi-search'))) sugg.classList.remove('open'); });
     var lt = document.getElementById('lang-toggle');
     if (lt) lt.addEventListener('click', function () { labelNav(); if (isActive()) drawFrame(); });
