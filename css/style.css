@@ -4059,3 +4059,10 @@ body.light .goty-modal-dialog{color:var(--lt-text);background:#fff;border-color:
 body.light .goty-modal-sub b{color:var(--lt-blue)}
 body.light .goty-modal-x,body.light .goty-modal-search,body.light .goty-pick-row{background:#f1f5fa;color:var(--lt-text);border-color:var(--lt-silver)}
 body.light .goty-pick-row.on{background:#dbeafe;border-color:var(--lt-blue)}
+
+/* Game Dates: game name becomes an editable search box while the row is in edit mode */
+#dates-section .dt-name-edit{display:none;position:relative;min-width:240px;grid-column:auto;width:100%}
+#dates-section tr.dt-row-editing .dt-name-edit{display:block}
+#dates-section tr.dt-row-editing .dt-name-view{display:none}
+#dates-section .dt-name-input{width:100%;min-width:220px;box-sizing:border-box}
+#dates-section .dt-name-results{z-index:10002;text-align:start}
