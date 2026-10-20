@@ -4066,3 +4066,5 @@ body.light .goty-pick-row.on{background:#dbeafe;border-color:var(--lt-blue)}
 #dates-section tr.dt-row-editing .dt-name-view{display:none}
 #dates-section .dt-name-input{width:100%;min-width:220px;box-sizing:border-box}
 #dates-section .dt-name-results{z-index:10002;text-align:start}
+
+.dt-name-results{z-index:10002;text-align:start;box-sizing:border-box}

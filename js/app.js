@@ -2301,12 +2301,21 @@
 
     // Game Dates: editing a row also lets you change the game name.
     // Type to search the library (same rules as Add Game: starts-with first, then contains), then pick a game.
+    // The suggestion list is moved to <body> while open so the table's own scrolling/clipping can never hide or displace it.
     const nameGames=GAMES.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'}));
     const closeNameResults=(res)=>{ if(!res)return; res.classList.remove('is-open'); res.innerHTML=''; };
+    const closeAllNameResults=()=>{ window.__dtNameActive=null; document.querySelectorAll('.dt-name-results.is-open').forEach(closeNameResults); };
+    document.querySelectorAll('body > .dt-name-results').forEach(n=>n.remove());
     wrap.querySelectorAll('tr[data-rid]').forEach(row=>{
       const input=row.querySelector('.dt-name-input'), hid=row.querySelector('[data-field="gameId"]'), res=row.querySelector('.dt-name-results');
       if(!input||!hid||!res)return;
-      const place=()=>{ const b=input.getBoundingClientRect(); res.style.position='fixed'; res.style.left=b.left+'px'; res.style.right='auto'; res.style.top=(b.bottom+4)+'px'; res.style.width=Math.max(b.width,260)+'px'; res.style.maxHeight='260px'; };
+      const place=()=>{
+        const b=input.getBoundingClientRect();
+        res.style.position='fixed'; res.style.right='auto'; res.style.width=Math.max(b.width,260)+'px'; res.style.maxHeight='260px'; res.style.left=Math.max(4,b.left)+'px';
+        let top=b.bottom+4; const h=res.offsetHeight;
+        if(top+h>window.innerHeight-8 && b.top-4-h>8) top=b.top-4-h;
+        res.style.top=top+'px';
+      };
       const show=(q)=>{
         const nq=normDateSearch(q);
         let list=nameGames.filter(g=>!nq||normDateSearch(g.name).startsWith(nq));
@@ -2314,9 +2323,11 @@
         res.innerHTML=list.length
           ? list.map(g=>`<button type="button" class="dt-game-result" data-gid="${g.id}"><span class="dt-result-icon">🎮</span><span>${esc(g.name)}</span></button>`).join('')
           : '<div class="dt-no-results">No games found</div>';
-        place(); res.classList.add('is-open');
+        if(res.parentNode!==document.body) document.body.appendChild(res);
+        res.classList.add('is-open'); place();
+        window.__dtNameActive={input,res,place};
       };
-      const choose=(g)=>{ hid.value=String(g.id); input.value=g.name; input.classList.add('selected'); closeNameResults(res); };
+      const choose=(g)=>{ hid.value=String(g.id); input.value=g.name; input.classList.add('selected'); closeNameResults(res); window.__dtNameActive=null; };
       res.addEventListener('mousedown',e=>e.preventDefault());
       res.addEventListener('click',e=>{ const b=e.target.closest('.dt-game-result'); if(!b)return; const g=GAMES.find(x=>Number(x.id)===Number(b.dataset.gid)); if(g)choose(g); });
       input.addEventListener('input',()=>{ hid.value=''; input.classList.remove('selected'); show(input.value); });
@@ -2327,10 +2338,10 @@
     });
     if(!window.__dtNameDocBound){
       window.__dtNameDocBound=true;
-      const closeAllNameResults=()=>document.querySelectorAll('#dates-wrap .dt-name-results.is-open').forEach(r=>{r.classList.remove('is-open');r.innerHTML='';});
-      document.addEventListener('click',e=>{ if(!(e.target.closest&&e.target.closest('.dt-name-edit'))) closeAllNameResults(); });
-      window.addEventListener('scroll',e=>{ if(e.target&&e.target.classList&&e.target.classList.contains('dt-name-results'))return; closeAllNameResults(); },true);
-      window.addEventListener('resize',closeAllNameResults);
+      document.addEventListener('click',e=>{ if(!(e.target.closest&&(e.target.closest('.dt-name-edit')||e.target.closest('.dt-name-results')))){ window.__dtNameActive=null; document.querySelectorAll('.dt-name-results.is-open').forEach(r=>{r.classList.remove('is-open');r.innerHTML='';}); } });
+      const reposition=()=>{ const a=window.__dtNameActive; if(a&&a.res.classList.contains('is-open')) a.place(); };
+      window.addEventListener('scroll',reposition,true);
+      window.addEventListener('resize',reposition);
     }
     // Resolve the game picked/typed in a row: prefer the chosen id, otherwise an exact (normalized) name match.
     const resolveRowGame=(row)=>{
@@ -2374,7 +2385,7 @@
       const set=(sel,val)=>{const el=row.querySelector(sel);if(el)el.value=val;};
       set('[data-field="gameName"]',snap.gameName||'');
       set('[data-field="gameId"]',snap.gameId||'');
-      row.querySelectorAll('.dt-name-results').forEach(closeNameResults);
+      closeAllNameResults();
       row.querySelector('.dt-name-input')?.classList.remove('selected');
       set('[data-field="start"]',snap.start);
       set('[data-field="endDate"]',snap.endDate);
