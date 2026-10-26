@@ -273,6 +273,28 @@
     });
   }
 
+  function updateBestYearSummary() {
+    var el = root && root.querySelector('#gvi-best-year'); if (!el) return;
+    var map = yearGroups(), state = getBestState();
+    var years = Object.keys(map).map(Number).sort(function (a, b) { return a - b; });
+    var counts = {}, totalSelected = 0;
+    years.forEach(function (y) {
+      counts[y] = map[y].reduce(function (n, g) {
+        if (state[String(g.id)]) { totalSelected++; return n + 1; }
+        return n;
+      }, 0);
+    });
+    var max = years.reduce(function (m, y) { return Math.max(m, counts[y] || 0); }, 0);
+    var winners = max ? years.filter(function (y) { return counts[y] === max; }) : [];
+    var summary = winners.length
+      ? winners.map(function (y) { return dig(y) + ' (' + dig(counts[y]) + ')'; }).join(' · ')
+      : t('noSelection');
+    var winner = el.querySelector('.gvi-best-winner strong');
+    var selected = el.querySelector('.gvi-best-winner small');
+    if (winner) winner.textContent = summary;
+    if (selected) selected.textContent = t('selected') + ': ' + dig(totalSelected);
+  }
+
   function drawFrame() {
     root.setAttribute('dir', L() === 'ar' ? 'rtl' : 'ltr');
     root.innerHTML =
@@ -404,7 +426,21 @@
       if (e.target && e.target.getAttribute('data-act') === 'best-check') {
         var state = getBestState(), id = String(e.target.getAttribute('data-game-id'));
         if (e.target.checked) state[id] = 1; else delete state[id];
-        saveBestState(state); renderBestYear();
+        saveBestState(state);
+
+        // Update only the affected row/counters instead of rebuilding the whole
+        // Best Year report. Rebuilding the DOM causes the browser to move the
+        // focused checkbox/anchor back to the top of the page.
+        var row = e.target.closest('.gvi-year-game');
+        if (row) row.classList.toggle('checked', !!e.target.checked);
+        var details = e.target.closest('.gvi-year');
+        if (details) {
+          var year = Number(details.getAttribute('data-year'));
+          var count = details.querySelectorAll('input[data-act=\"best-check\"]:checked').length;
+          var badge = details.querySelector('.gvi-year-count');
+          if (badge) badge.textContent = dig(count);
+        }
+        updateBestYearSummary();
       }
     });
 
