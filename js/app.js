@@ -2144,7 +2144,6 @@
       const ak=key==='name'?'name':key;
       return String(a[ak]??'').localeCompare(String(b[ak]??''),undefined,{numeric:true,sensitivity:'base'})*dir;
     });
-    window.__gvDatesSorted=sorted;
     const total=sorted.reduce((n,r)=>n+(Number(recordDays(r))||0),0),avg=sorted.length?total/sorted.length:0;
     const completedCount=sorted.filter(r=>{const end=String(r.end||'').trim();return end && end.toLowerCase()!=='postponed';}).length;
     const completionRate=sorted.length?(completedCount/sorted.length)*100:0;
@@ -4137,80 +4136,8 @@ if(type==='overview'){
 
 
   /* ================= EXPORT / PRINT ================= */
-  /* ===== Clean one-row-per-item Excel export (Library + Game Dates) ===== */
-  function exportCleanTable(sectionId){
-    const en=(lang==='en');
-    const cellHtml=v=>{
-      if(typeof v==='number'&&Number.isFinite(v)) return `<td>${v}</td>`;
-      const s=(v===null||v===undefined)?'':String(v);
-      return `<td style="mso-number-format:'\\@'">${esc(s)}</td>`;
-    };
-    let cols=[], rows=[], sheetName='', fileName='';
-    if(sectionId==='library-section'){
-      let list=getFiltered();
-      if(!list.length && (state.searchName||'').trim()) list=getFiltered('contains');
-      rows=sortList(list);
-      const plays=g=>getGamePlayRecords(g.id,g.name).slice().sort((a,b)=>playDateKey(a).localeCompare(playDateKey(b)));
-      cols=[
-        ['اسم اللعبة','Game',g=>g.name],
-        ['السلسلة','Series',g=>SERIES_LABEL[g.series]||g.series||''],
-        ['تاريخ الإصدار','Release Date',g=>g.releaseDate||''],
-        ['عدد مرات اللعب','Play Count',g=>getGamePlayCount(g.id,g.name)],
-        ['آخر تاريخ لعب','Last Played',g=>latestPlayDate(g.id,g.name)||''],
-        ['تواريخ اللعب','Play Dates',g=>plays(g).map(r=>`${r.start||'?'} → ${r.end||'?'}`).join(' | ')],
-        ['النوع','Genre',g=>g.genre||''],
-        ['حالة اللعب','Playing State',g=>{const s=derivedLibraryPlayingState(g);return STATE_LABEL[s]||s||'';}],
-        ['التقييم','Rating',g=>VERDICT_LABEL[g.verdict]||g.verdict||''],
-        ['الهارد','HDD',g=>g.hdd||''],
-        ['الحجم (GB)','Size (GB)',g=>(g.sizeGB!=null&&g.sizeGB!=='')?Number(g.sizeGB):''],
-        ['System','System',g=>g.system||''],
-        ['الشركة المطوّرة','Developer',g=>g.developer||''],
-        ['نوع النسخة','Version Type',g=>g.versionType||''],
-        ['نوع الإصدار','Release Type',g=>g.rem||''],
-        ['الشخصية الرئيسية','Main Character',g=>g.mainChar||''],
-        ['المنظور','Perspective',g=>PERSP_LABEL[g.perspective]||g.perspective||''],
-        ['الدقة','Resolution',g=>g.resolution||''],
-        ['الدعم العربي','Arabic Support',g=>ARABIC_LABEL[g.arabic]||g.arabic||''],
-        ['إصدار اللعبة','Game Version',g=>g.gameVersion||''],
-        ['آخر تحديث للعبة','Last Game Update',g=>gameUpdatedISO(g)||''],
-        ['مدة اللعب (أيام)','Play Duration (days)',g=>{const d=computeDays(g.startDate,g.endDate);return d!=null?Number(d):'';}],
-        ['اختيار مفضّل (GOTY)','GOTY',g=>g.goty==='Y'?(en?'Yes':'نعم'):(en?'No':'لا')],
-        ['مفضّلة','Favorite',g=>favorites.has(Number(g.id))?(en?'Yes':'نعم'):(en?'No':'لا')],
-        ['وقت التثبيت','Install Time',g=>g.installTime||'']
-      ];
-      sheetName=en?'Library':'المكتبة'; fileName=en?'Game_Library':'مكتبة_الألعاب';
-    }else{
-      renderDatesTab();
-      rows=Array.isArray(window.__gvDatesSorted)?window.__gvDatesSorted:[];
-      const gameOf=r=>GAMES.find(g=>(r.gameId!=null&&Number(g.id)===Number(r.gameId))||normDateSearch(g.name)===normDateSearch(r.name))||{};
-      cols=[
-        ['اسم اللعبة','Game',r=>r.name||''],
-        ['السلسلة','Series',r=>{const g=gameOf(r);return SERIES_LABEL[g.series]||g.series||'';}],
-        ['تاريخ الإصدار','Release Date',r=>gameOf(r).releaseDate||''],
-        ['إجمالي مرات اللعب','Total Plays',r=>getGamePlayCount(r.gameId,r.name)],
-        ['رقم هذه المرة','Play #',r=>getPlayOrdinal(r.gameId,r.name,r)],
-        ['تاريخ البداية','Start Date',r=>r.start||''],
-        ['تاريخ النهاية','End Date',r=>r.end||''],
-        ['عدد الأيام','Days',r=>{const d=recordDays(r);return d!=null?Number(d):'';}],
-        ['جديدة / قديمة','New / Old',r=>getPlayCountBefore(r.gameId,r.name,r)===0?'New':'Old'],
-        ['حالة اللعب','Playing State',r=>r.playingState||r.status||''],
-        ['الشاشة','Screen',r=>r.screenType||''],
-        ['الجهاز','Device',r=>r.device||''],
-        ['كرت الشاشة','GPU',r=>r.gpu||''],
-        ['الدقة','Resolution',r=>r.resolution||'']
-      ];
-      sheetName=en?'Game Dates':'تواريخ_اللعب'; fileName=en?'Game_Dates':'تواريخ_الألعاب';
-    }
-    const head=cols.map(c=>`<th>${esc(en?c[1]:c[0])}</th>`).join('');
-    const body=rows.map(r=>`<tr>${cols.map(c=>cellHtml(c[2](r))).join('')}</tr>`).join('');
-    const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>${esc(sheetName)}</x:Name><x:WorksheetOptions>${en?'':'<x:DisplayRightToLeft/>'}<x:FreezePanes/><x:FrozenNoSplit/><x:SplitHorizontal>1</x:SplitHorizontal><x:TopRowBottomPane>1</x:TopRowBottomPane><x:ActivePane>2</x:ActivePane></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--><style>table{border-collapse:collapse;font-family:Arial,sans-serif;font-size:11pt}th{background:#0b3a5c;color:#fff;font-weight:bold;border:1px solid #888;padding:6px 10px;white-space:nowrap;text-align:center}td{border:1px solid #bbb;padding:5px 10px;white-space:nowrap;vertical-align:middle;text-align:${en?'left':'right'}}</style></head><body><table dir="${en?'ltr':'rtl'}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></body></html>`;
-    const blob=new Blob(['\ufeff',html],{type:'application/vnd.ms-excel;charset=utf-8'});
-    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fileName+'.xls';a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-  }
   function exportSectionHTML(sectionId, mode){
     const section=document.getElementById(sectionId); if(!section)return;
-    if(mode==='excel' && (sectionId==='library-section'||sectionId==='dates-section')){ exportCleanTable(sectionId); return; }
     const clone=section.cloneNode(true);
     clone.querySelectorAll('.section-tools,.cover-tools,.icon-action,.action-btn,.plus-btn,.dt-actions,.size-actions,.pager,.search-sugg').forEach(el=>el.remove());
     clone.querySelectorAll('input,select,button').forEach(el=>{ if(el.tagName==='INPUT'||el.tagName==='SELECT'){ const span=document.createElement('span'); span.textContent=el.value||el.getAttribute('placeholder')||''; el.replaceWith(span); } else el.remove(); });
