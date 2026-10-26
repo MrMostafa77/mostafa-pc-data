@@ -219,6 +219,15 @@
   }
   function renderBestYear() {
     var el = root && root.querySelector('#gvi-best-year'); if (!el) return;
+
+    // Preserve the user's position when a checkbox is changed.
+    // Rebuilding the report used to move the page back to the top.
+    var scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+    var openYears = {};
+    el.querySelectorAll('.gvi-year[open]').forEach(function (d) {
+      openYears[d.getAttribute('data-year')] = true;
+    });
+
     var map = yearGroups(), state = getBestState(), years = Object.keys(map).map(Number).sort(function (a, b) { return a - b; });
     var counts = {}, totalSelected = 0;
     years.forEach(function (y) {
@@ -235,7 +244,7 @@
       : t('noSelection');
 
     var details = years.map(function (y) {
-      var open = winners.indexOf(y) >= 0;
+      var open = openYears[String(y)] || winners.indexOf(y) >= 0;
       var rows = map[y].map(function (g) {
         var key = String(g.id), checked = !!state[key];
         return '<label class="gvi-year-game' + (checked ? ' checked' : '') + '">' +
@@ -257,6 +266,11 @@
       '<div class="gvi-best-winner"><span>' + esc(t('best')) + '</span><strong>' + summary + '</strong><small>' + esc(t('selected')) + ': ' + dig(totalSelected) + '</small></div>' +
       '<div class="gvi-check-hint">' + esc(t('checkHint')) + '</div>' +
       '<div class="gvi-years">' + details + '</div>';
+
+    // Restore the exact page position after the DOM is rebuilt.
+    requestAnimationFrame(function () {
+      window.scrollTo(0, scrollY);
+    });
   }
 
   function drawFrame() {
@@ -319,11 +333,12 @@
     '#insights-section .gvi-report-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 14px;border-bottom:1px solid var(--line,rgba(255,255,255,.12));padding-bottom:10px}' +
     '#insights-section .gvi-report-tab{appearance:none;border:1px solid var(--line-strong,rgba(255,255,255,.2));background:var(--panel-2,rgba(255,255,255,.05));color:inherit;padding:9px 15px;border-radius:6px;cursor:pointer;font-weight:600;transition:.15s}' +
     '#insights-section .gvi-report-tab:hover,#insights-section .gvi-report-tab.active{border-color:var(--brass,#c9963f);background:rgba(201,150,63,.12);color:var(--brass-bright,#e3b15c)}' +
-    '#insights-section .gvi-report-panel{background:var(--panel,rgba(255,255,255,.035));border:1px solid var(--line,rgba(255,255,255,.12));border-radius:8px;overflow:hidden}' +
+    '#insights-section .gvi-report-panel{background:var(--panel,rgba(255,255,255,.035));border:1px solid var(--line,rgba(255,255,255,.12));border-radius:8px;overflow:visible;position:relative}' +
     '#insights-section .gvi-panel-inner{padding:16px 18px;min-height:220px}' +
     '#insights-section .gvi-panel-title h3{margin:0 0 4px;font-size:18px}' +
     '#insights-section .gvi-panel-title p{margin:0 0 14px;opacity:.65;font-size:12px}' +
-    '#insights-section .gvi-search{position:relative;max-width:560px;margin:8px 0 16px}' +
+    '#insights-section .gvi-search{position:relative;max-width:560px;margin:8px 0 16px;z-index:1000}' +
+    '#insights-section .gvi-search .search-sugg{z-index:10001;max-height:520px;overflow:auto}' +
     '#insights-section .gvi-empty{opacity:.6;padding:8px 0;font-size:13px}' +
     '#insights-section .gvi-card{display:flex;gap:16px;align-items:flex-start;background:var(--panel-2,rgba(255,255,255,.04));border:1px solid var(--line,rgba(255,255,255,.12));border-radius:6px;padding:14px}' +
     '#insights-section .gvi-cover{width:90px;height:120px;object-fit:cover;border-radius:4px;border:1px solid var(--line-strong,rgba(255,255,255,.2));flex:0 0 90px}' +
