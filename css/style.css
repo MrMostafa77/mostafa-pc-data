@@ -1340,7 +1340,7 @@ body.light #dynamic-bg{opacity:.72 !important;}
 header.hero{
   min-height:420px;
   padding:24px 0 18px;
-  background-image: url('../assets/hero-banner-new.png');
+  background-image: url('../assets/hero-banner-new.webp');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1356,7 +1356,7 @@ header.hero::before{content:"";position:absolute;inset:0;background:linear-gradi
 header.hero{
   min-height:390px;
   padding:18px 0 16px;
-  background-image:url('../assets/hero-banner-new.png');
+  background-image:url('../assets/hero-banner-new.webp');
   background-size:100% 100%;
   background-position:center;
   background-repeat:no-repeat;

@@ -653,16 +653,6 @@
   }
 
   /* ================= DRIVES ================= */
-  function recomputeDriveStats(){
-    const driveStats = {};
-    GAMES.forEach(g=>{
-      const h = g.hdd || 'غير محدد';
-      if(!driveStats[h]) driveStats[h] = {count:0, size:0};
-      driveStats[h].count++;
-      driveStats[h].size += (g.sizeGB||0);
-    });
-    return driveStats;
-  }
   // تحديث قوايم الهارد المفتوحة (فورم إضافة لعبة + تعديل اللعبة في Library) فورًا بدون ريفرش
   function refreshDriveSelects(){
     try{
@@ -3219,8 +3209,8 @@ function matchSizes(list,games,minScore){
   const I18N_REV = DICT_EN2AR;
   const L_AR='\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF', L_EN='A-Za-z0-9';
   function compileDict(map, cls, exactOnly){
-    const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-    const keys=Object.keys(map).filter(k=>k && k.trim() && !exactOnly(k)).sort((a,b)=>b.length-a.length).map(esc);
+    const escRe=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    const keys=Object.keys(map).filter(k=>k && k.trim() && !exactOnly(k)).sort((a,b)=>b.length-a.length).map(escRe);
     return keys.length ? new RegExp('(?<!['+cls+'])(?:'+keys.join('|')+')(?!['+cls+'])','g') : null;
   }
   const RE_AR2EN = compileDict(DICT_AR2EN, L_AR, k=>k.length<=2);
