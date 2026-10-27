@@ -1,13 +1,11 @@
-# GameVault Professional Optimized v4
+# GameVault
 
-نسخة Static محسنة للأداء مع SPA سريع: التبويبات لا تعيد رسم كل البيانات عند كل انتقال، وكل تبويب ثقيل يتم رسمه عند فتحه فقط.
+نسخة Static للأداء: التبويبات بترسم عند فتحها بس، وLibrary وSizes وGame Dates مقسّمة على صفحات.
 
 ## البيانات
-- `data/games.json` — بيانات الألعاب
-- `data/play-logs.json` — سجلات اللعب
-- `data/date-options.json` — خيارات التواريخ
-- `assets/covers/` — أغلفة منفصلة
-- `assets/backgrounds/` — خلفيات منفصلة
+- `js/data-inline.js` — بيانات الألعاب وسجلات اللعب
+- `assets/covers/` — أغلفة الألعاب
+- `assets/login-bg/` — خلفيات شاشة تسجيل الدخول
 
 ## التشغيل
 اضغط `run-local.bat`. لا يحتاج Python أو PHP أو Node.js؛ يستخدم PowerShell الموجود في Windows.

@@ -4068,3 +4068,28 @@ body.light .goty-pick-row.on{background:#dbeafe;border-color:var(--lt-blue)}
 #dates-section .dt-name-results{z-index:10002;text-align:start}
 
 .dt-name-results{z-index:10002;text-align:start;box-sizing:border-box}
+
+/* ===== Mobile overflow fixes (v20261027-lite-1) ===== */
+.pager{flex-wrap:wrap;}
+.pager button,.pager .page-select{min-width:0;}
+.sizes-pager{align-items:center;}
+.dash-grid>.panel,.panel{min-width:0;}
+@media(max-width:900px){
+  #reports-section .dash-grid{grid-template-columns:minmax(0,1fr)!important;}
+}
+@media(max-width:700px){
+  .section-head{flex-wrap:wrap;}
+  .section-head h2{min-width:0;overflow-wrap:anywhere;}
+  .section-head .note{flex:1 1 100%;min-width:0;}
+  .bar-row .b-label{min-width:0;flex-shrink:1;overflow:hidden;text-overflow:ellipsis;}
+  .bar-row{min-width:0;}
+  .pager{gap:6px;}
+  .pager button{padding:7px 10px;}
+  .sizes-pager .page-select,.dt-pager .page-select{max-width:100%;}
+  /* safety net: never let the page itself scroll sideways (clip doesn't break sticky) */
+  html,body{max-width:100%;overflow-x:clip;}
+}
+@media(max-width:700px){
+  #library-section .library-search-box{grid-template-columns:48px minmax(0,1fr)!important;}
+  #library-section .library-search-box .search-input{min-width:0;width:100%;max-width:100%;box-sizing:border-box;}
+}

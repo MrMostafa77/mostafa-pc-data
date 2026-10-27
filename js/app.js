@@ -37,11 +37,11 @@
     const updatedAt = Date.now();
     if(window.CoverStore){
       window.CoverStore.set(id, dataUrl, updatedAt).then(()=>{
-        window.SoundFX?.playAdd();
+
       }).catch(err=>{
         console.error('Cover save failed', err);
         window.CoverStore.showToast('فشل حفظ الصورة على جهازك: ' + (err && err.message ? err.message : 'خطأ غير معروف'), true);
-        window.SoundFX?.playError();
+
       });
     }
     if(window.GameVaultCloudSync && window.GameVaultCloudSync.isReady()){
@@ -52,10 +52,10 @@
     delete coverOverrides[id];
     if(window.CoverStore){
       window.CoverStore.remove(id).then(()=>{
-        window.SoundFX?.playDelete();
+
       }).catch(err=>{
         console.error('Cover remove failed', err);
-        window.SoundFX?.playError();
+
       });
     }
     if(window.GameVaultCloudSync && window.GameVaultCloudSync.isReady()){
@@ -1299,7 +1299,7 @@
     const target=document.getElementById('results-list');
     if(target) target.prepend(ok); else host.prepend(ok);
     setTimeout(()=>ok.remove(),2500);
-    window.SoundFX?.playSaveSuccess();
+
   }
   function saveGameEdits(id,row){
     const g=GAMES.find(x=>Number(x.id)===Number(id)); if(!g)return;
@@ -1385,7 +1385,7 @@
     showDeleteGameDialog(g,records,()=>performDeleteGame(id,g));
   }
   function performDeleteGame(id,g){
-    window.SoundFX?.playDelete();
+
     userGames=userGames.filter(x=>Number(x.id)!==Number(id));
     const del=loadJSON('mostafa_pc_deleted_games_v1',[]); if(!del.includes(Number(id)))del.push(Number(id));
     saveJSON('mostafa_pc_deleted_games_v1',del);
@@ -1620,7 +1620,7 @@
           ${editGameHtml(g)}
         </div>`;
       }).join('');
-      container.querySelectorAll('.g-row').forEach(row=>row.addEventListener('click',e=>{if(e.target.closest('.cover-upload-label,.cover-remove,.library-card-actions,.game-edit-panel,.game-name-link'))return;const id=Number(row.dataset.id);state.expandedId=state.expandedId===id?null:id;row.classList.toggle('open');if(row.classList.contains('open'))window.SoundFX?.playOpen();}));
+      container.querySelectorAll('.g-row').forEach(row=>row.addEventListener('click',e=>{if(e.target.closest('.cover-upload-label,.cover-remove,.library-card-actions,.game-edit-panel,.game-name-link'))return;const id=Number(row.dataset.id);state.expandedId=state.expandedId===id?null:id;row.classList.toggle('open');}));
       container.querySelectorAll('.edit-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');row.classList.add('open');snapshotGameEditRow(row);setGameEditMode(row,true);row.querySelector('[data-edit-field]')?.focus();}));
       container.querySelectorAll('.save-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');if(!row.classList.contains('editing')){setGameEditMode(row,true);return;}saveGameEdits(Number(row.dataset.id),row);}));
       container.querySelectorAll('.delete-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();deleteGameCompletely(Number(btn.closest('.g-row').dataset.id));}));
@@ -1741,8 +1741,7 @@
     navBtns.forEach(btn=>btn.addEventListener('click',(ev)=>{
       const target=btn.dataset.tab;
       if(!target) return;
-      if(ev && ev.isTrusted) window.SoundFX?.playNavigate(); // كليك حقيقي من المستخدم فقط
-      navBtns.forEach(b=>b.classList.toggle('active',b===btn));
+            navBtns.forEach(b=>b.classList.toggle('active',b===btn));
       pages.forEach(p=>p.classList.toggle('active',p.id===target));
       setPageMode(target);
       requestAnimationFrame(()=>renderTab(target));
@@ -1915,7 +1914,7 @@
     const freshBanner = document.getElementById('ag-banner');
     freshBanner.className = 'ag-banner ag-banner-ok';
     freshBanner.textContent = `تمت إضافة "${name}" إلى Library بنجاح.`;
-    window.SoundFX?.playAdd();
+
     const addModal=document.getElementById('library-add-game-modal');
     if(addModal) addModal.style.display='none';
     const addWrap=document.getElementById('library-add-game-wrap');
@@ -2576,7 +2575,26 @@
       ? Object.keys(perDrive).sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:'base'}))
           .map(d=>`<span class="sz-chip"><b>${esc(d)}</b> ${gbTxt2(perDrive[d])}</span>`).join('') : '';
     const totalsHtml=`<div class="sz-totals"><div class="sz-total-main"><span>إجمالي الحجم</span><b>${gbTxt2(totalGB)}</b>${totalGB>=1024?`<small>(${fmt(totalGB/1024,2)} TB)</small>`:''}</div><div class="sz-total-side"><span>${fmt(rows.length)} لعبة</span><span>${fmt(withSize)} ليها حجم</span></div>${driveChips?`<div class="sz-chips">${driveChips}</div>`:''}<div class="sz-legend"><span class="sz-dot-blue"></span> اتلقى في الفحص <span class="sz-x sz-x-mini">✕</span> مالقاهوش</div></div>`;
-    wrap.innerHTML=`${totalsHtml}<div class="dt-table-wrap"><table class="dt-table sizes-table"><thead><tr><th>اللعبة</th><th>الهارد</th><th>الحجم (Byte)</th><th>الحجم (GB)</th><th>إجراءات</th></tr></thead><tbody>${rows.map(g=>{
+    // ---- Pagination (Sizes): بنرسم صفحة واحدة بس عشان الأداء ----
+    const szSig=JSON.stringify([search?.value||'',filter?.value||'',stSel]);
+    if(window.__szSig!==szSig){ window.__szSig=szSig; window.__szPage=1; }
+    const szSize=window.__szPageSize||50;
+    const szPages=Math.max(1,Math.ceil(rows.length/szSize));
+    if(!(window.__szPage>=1)) window.__szPage=1;
+    if(window.__szPage>szPages) window.__szPage=szPages;
+    const szPage=window.__szPage;
+    const pageRows=rows.slice((szPage-1)*szSize,szPage*szSize);
+    let szPagerHtml='';
+    if(rows.length>25){
+      let b=`<button type="button" ${szPage===1?'disabled':''} data-szp="${szPage-1}">السابق</button>`;
+      let sp=Math.max(1,szPage-2), ep=Math.min(szPages,sp+4); sp=Math.max(1,ep-4);
+      for(let q=sp;q<=ep;q++) b+=`<button type="button" class="${q===szPage?'active':''}" data-szp="${q}">${q}</button>`;
+      b+=`<button type="button" ${szPage===szPages?'disabled':''} data-szp="${szPage+1}">التالي</button>`;
+      b+=`<button type="button" ${szPage===szPages?'disabled':''} data-szp="${szPages}" title="آخر صفحة">الأخير</button>`;
+      const opts=[25,50,100].map(n=>`<option value="${n}" ${n===szSize?'selected':''}>${n} / صفحة</option>`).join('');
+      szPagerHtml=`<div class="pager sizes-pager">${szPages>1?b:''}<select class="page-select" id="sizes-page-size">${opts}</select></div>`;
+    }
+    wrap.innerHTML=`${totalsHtml}<div class="dt-table-wrap"><table class="dt-table sizes-table"><thead><tr><th>اللعبة</th><th>الهارد</th><th>الحجم (Byte)</th><th>الحجم (GB)</th><th>إجراءات</th></tr></thead><tbody>${pageRows.map(g=>{
       const gb=sizeValueGB(g), bytes=bytesFromGB(gb);
       const st=scanStatus[g.id], fc=st==='found'?' sz-found':'';
       const xMark=st==='missing'?'<span class="sz-x" title="مالقاهوش في الفحص">✕</span>':'';
@@ -2591,7 +2609,9 @@
           <button type="button" class="icon-action danger size-delete" title="حذف سجل الحجم" aria-label="حذف سجل الحجم">${iconDelete}</button>
         </div></td>
       </tr>`;
-    }).join('')}</tbody></table></div>`;
+    }).join('')}</tbody></table></div>${szPagerHtml}`;
+    wrap.querySelectorAll('[data-szp]').forEach(btn=>btn.addEventListener('click',()=>{ window.__szPage=parseInt(btn.dataset.szp,10)||1; renderSizesTab(); document.getElementById('sizes-section')?.scrollIntoView({behavior:'smooth',block:'start'}); }));
+    wrap.querySelector('#sizes-page-size')?.addEventListener('change',e=>{ window.__szPageSize=parseInt(e.target.value,10)||50; window.__szPage=1; renderSizesTab(); });
     wrap.querySelectorAll('.size-kb-input').forEach(inp=>{
       inp.addEventListener('input',()=>{
         const row=inp.closest('tr'), out=row?.querySelector('[data-size-gb]');
@@ -3366,7 +3386,7 @@ function matchSizes(list,games,minScore){
       if(row){
         state.expandedId=Number(target.id);
         row.classList.add('open');
-        window.SoundFX?.playOpen();
+
         row.scrollIntoView({behavior:'smooth',block:'center'});
         row.classList.add('game-link-target');
         setTimeout(()=>row.classList.remove('game-link-target'),1400);

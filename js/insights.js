@@ -456,7 +456,6 @@
     after.parentNode.insertBefore(root, after.nextSibling);
 
     navBtn.addEventListener('click', function (ev) {
-      if (ev && ev.isTrusted && window.SoundFX && window.SoundFX.playNavigate) { try { window.SoundFX.playNavigate(); } catch (e) {} }
       document.querySelectorAll('.tabnav-btn').forEach(function (b) { b.classList.toggle('active', b === navBtn); });
       document.querySelectorAll('.tab-page').forEach(function (p) { p.classList.toggle('active', p === root); });
       [document.body, document.documentElement].forEach(function (el) { el.classList.remove('tab-home-mode'); el.classList.add('tab-fullscreen-mode'); });

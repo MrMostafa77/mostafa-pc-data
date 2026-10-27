@@ -266,8 +266,7 @@
       document.getElementById('auth-gate-error').hidden = true;
       setLoading(true);
       firebase.auth().signInWithEmailAndPassword(usernameToEmail(username), password)
-        .then(function () { if (window.SoundFX) window.SoundFX.playLogin(); })
-        .catch(function (err) { if (window.SoundFX) window.SoundFX.playError(); showError(friendlyError(err.code)); })
+        .catch(function (err) { showError(friendlyError(err.code)); })
         .finally(function () { setLoading(false); });
     });
   }
@@ -279,7 +278,6 @@
     var markOffline = (typeof window.GameVaultPresenceSignOut === 'function')
       ? window.GameVaultPresenceSignOut()
       : Promise.resolve();
-    if (window.SoundFX) window.SoundFX.playLogout();
     Promise.resolve(markOffline).finally(function () {
       if (window.firebase && firebase.auth) firebase.auth().signOut();
     });
