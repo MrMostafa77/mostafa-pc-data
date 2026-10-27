@@ -388,6 +388,55 @@
     '#insights-section .gvi-year-game{display:grid;grid-template-columns:20px 1fr auto;align-items:center;gap:8px;padding:7px 5px;border-bottom:1px solid rgba(255,255,255,.055);cursor:pointer}.gvi-year-game:last-child{border-bottom:0}.gvi-year-game:hover{background:rgba(255,255,255,.03)}' +
     '#insights-section .gvi-year-game{position:relative}#insights-section .gvi-year-game input{position:absolute;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none}.gvi-check-box{width:15px;height:15px;border:1px solid var(--line-strong,rgba(255,255,255,.3));border-radius:3px;display:block;position:relative}.gvi-year-game.checked .gvi-check-box{background:var(--brass,#c9963f);border-color:var(--brass-bright,#e3b15c)}.gvi-year-game.checked .gvi-check-box:after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;font-size:11px;color:#111;font-weight:900}' +
     '#insights-section .gvi-year-game-name{font-size:12.5px;line-height:1.3}.gvi-year-game-series{font-size:10.5px;opacity:.45;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '/* ===== Theme match: navy glass (same as Reports / main tabs) ===== */' +
+    '#insights-section .gvi-head p{color:var(--parchment-dim);opacity:.9}' +
+    '#insights-section .gvi-report-tabs{border-bottom:1px dashed rgba(130,170,210,.22)}' +
+    '#insights-section .gvi-report-tab{background:linear-gradient(145deg,#122945,#0b1b31);border:1px solid rgba(130,170,210,.18);color:#d9e7f5;border-radius:12px;padding:10px 18px;box-shadow:inset 0 1px rgba(255,255,255,.05),0 5px 14px rgba(0,0,0,.2)}' +
+    '#insights-section .gvi-report-tab:hover,#insights-section .gvi-report-tab.active{background:linear-gradient(145deg,#19395f,#0d2746);border-color:rgba(227,177,92,.65);color:var(--brass-bright,#e3b15c);transform:translateY(-1px);box-shadow:0 8px 22px rgba(0,0,0,.3),0 0 0 1px rgba(227,177,92,.12)}' +
+    '#insights-section .gvi-report-panel{background:linear-gradient(145deg,rgba(9,22,38,.82),rgba(5,14,26,.78));border:1px solid rgba(130,170,210,.16);border-radius:14px;box-shadow:0 12px 30px rgba(0,0,0,.2);backdrop-filter:blur(7px)}' +
+    '#insights-section .gvi-panel-title h3,#insights-section .gvi-section-title h3,#insights-section .gvi-best-head h3{color:var(--parchment-dim);font-size:15px;font-weight:600}' +
+    '#insights-section .gvi-card,#insights-section .gvi-kpi,#insights-section .gvi-year{background:rgba(7,19,34,.7);border-color:rgba(130,170,210,.16);border-radius:10px}' +
+    '#insights-section .gvi-cover{border-color:rgba(130,170,210,.28)}' +
+    '#insights-section .gvi-kpi span{color:var(--muted);opacity:1}' +
+    '#insights-section .gvi-table th{color:var(--parchment-dim);background:rgba(255,255,255,.025);opacity:1}' +
+    '#insights-section .gvi-table th,#insights-section .gvi-table td{border-bottom-color:rgba(130,170,210,.14)}' +
+    '#insights-section .gvi-bt{background:rgba(4,12,22,.75)}' +
+    '#insights-section .gvi-bt i{background:linear-gradient(90deg,var(--brass,#c9963f),var(--brass-bright,#e3b15c))}' +
+    '#insights-section .gvi-sel{background:#0b1b31;color:#d9e7f5;border-color:rgba(130,170,210,.28);border-radius:8px}' +
+    '#insights-section .gvi-more,#insights-section .gvi-reset{background:linear-gradient(145deg,#122945,#0b1b31);color:#d9e7f5;border:1px solid rgba(130,170,210,.22);border-radius:10px;transition:.18s}' +
+    '#insights-section .gvi-more:hover,#insights-section .gvi-reset:hover{border-color:rgba(227,177,92,.65);color:var(--brass-bright,#e3b15c);background:linear-gradient(145deg,#19395f,#0d2746)}' +
+    '#insights-section .gvi-best-winner{background:linear-gradient(90deg,rgba(227,177,92,.16),rgba(18,48,79,.35));border-color:rgba(227,177,92,.55);border-radius:12px}' +
+    '#insights-section .gvi-best-winner span,#insights-section .gvi-best-winner small,#insights-section .gvi-check-hint,#insights-section .gvi-year-main small{color:var(--parchment-dim);opacity:.85}' +
+    '#insights-section .gvi-year summary:hover{background:rgba(130,170,210,.08)}' +
+    '#insights-section .gvi-year-body{border-top-color:rgba(130,170,210,.16)}' +
+    '#insights-section .gvi-year-game{border-bottom-color:rgba(130,170,210,.10)}' +
+    '#insights-section .gvi-year-game:hover{background:rgba(130,170,210,.09)}' +
+    '#insights-section .gvi-year-game.checked{background:rgba(227,177,92,.08)}' +
+    '#insights-section .gvi-check-box{border-color:rgba(130,170,210,.45)}' +
+    '/* ----- light theme ----- */' +
+    'body.light #insights-section .gvi-head p,body.light #insights-section .gvi-best-winner span,body.light #insights-section .gvi-best-winner small,body.light #insights-section .gvi-check-hint,body.light #insights-section .gvi-year-main small,body.light #insights-section .gvi-kpi span,body.light #insights-section .gvi-table th{color:var(--lt-text-soft,#2a5aa3)}' +
+    'body.light #insights-section .gvi-report-tabs{border-bottom-color:var(--lt-silver-2,#b3d4f5)}' +
+    'body.light #insights-section .gvi-report-tab,body.light #insights-section .gvi-more,body.light #insights-section .gvi-reset{background:linear-gradient(180deg,#ffffff,#e9eef5);color:var(--lt-text,#0a3a82);border-color:var(--lt-silver-2,#b3d4f5);box-shadow:0 2px 8px rgba(20,60,120,.08)}' +
+    'body.light #insights-section .gvi-report-tab:hover,body.light #insights-section .gvi-report-tab.active,body.light #insights-section .gvi-more:hover,body.light #insights-section .gvi-reset:hover{background:linear-gradient(180deg,#ffffff,#e8f0fb);color:var(--lt-blue,#0b4fb3);border-color:var(--lt-blue-2,#1565d8);box-shadow:0 4px 14px rgba(20,60,120,.14)}' +
+    'body.light #insights-section .gvi-report-panel{background:linear-gradient(180deg,#ffffff,#f3f6fb);border-color:var(--lt-silver-2,#b3d4f5);box-shadow:0 4px 14px rgba(20,60,120,.08);backdrop-filter:none}' +
+    'body.light #insights-section .gvi-panel-title h3,body.light #insights-section .gvi-section-title h3,body.light #insights-section .gvi-best-head h3{color:var(--lt-blue-3,#0a2f6b)}' +
+    'body.light #insights-section .gvi-card,body.light #insights-section .gvi-kpi,body.light #insights-section .gvi-year{background:var(--lt-tint,#e8f0fb);border-color:var(--lt-silver-2,#b3d4f5)}' +
+    'body.light #insights-section .gvi-table th{background:var(--lt-tint,#e8f0fb)}' +
+    'body.light #insights-section .gvi-table th,body.light #insights-section .gvi-table td{border-bottom-color:var(--lt-silver,#dfe5ec)}' +
+    'body.light #insights-section .gvi-bt{background:var(--lt-silver,#dfe5ec)}' +
+    'body.light #insights-section .gvi-bt i{background:linear-gradient(90deg,var(--lt-blue-2,#1565d8),var(--lt-blue,#0b4fb3))}' +
+    'body.light #insights-section .gvi-sel{background:#fff;color:var(--lt-text,#0a3a82);border-color:var(--lt-silver-2,#b3d4f5)}' +
+    'body.light #insights-section .gvi-best-winner{background:linear-gradient(90deg,rgba(21,101,216,.12),var(--lt-tint,#e8f0fb));border-color:var(--lt-blue-2,#1565d8)}' +
+    'body.light #insights-section .gvi-best-winner strong,body.light #insights-section .gvi-kpi b,body.light #insights-section .gvi-cnt b{color:var(--lt-blue,#0b4fb3)}' +
+    'body.light #insights-section .gvi-year-main b{color:var(--lt-blue-3,#0a2f6b)}' +
+    'body.light #insights-section .gvi-year-count{background:rgba(21,101,216,.12);color:var(--lt-blue,#0b4fb3)}' +
+    'body.light #insights-section .gvi-year summary:hover,body.light #insights-section .gvi-year-game:hover{background:rgba(21,101,216,.07)}' +
+    'body.light #insights-section .gvi-year-body{border-top-color:var(--lt-silver-2,#b3d4f5)}' +
+    'body.light #insights-section .gvi-year-game{border-bottom-color:var(--lt-silver,#dfe5ec)}' +
+    'body.light #insights-section .gvi-year-game.checked{background:rgba(21,101,216,.09)}' +
+    'body.light #insights-section .gvi-check-box{border-color:var(--lt-blue-2,#1565d8);background:#fff}' +
+    'body.light #insights-section .gvi-year-game.checked .gvi-check-box{background:var(--lt-blue-2,#1565d8);border-color:var(--lt-blue,#0b4fb3)}' +
+    'body.light #insights-section .gvi-year-game.checked .gvi-check-box:after{color:#fff}' +
     '@media(min-width:1001px){.tabnav{grid-template-columns:repeat(7,minmax(0,1fr)) !important}}@media(max-width:640px){.gvi-card{flex-direction:column}.gvi-best-winner{grid-template-columns:1fr}.gvi-years{grid-template-columns:1fr}}';
 
   function inject() {
