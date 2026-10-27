@@ -386,7 +386,7 @@
     '#insights-section .gvi-year summary:hover{background:rgba(255,255,255,.035)}.gvi-year-main{display:flex;align-items:center;gap:9px}.gvi-year-main b{font-size:16px;color:var(--parchment,#e8ddc8)}.gvi-year-main small{font-size:11px;opacity:.55}.gvi-year-count{min-width:30px;text-align:center;font-family:var(--font-mono,monospace);font-weight:700;color:var(--brass-bright,#e3b15c);background:rgba(201,150,63,.12);border-radius:12px;padding:3px 7px}' +
     '#insights-section .gvi-year-body{border-top:1px solid var(--line,rgba(255,255,255,.1));padding:6px 10px 9px;max-height:390px;overflow:auto}' +
     '#insights-section .gvi-year-game{display:grid;grid-template-columns:20px 1fr auto;align-items:center;gap:8px;padding:7px 5px;border-bottom:1px solid rgba(255,255,255,.055);cursor:pointer}.gvi-year-game:last-child{border-bottom:0}.gvi-year-game:hover{background:rgba(255,255,255,.03)}' +
-    '#insights-section .gvi-year-game input{position:absolute;opacity:0;pointer-events:none}.gvi-check-box{width:15px;height:15px;border:1px solid var(--line-strong,rgba(255,255,255,.3));border-radius:3px;display:block;position:relative}.gvi-year-game.checked .gvi-check-box{background:var(--brass,#c9963f);border-color:var(--brass-bright,#e3b15c)}.gvi-year-game.checked .gvi-check-box:after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;font-size:11px;color:#111;font-weight:900}' +
+    '#insights-section .gvi-year-game{position:relative}#insights-section .gvi-year-game input{position:absolute;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none}.gvi-check-box{width:15px;height:15px;border:1px solid var(--line-strong,rgba(255,255,255,.3));border-radius:3px;display:block;position:relative}.gvi-year-game.checked .gvi-check-box{background:var(--brass,#c9963f);border-color:var(--brass-bright,#e3b15c)}.gvi-year-game.checked .gvi-check-box:after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;font-size:11px;color:#111;font-weight:900}' +
     '#insights-section .gvi-year-game-name{font-size:12.5px;line-height:1.3}.gvi-year-game-series{font-size:10.5px;opacity:.45;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
     '@media(min-width:1001px){.tabnav{grid-template-columns:repeat(7,minmax(0,1fr)) !important}}@media(max-width:640px){.gvi-card{flex-direction:column}.gvi-best-winner{grid-template-columns:1fr}.gvi-years{grid-template-columns:1fr}}';
 
@@ -442,6 +442,11 @@
         }
         updateBestYearSummary();
       }
+    });
+
+    root.addEventListener('mousedown', function (e) {
+      var lab = e.target.closest && e.target.closest('.gvi-year-game');
+      if (lab) e.preventDefault();
     });
 
     root.addEventListener('click', function (e) {
