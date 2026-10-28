@@ -4108,3 +4108,7 @@ body.light .goty-pick-row.on{background:#dbeafe;border-color:var(--lt-blue)}
 .ag-actions .ag-submit{margin-top:0}
 .ag-reset{background:transparent;color:#f3f7fb;border:1px solid rgba(190,202,214,.55);font-weight:700;font-family:var(--font-head);font-size:14px;padding:11px 22px;border-radius:4px;cursor:pointer}
 .ag-reset:hover{background:rgba(255,255,255,.08);border-color:#d4a72c;color:#ffd978}
+
+/* v18 — رسالة الحفظ كـ toast ثابت: لا تزق قائمة الألعاب */
+.library-save-success{position:fixed!important;top:18px;left:50%;transform:translateX(-50%);margin:0!important;z-index:5000;pointer-events:none;max-width:90vw;animation:librarySaveToast .22s ease-out!important}
+@keyframes librarySaveToast{from{opacity:0;transform:translate(-50%,-6px)}to{opacity:1;transform:translate(-50%,0)}}

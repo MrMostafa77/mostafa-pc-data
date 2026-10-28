@@ -1280,16 +1280,39 @@
     }catch(e){}
   }
   function showLibrarySaveSuccess(){
-    const host=document.getElementById('library-section')||document.getElementById('results-list');
-    if(!host)return;
-    host.querySelectorAll('.library-save-success').forEach(x=>x.remove());
+    document.querySelectorAll('.library-save-success').forEach(x=>x.remove());
     const ok=document.createElement('div');
     ok.className='library-save-success';
-    ok.textContent='تم حفظ التغيرات بنجاح';
-    const target=document.getElementById('results-list');
-    if(target) target.prepend(ok); else host.prepend(ok);
+    ok.textContent=tr('تم حفظ التغيرات بنجاح');
+    document.body.appendChild(ok);   // fixed toast: لا يزق القائمة ولا يغيّر مكان السكرول
     setTimeout(()=>ok.remove(),2500);
 
+  }
+  // يعيد رسم القائمة مع تثبيت اللعبة في نفس مكانها على الشاشة (بدون قفز لفوق أو لتحت)
+  function renderResultsKeepGame(id){
+    id=Number(id);
+    const oldRow=document.querySelector(`#results-list .g-row[data-id="${id}"]`);
+    const anchorTop=oldRow?oldRow.getBoundingClientRect().top:null;
+    const savedY=window.scrollY;
+    state.expandedId=id;                       // تفضل بطاقة اللعبة مفتوحة بعد الحفظ
+    // لو التعديل غيّر ترتيب اللعبة وانتقلت لصفحة تانية، نروح لنفس الصفحة
+    try{
+      let list=getFiltered();
+      if(!list.length && (state.searchName||'').trim()) list=getFiltered('contains');
+      list=sortList(list);
+      const idx=list.findIndex(x=>Number(x.id)===id);
+      if(idx>=0) state.page=Math.floor(idx/state.pageSize)+1;
+    }catch(e){}
+    renderResults();
+    const restore=()=>{
+      const row=document.querySelector(`#results-list .g-row[data-id="${id}"]`);
+      let y=savedY;
+      if(row&&anchorTop!=null) y=window.scrollY+(row.getBoundingClientRect().top-anchorTop);
+      else if(row) y=window.scrollY+row.getBoundingClientRect().top-120;
+      try{window.scrollTo({top:Math.max(0,y),left:0,behavior:'instant'});}catch(e){window.scrollTo(0,Math.max(0,y));}
+    };
+    restore();
+    requestAnimationFrame(()=>{restore();setTimeout(restore,150);});
   }
   function saveGameEdits(id,row){
     const g=GAMES.find(x=>Number(x.id)===Number(id)); if(!g)return;
@@ -1311,7 +1334,7 @@
     }else{
       if(!overrides[id])overrides[id]={}; Object.assign(overrides[id],changed); saveJSON(OVERRIDES_KEY,overrides);
     }
-    rebuildGamesArray(); rebuildNormalizedMaps(); renderHeroStats(); renderDashboard(); renderFilters(); renderResults();
+    rebuildGamesArray(); rebuildNormalizedMaps(); renderHeroStats(); renderDashboard(); renderFilters(); renderResultsKeepGame(id);
     showLibrarySaveSuccess();
   }
   /* ===== نافذة تأكيد حذف اللعبة (بنفس تصميم المشروع) — بتنبّه لو للعبة سجلات في تواريخ الألعاب ===== */
@@ -1507,14 +1530,14 @@
       const collection=(body.querySelector('#tool-collection-input')?.value||'').trim();
       if(userGames.some(x=>Number(x.id)===d.id)){const ug=userGames.find(x=>Number(x.id)===d.id);ug.collection=collection||null;saveJSON(USERGAMES_KEY,userGames);}
       else {overrides[d.id]=Object.assign({},overrides[d.id]||{}, {collection:collection||null});saveJSON(OVERRIDES_KEY,overrides);}
-      saveGameToolsState(); rebuildGamesArray(); renderResults(); openGameTools(GAMES.find(x=>Number(x.id)===d.id),'tags');
+      saveGameToolsState(); rebuildGamesArray(); renderResultsKeepGame(d.id); openGameTools(GAMES.find(x=>Number(x.id)===d.id),'tags');
     });
     body.querySelector('#tool-rating-save')?.addEventListener('click',()=>{
       let n=Number(body.querySelector('#tool-rating-input')?.value);
       n=Number.isFinite(n)?Math.min(10,Math.max(1,Math.round(n*10)/10)):null;
       if(userGames.some(x=>Number(x.id)===d.id)){const ug=userGames.find(x=>Number(x.id)===d.id);ug.rating=n;saveJSON(USERGAMES_KEY,userGames);}
       else{overrides[d.id]=Object.assign({},overrides[d.id]||{},{rating:n});saveJSON(OVERRIDES_KEY,overrides);}
-      rebuildGamesArray(); renderResults();
+      rebuildGamesArray(); renderResultsKeepGame(d.id);
       showLibrarySaveSuccess(); openGameTools(GAMES.find(x=>Number(x.id)===d.id),'quick');
     });
   }
@@ -1536,7 +1559,7 @@
       const gb=gbFromBytes(inp?.value||0);
       sizeOverrides[g.id]=gb; saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides);
       const gg=GAMES.find(x=>Number(x.id)===Number(g.id)); if(gg)gg.sizeGB=gb;
-      renderResults(); try{renderSizesTab();}catch(e){}
+      renderResultsKeepGame(g.id); try{renderSizesTab();}catch(e){}
       showLibrarySaveSuccess(); openGameTools(g,'quick');
     });
   }
