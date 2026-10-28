@@ -4112,3 +4112,8 @@ body.light .goty-pick-row.on{background:#dbeafe;border-color:var(--lt-blue)}
 /* v18 — رسالة الحفظ كـ toast ثابت: لا تزق قائمة الألعاب */
 .library-save-success{position:fixed!important;top:18px;left:50%;transform:translateX(-50%);margin:0!important;z-index:5000;pointer-events:none;max-width:90vw;animation:librarySaveToast .22s ease-out!important}
 @keyframes librarySaveToast{from{opacity:0;transform:translate(-50%,-6px)}to{opacity:1;transform:translate(-50%,0)}}
+
+/* v19 — رسالة الحفظ عائمة في منتصف الشاشة وتختفي بعد 1.5 ثانية */
+.library-save-success{top:50%!important;left:50%!important;bottom:auto!important;transform:translate(-50%,-50%)!important;padding:18px 34px!important;font-size:18px!important;border-radius:14px!important;box-shadow:0 16px 50px rgba(0,0,0,.55),0 0 24px rgba(75,145,201,.35)!important;animation:librarySaveMid .2s ease-out!important;transition:opacity .3s ease}
+.library-save-success.hide{opacity:0}
+@keyframes librarySaveMid{from{opacity:0;transform:translate(-50%,-46%) scale(.94)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}

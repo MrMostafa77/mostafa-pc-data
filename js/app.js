@@ -1284,18 +1284,41 @@
     const ok=document.createElement('div');
     ok.className='library-save-success';
     ok.textContent=tr('تم حفظ التغيرات بنجاح');
-    document.body.appendChild(ok);   // fixed toast: لا يزق القائمة ولا يغيّر مكان السكرول
-    setTimeout(()=>ok.remove(),2500);
+    document.body.appendChild(ok);   // رسالة عائمة في منتصف الشاشة: لا تزق القائمة ولا تغيّر السكرول
+    setTimeout(()=>ok.classList.add('hide'),1200);
+    setTimeout(()=>ok.remove(),1500);
 
   }
-  // يعيد رسم القائمة مع تثبيت اللعبة في نفس مكانها على الشاشة (بدون قفز لفوق أو لتحت)
-  function renderResultsKeepGame(id){
+  // ===== تثبيت مكان اللعبة على الشاشة عند أي إعادة رسم (حفظ تعديل / مزامنة سحابة) =====
+  function gvCaptureAnchor(preferId){
+    const rows=[...document.querySelectorAll('#results-list .g-row')];
+    let el=null;
+    if(preferId!=null) el=rows.find(r=>Number(r.dataset.id)===Number(preferId));
+    if(!el) el=rows.find(r=>r.getBoundingClientRect().bottom>0);
+    return {id:el?Number(el.dataset.id):null, top:el?el.getBoundingClientRect().top:null, y:window.scrollY, cancelled:false};
+  }
+  function gvRestoreAnchor(a){
+    if(!a) return;
+    const apply=()=>{
+      let y=a.y;
+      if(a.id!=null && a.top!=null){
+        const row=document.querySelector(`#results-list .g-row[data-id="${a.id}"]`);
+        if(row) y=window.scrollY+(row.getBoundingClientRect().top-a.top);
+      }
+      try{window.scrollTo({top:Math.max(0,y),left:0,behavior:'instant'});}catch(e){window.scrollTo(0,Math.max(0,y));}
+    };
+    apply();
+    // الصور والفلاتر بتتغير بعد الرسم بلحظات، فنعيد التثبيت لحد ما المستخدم يتحرك بنفسه
+    const cancel=()=>{a.cancelled=true;};
+    ['wheel','touchstart','keydown','mousedown'].forEach(ev=>window.addEventListener(ev,cancel,{once:true,passive:true,capture:true}));
+    requestAnimationFrame(()=>{if(!a.cancelled)apply();});
+    [150,500,1200].forEach(ms=>setTimeout(()=>{if(!a.cancelled)apply();},ms));
+  }
+  // يعيد رسم القائمة ويفضّل اللعبة مفتوحة في نفس مكانها (anchor = مكانها قبل أي إعادة رسم)
+  function renderResultsKeepGame(id,anchor){
     id=Number(id);
-    const oldRow=document.querySelector(`#results-list .g-row[data-id="${id}"]`);
-    const anchorTop=oldRow?oldRow.getBoundingClientRect().top:null;
-    const savedY=window.scrollY;
-    state.expandedId=id;                       // تفضل بطاقة اللعبة مفتوحة بعد الحفظ
-    // لو التعديل غيّر ترتيب اللعبة وانتقلت لصفحة تانية، نروح لنفس الصفحة
+    const a=anchor||gvCaptureAnchor(id);
+    state.expandedId=id;
     try{
       let list=getFiltered();
       if(!list.length && (state.searchName||'').trim()) list=getFiltered('contains');
@@ -1304,18 +1327,15 @@
       if(idx>=0) state.page=Math.floor(idx/state.pageSize)+1;
     }catch(e){}
     renderResults();
-    const restore=()=>{
+    if(a.id!==id){ // لو المرساة كانت لعبة تانية نثبّت اللعبة نفسها
       const row=document.querySelector(`#results-list .g-row[data-id="${id}"]`);
-      let y=savedY;
-      if(row&&anchorTop!=null) y=window.scrollY+(row.getBoundingClientRect().top-anchorTop);
-      else if(row) y=window.scrollY+row.getBoundingClientRect().top-120;
-      try{window.scrollTo({top:Math.max(0,y),left:0,behavior:'instant'});}catch(e){window.scrollTo(0,Math.max(0,y));}
-    };
-    restore();
-    requestAnimationFrame(()=>{restore();setTimeout(restore,150);});
+      if(row){a.id=id;a.top=Math.min(Math.max(a.top??120,0),window.innerHeight-160);}
+    }
+    gvRestoreAnchor(a);
   }
   function saveGameEdits(id,row){
     const g=GAMES.find(x=>Number(x.id)===Number(id)); if(!g)return;
+    const __anchor=gvCaptureAnchor(id);   // قبل أي إعادة رسم
     const changed={};
     row.querySelectorAll('[data-edit-field]').forEach(el=>{let v=el.value;if(el.type==='number')v=v===''?null:Number(v);else v=v||null;changed[el.dataset.editField]=v;});
     (function(){
@@ -1334,7 +1354,7 @@
     }else{
       if(!overrides[id])overrides[id]={}; Object.assign(overrides[id],changed); saveJSON(OVERRIDES_KEY,overrides);
     }
-    rebuildGamesArray(); rebuildNormalizedMaps(); renderHeroStats(); renderDashboard(); renderFilters(); renderResultsKeepGame(id);
+    rebuildGamesArray(); rebuildNormalizedMaps(); renderHeroStats(); renderDashboard(); renderFilters(); renderResultsKeepGame(id,__anchor);
     showLibrarySaveSuccess();
   }
   /* ===== نافذة تأكيد حذف اللعبة (بنفس تصميم المشروع) — بتنبّه لو للعبة سجلات في تواريخ الألعاب ===== */
@@ -4546,6 +4566,7 @@ fit();setTimeout(function(){window.focus();window.print();},450);
   if(!window.__gameVaultRealtimeBound){
     window.__gameVaultRealtimeBound=true;
     window.addEventListener('gamevault:cloud-update', e=>{
+      const __anchor=document.getElementById('library-section')?.classList.contains('active')?gvCaptureAnchor(state.expandedId):null;
       try{
         const keys=new Set(e?.detail?.keys||[]);
         if(keys.has(USERGAMES_KEY)){ userGames=loadJSON(USERGAMES_KEY,[]); }
@@ -4580,6 +4601,7 @@ fit();setTimeout(function(){window.focus();window.print();},450);
         try{ renderDatesTab(); }catch(err){}
         try{ renderSizesTab(); }catch(err){}
         try{ window.__renderActiveTab?.(); }catch(err){}
+        if(__anchor) gvRestoreAnchor(__anchor);
       }catch(err){
         console.error('Realtime UI refresh failed',err);
       }
