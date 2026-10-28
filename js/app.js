@@ -1771,14 +1771,17 @@
   ];
 
   function formText(ar,en){return lang==='en'?en:ar;}
+  // الحقول الظاهرة في نافذة Add Game بالترتيب المطلوب (الاسم أولًا، ثم هذه، ثم Release Date ثم Size بالبايت)
+  const AG_FIELD_ORDER=['series','genre','hdd','developer','playingState','perspective','versionType','rem','arabic','gameVersion'];
+  const AG_LABELS={versionType:['نوع النسخة (الموقع)','Version Type (Site)']};
   function renderAddGameForm(){
     const wrap = document.getElementById('addgame-form-wrap') || document.getElementById('library-add-game-wrap');
-    const selectsHtml = SELECT_FIELDS.map(f=>{
+    const selectsHtml = AG_FIELD_ORDER.map(k=>SELECT_FIELDS.find(f=>f.key===k)).filter(Boolean).map(f=>{
       const opts = Array.isArray(f.options) ? f.options : uniqueValues(f.key);
       const optionsHtml = opts.map(v=>`<option value="${esc(v)}">${esc(f.map && f.map[v] ? f.map[v] : v)}</option>`).join('');
       return `
       <div class="ag-field">
-        <label>${esc(formText(f.label,I18N[f.label]||f.label))}</label>
+        <label>${esc(AG_LABELS[f.key]?formText(AG_LABELS[f.key][0],AG_LABELS[f.key][1]):formText(f.label,I18N[f.label]||f.label))}</label>
         <div class="select-with-plus"><select id="ag-${f.key}" class="ag-select">
           <option value="">${f.key==='series'?'— Choose series —':'— None —'}</option>
           ${optionsHtml}
@@ -1800,27 +1803,27 @@
           <input type="date" id="ag-releaseDate">
         </div>
         <div class="ag-field">
-          <label>${formText('الحجم (GB)','Size (GB)')}</label>
-          <input type="number" min="0" step="0.01" id="ag-sizeGB" placeholder="0.00">
-        </div>
-        <div class="ag-field ag-wide">
-          <label>${formText('سمات مميزة','Featured Attributes')}</label>
-          <div class="ag-checks">
-            <label class="toggle-row"><input type="checkbox" id="ag-gameplay">${formText("طور لعب مميز","Featured Gameplay")}</label>
-            <label class="toggle-row"><input type="checkbox" id="ag-graphic">${formText("جرافيك مميز","Featured Graphics")}</label>
-            <label class="toggle-row"><input type="checkbox" id="ag-world">${formText("عالم مفتوح مميز","Featured Open World")}</label>
-            <label class="toggle-row"><input type="checkbox" id="ag-theme">${formText("أجواء مميزة","Featured Atmosphere")}</label>
-            <label class="toggle-row"><input type="checkbox" id="ag-story">${formText("قصة مميزة","Featured Story")}</label>
-            <label class="toggle-row"><input type="checkbox" id="ag-bugs">${formText("بها أعطال","Has Bugs")}</label>
-          </div>
+          <label>${formText('الحجم (بالبايت)','Size (Bytes)')}</label>
+          <input type="text" inputmode="numeric" autocomplete="off" id="ag-sizeBytes" placeholder="${formText('مثال: 46428596470','e.g. 46428596470')}">
+          <small id="ag-size-hint" class="ag-size-hint"></small>
         </div>
       </div>
-      <button type="button" class="ag-submit" id="ag-submit">${formText("إضافة اللعبة للمكتبة","Add Game to Library")}</button>
+      <div class="ag-actions">
+        <button type="button" class="ag-submit" id="ag-submit">${formText("إضافة اللعبة للمكتبة","Add Game to Library")}</button>
+        <button type="button" class="ag-reset" id="ag-reset">${formText("إعادة تعيين","Reset")}</button>
+      </div>
     `;
 
     document.querySelectorAll('.ag-plus').forEach(btn=>btn.addEventListener('click',()=>{const key=btn.dataset.key;const wrap=document.getElementById(`ag-${key}-custom-wrap`);wrap.style.display='flex';document.getElementById(`ag-${key}-custom`).focus();}));
     document.querySelectorAll('.ag-save-custom').forEach(btn=>btn.addEventListener('click',()=>{const key=btn.dataset.key;const inp=document.getElementById(`ag-${key}-custom`);const v=inp.value.trim();if(!v)return;const sel=document.getElementById(`ag-${key}`);const opt=document.createElement('option');opt.value=v;opt.textContent=v;sel.appendChild(opt);sel.value=v;document.getElementById(`ag-${key}-custom-wrap`).style.display='none';}));
     document.getElementById('ag-submit').addEventListener('click', submitNewGame);
+    document.getElementById('ag-reset').addEventListener('click',()=>{renderAddGameForm();try{applyLanguage();}catch(e){}const n=document.getElementById('ag-name');if(n)n.focus();});
+    const sizeInp=document.getElementById('ag-sizeBytes'), sizeHint=document.getElementById('ag-size-hint');
+    sizeInp.addEventListener('input',()=>{
+      const digits=sizeInp.value.replace(/[^\d]/g,'');
+      sizeInp.value=digits?Number(digits).toLocaleString('en-US'):'';
+      sizeHint.textContent=digits?('≈ '+gbFromBytes(digits).toFixed(2)+' GB'):'';
+    });
   }
 
   function fieldValue(key){
@@ -1846,7 +1849,7 @@
     const releaseDate = document.getElementById('ag-releaseDate').value || null;
     const startDate = null;
     const endDate = null;
-    const sizeGBraw = document.getElementById('ag-sizeGB').value;
+    const sizeBytes = parseBytes(document.getElementById('ag-sizeBytes').value);
     const deletedIds = loadJSON('mostafa_pc_deleted_games_v1', []).map(Number);
     const allIds = BASE_GAMES.map(g=>g.id||0).concat(userGames.map(g=>g.id||0)).concat(deletedIds);
     const maxId = allIds.reduce((m,id)=>Math.max(m,id), 0);
@@ -1861,7 +1864,7 @@
       versionType: fieldValue('versionType'),
       releaseDate: releaseDate,
       hdd: fieldValue('hdd'),
-      sizeGB: sizeGBraw ? parseFloat(sizeGBraw) : 0,
+      sizeGB: sizeBytes ? gbFromBytes(sizeBytes) : 0,
       playingState: fieldValue('playingState'),
       mainChar: fieldValue('mainChar'),
       startDate: startDate,
@@ -1879,12 +1882,12 @@
       year: releaseDate ? parseInt(releaseDate.slice(0,4)) : null,
       installTime: fieldValue('installTime'),
       age: computeAge(releaseDate),
-      gameplay: document.getElementById('ag-gameplay').checked ? 1 : 0,
-      graphic: document.getElementById('ag-graphic').checked ? 1 : 0,
-      world: document.getElementById('ag-world').checked ? 1 : 0,
-      theme: document.getElementById('ag-theme').checked ? 1 : 0,
-      story: document.getElementById('ag-story').checked ? 1 : 0,
-      bugs: document.getElementById('ag-bugs').checked ? 1 : 0
+      gameplay: document.getElementById('ag-gameplay')?.checked ? 1 : 0,
+      graphic: document.getElementById('ag-graphic')?.checked ? 1 : 0,
+      world: document.getElementById('ag-world')?.checked ? 1 : 0,
+      theme: document.getElementById('ag-theme')?.checked ? 1 : 0,
+      story: document.getElementById('ag-story')?.checked ? 1 : 0,
+      bugs: document.getElementById('ag-bugs')?.checked ? 1 : 0
     };
 
     userGames.push(newGame);
