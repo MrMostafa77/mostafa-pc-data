@@ -151,7 +151,7 @@ function queueCloudWrite(key, value) {
         delete pendingCloudWrites[key];
         failedWrites[key] = true;
         console.error('Cloud sync failed for', key, err);
-        window.SoundFX?.playError();
+
         showSyncToast(
           'فشلت مزامنة "' + key + '" مع السحابة، هيتم إعادة المحاولة تلقائيًا: ' + (err && err.message ? err.message : err),
           true
@@ -265,7 +265,7 @@ function subscribeToCloud() {
     },
     err => {
       console.error('Cloud realtime listener failed', err);
-      window.SoundFX?.playError();
+
     }
   );
 }
@@ -372,7 +372,7 @@ async function hydrateFromCloud() {
     }
   } catch (e) {
     console.error('Cloud hydrate failed, continuing with local data only', e);
-    window.SoundFX?.playError();
+
   }
 }
 
@@ -408,7 +408,7 @@ async function uploadCoverToCloud(id, dataUrl, updatedAt) {
       'الصورة اتحفظت على جهازك، لكن رفعها للسحابة (للمزامنة مع باقي أجهزتك) فشل: ' + (e && e.message ? e.message : e),
       true
     );
-    window.SoundFX?.playError();
+
     return false;
   }
 }

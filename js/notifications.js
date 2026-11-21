@@ -237,7 +237,7 @@
   }
   function browserNotify(title,msg,target){
     if(!('Notification' in window) || Notification.permission!=='granted') return;
-    try{ const n=new Notification(title,{body:msg,icon:'assets/hero-logo-banner.png',tag:'gamevault-update'}); n.onclick=()=>{window.focus();n.close();if(target)go(target);}; }catch(e){}
+    try{ const n=new Notification(title,{body:msg,icon:'assets/hero-logo-banner.webp',tag:'gamevault-update'}); n.onclick=()=>{window.focus();n.close();if(target)go(target);}; }catch(e){}
   }
   window.browserNotifyForPush=browserNotify;
 
