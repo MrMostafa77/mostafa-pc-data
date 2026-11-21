@@ -37,11 +37,11 @@
     const updatedAt = Date.now();
     if(window.CoverStore){
       window.CoverStore.set(id, dataUrl, updatedAt).then(()=>{
-
+        window.SoundFX?.playAdd();
       }).catch(err=>{
         console.error('Cover save failed', err);
         window.CoverStore.showToast('فشل حفظ الصورة على جهازك: ' + (err && err.message ? err.message : 'خطأ غير معروف'), true);
-
+        window.SoundFX?.playError();
       });
     }
     if(window.GameVaultCloudSync && window.GameVaultCloudSync.isReady()){
@@ -52,10 +52,10 @@
     delete coverOverrides[id];
     if(window.CoverStore){
       window.CoverStore.remove(id).then(()=>{
-
+        window.SoundFX?.playDelete();
       }).catch(err=>{
         console.error('Cover remove failed', err);
-
+        window.SoundFX?.playError();
       });
     }
     if(window.GameVaultCloudSync && window.GameVaultCloudSync.isReady()){
@@ -653,6 +653,16 @@
   }
 
   /* ================= DRIVES ================= */
+  function recomputeDriveStats(){
+    const driveStats = {};
+    GAMES.forEach(g=>{
+      const h = g.hdd || 'غير محدد';
+      if(!driveStats[h]) driveStats[h] = {count:0, size:0};
+      driveStats[h].count++;
+      driveStats[h].size += (g.sizeGB||0);
+    });
+    return driveStats;
+  }
   // تحديث قوايم الهارد المفتوحة (فورم إضافة لعبة + تعديل اللعبة في Library) فورًا بدون ريفرش
   function refreshDriveSelects(){
     try{
@@ -1280,62 +1290,19 @@
     }catch(e){}
   }
   function showLibrarySaveSuccess(){
-    document.querySelectorAll('.library-save-success').forEach(x=>x.remove());
+    const host=document.getElementById('library-section')||document.getElementById('results-list');
+    if(!host)return;
+    host.querySelectorAll('.library-save-success').forEach(x=>x.remove());
     const ok=document.createElement('div');
     ok.className='library-save-success';
-    ok.textContent=tr('تم حفظ التغيرات بنجاح');
-    document.body.appendChild(ok);   // رسالة عائمة في منتصف الشاشة: لا تزق القائمة ولا تغيّر السكرول
-    setTimeout(()=>ok.classList.add('hide'),1200);
-    setTimeout(()=>ok.remove(),1500);
-
-  }
-  // ===== تثبيت مكان اللعبة على الشاشة عند أي إعادة رسم (حفظ تعديل / مزامنة سحابة) =====
-  function gvCaptureAnchor(preferId){
-    const rows=[...document.querySelectorAll('#results-list .g-row')];
-    let el=null;
-    if(preferId!=null) el=rows.find(r=>Number(r.dataset.id)===Number(preferId));
-    if(!el) el=rows.find(r=>r.getBoundingClientRect().bottom>0);
-    return {id:el?Number(el.dataset.id):null, top:el?el.getBoundingClientRect().top:null, y:window.scrollY, cancelled:false};
-  }
-  function gvRestoreAnchor(a){
-    if(!a) return;
-    const apply=()=>{
-      let y=a.y;
-      if(a.id!=null && a.top!=null){
-        const row=document.querySelector(`#results-list .g-row[data-id="${a.id}"]`);
-        if(row) y=window.scrollY+(row.getBoundingClientRect().top-a.top);
-      }
-      try{window.scrollTo({top:Math.max(0,y),left:0,behavior:'instant'});}catch(e){window.scrollTo(0,Math.max(0,y));}
-    };
-    apply();
-    // الصور والفلاتر بتتغير بعد الرسم بلحظات، فنعيد التثبيت لحد ما المستخدم يتحرك بنفسه
-    const cancel=()=>{a.cancelled=true;};
-    ['wheel','touchstart','keydown','mousedown'].forEach(ev=>window.addEventListener(ev,cancel,{once:true,passive:true,capture:true}));
-    requestAnimationFrame(()=>{if(!a.cancelled)apply();});
-    [150,500,1200].forEach(ms=>setTimeout(()=>{if(!a.cancelled)apply();},ms));
-  }
-  // يعيد رسم القائمة ويفضّل اللعبة مفتوحة في نفس مكانها (anchor = مكانها قبل أي إعادة رسم)
-  function renderResultsKeepGame(id,anchor){
-    id=Number(id);
-    const a=anchor||gvCaptureAnchor(id);
-    state.expandedId=id;
-    try{
-      let list=getFiltered();
-      if(!list.length && (state.searchName||'').trim()) list=getFiltered('contains');
-      list=sortList(list);
-      const idx=list.findIndex(x=>Number(x.id)===id);
-      if(idx>=0) state.page=Math.floor(idx/state.pageSize)+1;
-    }catch(e){}
-    renderResults();
-    if(a.id!==id){ // لو المرساة كانت لعبة تانية نثبّت اللعبة نفسها
-      const row=document.querySelector(`#results-list .g-row[data-id="${id}"]`);
-      if(row){a.id=id;a.top=Math.min(Math.max(a.top??120,0),window.innerHeight-160);}
-    }
-    gvRestoreAnchor(a);
+    ok.textContent='تم حفظ التغيرات بنجاح';
+    const target=document.getElementById('results-list');
+    if(target) target.prepend(ok); else host.prepend(ok);
+    setTimeout(()=>ok.remove(),2500);
+    window.SoundFX?.playSaveSuccess();
   }
   function saveGameEdits(id,row){
     const g=GAMES.find(x=>Number(x.id)===Number(id)); if(!g)return;
-    const __anchor=gvCaptureAnchor(id);   // قبل أي إعادة رسم
     const changed={};
     row.querySelectorAll('[data-edit-field]').forEach(el=>{let v=el.value;if(el.type==='number')v=v===''?null:Number(v);else v=v||null;changed[el.dataset.editField]=v;});
     (function(){
@@ -1354,7 +1321,7 @@
     }else{
       if(!overrides[id])overrides[id]={}; Object.assign(overrides[id],changed); saveJSON(OVERRIDES_KEY,overrides);
     }
-    rebuildGamesArray(); rebuildNormalizedMaps(); renderHeroStats(); renderDashboard(); renderFilters(); renderResultsKeepGame(id,__anchor);
+    rebuildGamesArray(); rebuildNormalizedMaps(); renderHeroStats(); renderDashboard(); renderFilters(); renderResults();
     showLibrarySaveSuccess();
   }
   /* ===== نافذة تأكيد حذف اللعبة (بنفس تصميم المشروع) — بتنبّه لو للعبة سجلات في تواريخ الألعاب ===== */
@@ -1418,7 +1385,7 @@
     showDeleteGameDialog(g,records,()=>performDeleteGame(id,g));
   }
   function performDeleteGame(id,g){
-
+    window.SoundFX?.playDelete();
     userGames=userGames.filter(x=>Number(x.id)!==Number(id));
     const del=loadJSON('mostafa_pc_deleted_games_v1',[]); if(!del.includes(Number(id)))del.push(Number(id));
     saveJSON('mostafa_pc_deleted_games_v1',del);
@@ -1550,14 +1517,14 @@
       const collection=(body.querySelector('#tool-collection-input')?.value||'').trim();
       if(userGames.some(x=>Number(x.id)===d.id)){const ug=userGames.find(x=>Number(x.id)===d.id);ug.collection=collection||null;saveJSON(USERGAMES_KEY,userGames);}
       else {overrides[d.id]=Object.assign({},overrides[d.id]||{}, {collection:collection||null});saveJSON(OVERRIDES_KEY,overrides);}
-      saveGameToolsState(); rebuildGamesArray(); renderResultsKeepGame(d.id); openGameTools(GAMES.find(x=>Number(x.id)===d.id),'tags');
+      saveGameToolsState(); rebuildGamesArray(); renderResults(); openGameTools(GAMES.find(x=>Number(x.id)===d.id),'tags');
     });
     body.querySelector('#tool-rating-save')?.addEventListener('click',()=>{
       let n=Number(body.querySelector('#tool-rating-input')?.value);
       n=Number.isFinite(n)?Math.min(10,Math.max(1,Math.round(n*10)/10)):null;
       if(userGames.some(x=>Number(x.id)===d.id)){const ug=userGames.find(x=>Number(x.id)===d.id);ug.rating=n;saveJSON(USERGAMES_KEY,userGames);}
       else{overrides[d.id]=Object.assign({},overrides[d.id]||{},{rating:n});saveJSON(OVERRIDES_KEY,overrides);}
-      rebuildGamesArray(); renderResultsKeepGame(d.id);
+      rebuildGamesArray(); renderResults();
       showLibrarySaveSuccess(); openGameTools(GAMES.find(x=>Number(x.id)===d.id),'quick');
     });
   }
@@ -1579,7 +1546,7 @@
       const gb=gbFromBytes(inp?.value||0);
       sizeOverrides[g.id]=gb; saveJSON(SIZE_OVERRIDES_KEY,sizeOverrides);
       const gg=GAMES.find(x=>Number(x.id)===Number(g.id)); if(gg)gg.sizeGB=gb;
-      renderResultsKeepGame(g.id); try{renderSizesTab();}catch(e){}
+      renderResults(); try{renderSizesTab();}catch(e){}
       showLibrarySaveSuccess(); openGameTools(g,'quick');
     });
   }
@@ -1653,7 +1620,7 @@
           ${editGameHtml(g)}
         </div>`;
       }).join('');
-      container.querySelectorAll('.g-row').forEach(row=>row.addEventListener('click',e=>{if(e.target.closest('.cover-upload-label,.cover-remove,.library-card-actions,.game-edit-panel,.game-name-link'))return;const id=Number(row.dataset.id);state.expandedId=state.expandedId===id?null:id;row.classList.toggle('open');}));
+      container.querySelectorAll('.g-row').forEach(row=>row.addEventListener('click',e=>{if(e.target.closest('.cover-upload-label,.cover-remove,.library-card-actions,.game-edit-panel,.game-name-link'))return;const id=Number(row.dataset.id);state.expandedId=state.expandedId===id?null:id;row.classList.toggle('open');if(row.classList.contains('open'))window.SoundFX?.playOpen();}));
       container.querySelectorAll('.edit-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');row.classList.add('open');snapshotGameEditRow(row);setGameEditMode(row,true);row.querySelector('[data-edit-field]')?.focus();}));
       container.querySelectorAll('.save-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();const row=btn.closest('.g-row');if(!row.classList.contains('editing')){setGameEditMode(row,true);return;}saveGameEdits(Number(row.dataset.id),row);}));
       container.querySelectorAll('.delete-game').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();deleteGameCompletely(Number(btn.closest('.g-row').dataset.id));}));
@@ -1774,7 +1741,8 @@
     navBtns.forEach(btn=>btn.addEventListener('click',(ev)=>{
       const target=btn.dataset.tab;
       if(!target) return;
-            navBtns.forEach(b=>b.classList.toggle('active',b===btn));
+      if(ev && ev.isTrusted) window.SoundFX?.playNavigate(); // كليك حقيقي من المستخدم فقط
+      navBtns.forEach(b=>b.classList.toggle('active',b===btn));
       pages.forEach(p=>p.classList.toggle('active',p.id===target));
       setPageMode(target);
       requestAnimationFrame(()=>renderTab(target));
@@ -1814,17 +1782,14 @@
   ];
 
   function formText(ar,en){return lang==='en'?en:ar;}
-  // الحقول الظاهرة في نافذة Add Game بالترتيب المطلوب (الاسم أولًا، ثم هذه، ثم Release Date ثم Size بالبايت)
-  const AG_FIELD_ORDER=['series','genre','hdd','developer','playingState','perspective','versionType','rem','arabic','gameVersion'];
-  const AG_LABELS={versionType:['نوع النسخة (الموقع)','Version Type (Site)']};
   function renderAddGameForm(){
     const wrap = document.getElementById('addgame-form-wrap') || document.getElementById('library-add-game-wrap');
-    const selectsHtml = AG_FIELD_ORDER.map(k=>SELECT_FIELDS.find(f=>f.key===k)).filter(Boolean).map(f=>{
+    const selectsHtml = SELECT_FIELDS.map(f=>{
       const opts = Array.isArray(f.options) ? f.options : uniqueValues(f.key);
       const optionsHtml = opts.map(v=>`<option value="${esc(v)}">${esc(f.map && f.map[v] ? f.map[v] : v)}</option>`).join('');
       return `
       <div class="ag-field">
-        <label>${esc(AG_LABELS[f.key]?formText(AG_LABELS[f.key][0],AG_LABELS[f.key][1]):formText(f.label,I18N[f.label]||f.label))}</label>
+        <label>${esc(formText(f.label,I18N[f.label]||f.label))}</label>
         <div class="select-with-plus"><select id="ag-${f.key}" class="ag-select">
           <option value="">${f.key==='series'?'— Choose series —':'— None —'}</option>
           ${optionsHtml}
@@ -1846,27 +1811,27 @@
           <input type="date" id="ag-releaseDate">
         </div>
         <div class="ag-field">
-          <label>${formText('الحجم (بالبايت)','Size (Bytes)')}</label>
-          <input type="text" inputmode="numeric" autocomplete="off" id="ag-sizeBytes" placeholder="${formText('مثال: 46428596470','e.g. 46428596470')}">
-          <small id="ag-size-hint" class="ag-size-hint"></small>
+          <label>${formText('الحجم (GB)','Size (GB)')}</label>
+          <input type="number" min="0" step="0.01" id="ag-sizeGB" placeholder="0.00">
+        </div>
+        <div class="ag-field ag-wide">
+          <label>${formText('سمات مميزة','Featured Attributes')}</label>
+          <div class="ag-checks">
+            <label class="toggle-row"><input type="checkbox" id="ag-gameplay">${formText("طور لعب مميز","Featured Gameplay")}</label>
+            <label class="toggle-row"><input type="checkbox" id="ag-graphic">${formText("جرافيك مميز","Featured Graphics")}</label>
+            <label class="toggle-row"><input type="checkbox" id="ag-world">${formText("عالم مفتوح مميز","Featured Open World")}</label>
+            <label class="toggle-row"><input type="checkbox" id="ag-theme">${formText("أجواء مميزة","Featured Atmosphere")}</label>
+            <label class="toggle-row"><input type="checkbox" id="ag-story">${formText("قصة مميزة","Featured Story")}</label>
+            <label class="toggle-row"><input type="checkbox" id="ag-bugs">${formText("بها أعطال","Has Bugs")}</label>
+          </div>
         </div>
       </div>
-      <div class="ag-actions">
-        <button type="button" class="ag-submit" id="ag-submit">${formText("إضافة اللعبة للمكتبة","Add Game to Library")}</button>
-        <button type="button" class="ag-reset" id="ag-reset">${formText("إعادة تعيين","Reset")}</button>
-      </div>
+      <button type="button" class="ag-submit" id="ag-submit">${formText("إضافة اللعبة للمكتبة","Add Game to Library")}</button>
     `;
 
     document.querySelectorAll('.ag-plus').forEach(btn=>btn.addEventListener('click',()=>{const key=btn.dataset.key;const wrap=document.getElementById(`ag-${key}-custom-wrap`);wrap.style.display='flex';document.getElementById(`ag-${key}-custom`).focus();}));
     document.querySelectorAll('.ag-save-custom').forEach(btn=>btn.addEventListener('click',()=>{const key=btn.dataset.key;const inp=document.getElementById(`ag-${key}-custom`);const v=inp.value.trim();if(!v)return;const sel=document.getElementById(`ag-${key}`);const opt=document.createElement('option');opt.value=v;opt.textContent=v;sel.appendChild(opt);sel.value=v;document.getElementById(`ag-${key}-custom-wrap`).style.display='none';}));
     document.getElementById('ag-submit').addEventListener('click', submitNewGame);
-    document.getElementById('ag-reset').addEventListener('click',()=>{renderAddGameForm();try{applyLanguage();}catch(e){}const n=document.getElementById('ag-name');if(n)n.focus();});
-    const sizeInp=document.getElementById('ag-sizeBytes'), sizeHint=document.getElementById('ag-size-hint');
-    sizeInp.addEventListener('input',()=>{
-      const digits=sizeInp.value.replace(/[^\d]/g,'');
-      sizeInp.value=digits?Number(digits).toLocaleString('en-US'):'';
-      sizeHint.textContent=digits?('≈ '+gbFromBytes(digits).toFixed(2)+' GB'):'';
-    });
   }
 
   function fieldValue(key){
@@ -1892,7 +1857,7 @@
     const releaseDate = document.getElementById('ag-releaseDate').value || null;
     const startDate = null;
     const endDate = null;
-    const sizeBytes = parseBytes(document.getElementById('ag-sizeBytes').value);
+    const sizeGBraw = document.getElementById('ag-sizeGB').value;
     const deletedIds = loadJSON('mostafa_pc_deleted_games_v1', []).map(Number);
     const allIds = BASE_GAMES.map(g=>g.id||0).concat(userGames.map(g=>g.id||0)).concat(deletedIds);
     const maxId = allIds.reduce((m,id)=>Math.max(m,id), 0);
@@ -1907,7 +1872,7 @@
       versionType: fieldValue('versionType'),
       releaseDate: releaseDate,
       hdd: fieldValue('hdd'),
-      sizeGB: sizeBytes ? gbFromBytes(sizeBytes) : 0,
+      sizeGB: sizeGBraw ? parseFloat(sizeGBraw) : 0,
       playingState: fieldValue('playingState'),
       mainChar: fieldValue('mainChar'),
       startDate: startDate,
@@ -1925,12 +1890,12 @@
       year: releaseDate ? parseInt(releaseDate.slice(0,4)) : null,
       installTime: fieldValue('installTime'),
       age: computeAge(releaseDate),
-      gameplay: document.getElementById('ag-gameplay')?.checked ? 1 : 0,
-      graphic: document.getElementById('ag-graphic')?.checked ? 1 : 0,
-      world: document.getElementById('ag-world')?.checked ? 1 : 0,
-      theme: document.getElementById('ag-theme')?.checked ? 1 : 0,
-      story: document.getElementById('ag-story')?.checked ? 1 : 0,
-      bugs: document.getElementById('ag-bugs')?.checked ? 1 : 0
+      gameplay: document.getElementById('ag-gameplay').checked ? 1 : 0,
+      graphic: document.getElementById('ag-graphic').checked ? 1 : 0,
+      world: document.getElementById('ag-world').checked ? 1 : 0,
+      theme: document.getElementById('ag-theme').checked ? 1 : 0,
+      story: document.getElementById('ag-story').checked ? 1 : 0,
+      bugs: document.getElementById('ag-bugs').checked ? 1 : 0
     };
 
     userGames.push(newGame);
@@ -1950,7 +1915,7 @@
     const freshBanner = document.getElementById('ag-banner');
     freshBanner.className = 'ag-banner ag-banner-ok';
     freshBanner.textContent = `تمت إضافة "${name}" إلى Library بنجاح.`;
-
+    window.SoundFX?.playAdd();
     const addModal=document.getElementById('library-add-game-modal');
     if(addModal) addModal.style.display='none';
     const addWrap=document.getElementById('library-add-game-wrap');
@@ -2179,7 +2144,6 @@
       const ak=key==='name'?'name':key;
       return String(a[ak]??'').localeCompare(String(b[ak]??''),undefined,{numeric:true,sensitivity:'base'})*dir;
     });
-    (window.__gvExport=window.__gvExport||{}).dates=sorted;
     const total=sorted.reduce((n,r)=>n+(Number(recordDays(r))||0),0),avg=sorted.length?total/sorted.length:0;
     const completedCount=sorted.filter(r=>{const end=String(r.end||'').trim();return end && end.toLowerCase()!=='postponed';}).length;
     const completionRate=sorted.length?(completedCount/sorted.length)*100:0;
@@ -2601,7 +2565,6 @@
       rowsMatched=rowsBase.filter(g=>matchedSet.has(g));
     }
     const rows=rowsMatched.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{numeric:true,sensitivity:'base'}));
-    (window.__gvExport=window.__gvExport||{}).sizes={rows,scanStatus};
     const iconEdit='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17.25V20h2.75L18.81 7.94l-2.75-2.75L4 17.25Zm15.71-10.46c.39-.39.39-1.03 0-1.42l-1.08-1.08a1.003 1.003 0 0 0-1.42 0l-1.07 1.07 2.75 2.75 1.07-1.07Z"/></svg>';
     const iconSave='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4Zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6ZM6 5h8v4H6V5Z"/></svg>';
     const iconDelete='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12ZM8 9h8v10H8V9Zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5Z"/></svg>';
@@ -2613,26 +2576,7 @@
       ? Object.keys(perDrive).sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:'base'}))
           .map(d=>`<span class="sz-chip"><b>${esc(d)}</b> ${gbTxt2(perDrive[d])}</span>`).join('') : '';
     const totalsHtml=`<div class="sz-totals"><div class="sz-total-main"><span>إجمالي الحجم</span><b>${gbTxt2(totalGB)}</b>${totalGB>=1024?`<small>(${fmt(totalGB/1024,2)} TB)</small>`:''}</div><div class="sz-total-side"><span>${fmt(rows.length)} لعبة</span><span>${fmt(withSize)} ليها حجم</span></div>${driveChips?`<div class="sz-chips">${driveChips}</div>`:''}<div class="sz-legend"><span class="sz-dot-blue"></span> اتلقى في الفحص <span class="sz-x sz-x-mini">✕</span> مالقاهوش</div></div>`;
-    // ---- Pagination (Sizes): بنرسم صفحة واحدة بس عشان الأداء ----
-    const szSig=JSON.stringify([search?.value||'',filter?.value||'',stSel]);
-    if(window.__szSig!==szSig){ window.__szSig=szSig; window.__szPage=1; }
-    const szSize=window.__szPageSize||50;
-    const szPages=Math.max(1,Math.ceil(rows.length/szSize));
-    if(!(window.__szPage>=1)) window.__szPage=1;
-    if(window.__szPage>szPages) window.__szPage=szPages;
-    const szPage=window.__szPage;
-    const pageRows=rows.slice((szPage-1)*szSize,szPage*szSize);
-    let szPagerHtml='';
-    if(rows.length>25){
-      let b=`<button type="button" ${szPage===1?'disabled':''} data-szp="${szPage-1}">السابق</button>`;
-      let sp=Math.max(1,szPage-2), ep=Math.min(szPages,sp+4); sp=Math.max(1,ep-4);
-      for(let q=sp;q<=ep;q++) b+=`<button type="button" class="${q===szPage?'active':''}" data-szp="${q}">${q}</button>`;
-      b+=`<button type="button" ${szPage===szPages?'disabled':''} data-szp="${szPage+1}">التالي</button>`;
-      b+=`<button type="button" ${szPage===szPages?'disabled':''} data-szp="${szPages}" title="آخر صفحة">الأخير</button>`;
-      const opts=[25,50,100].map(n=>`<option value="${n}" ${n===szSize?'selected':''}>${n} / صفحة</option>`).join('');
-      szPagerHtml=`<div class="pager sizes-pager">${szPages>1?b:''}<select class="page-select" id="sizes-page-size">${opts}</select></div>`;
-    }
-    wrap.innerHTML=`${totalsHtml}<div class="dt-table-wrap"><table class="dt-table sizes-table"><thead><tr><th>اللعبة</th><th>الهارد</th><th>الحجم (Byte)</th><th>الحجم (GB)</th><th>إجراءات</th></tr></thead><tbody>${pageRows.map(g=>{
+    wrap.innerHTML=`${totalsHtml}<div class="dt-table-wrap"><table class="dt-table sizes-table"><thead><tr><th>اللعبة</th><th>الهارد</th><th>الحجم (Byte)</th><th>الحجم (GB)</th><th>إجراءات</th></tr></thead><tbody>${rows.map(g=>{
       const gb=sizeValueGB(g), bytes=bytesFromGB(gb);
       const st=scanStatus[g.id], fc=st==='found'?' sz-found':'';
       const xMark=st==='missing'?'<span class="sz-x" title="مالقاهوش في الفحص">✕</span>':'';
@@ -2647,9 +2591,7 @@
           <button type="button" class="icon-action danger size-delete" title="حذف سجل الحجم" aria-label="حذف سجل الحجم">${iconDelete}</button>
         </div></td>
       </tr>`;
-    }).join('')}</tbody></table></div>${szPagerHtml}`;
-    wrap.querySelectorAll('[data-szp]').forEach(btn=>btn.addEventListener('click',()=>{ window.__szPage=parseInt(btn.dataset.szp,10)||1; renderSizesTab(); document.getElementById('sizes-section')?.scrollIntoView({behavior:'smooth',block:'start'}); }));
-    wrap.querySelector('#sizes-page-size')?.addEventListener('change',e=>{ window.__szPageSize=parseInt(e.target.value,10)||50; window.__szPage=1; renderSizesTab(); });
+    }).join('')}</tbody></table></div>`;
     wrap.querySelectorAll('.size-kb-input').forEach(inp=>{
       inp.addEventListener('input',()=>{
         const row=inp.closest('tr'), out=row?.querySelector('[data-size-gb]');
@@ -3257,8 +3199,8 @@ function matchSizes(list,games,minScore){
   const I18N_REV = DICT_EN2AR;
   const L_AR='\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF', L_EN='A-Za-z0-9';
   function compileDict(map, cls, exactOnly){
-    const escRe=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-    const keys=Object.keys(map).filter(k=>k && k.trim() && !exactOnly(k)).sort((a,b)=>b.length-a.length).map(escRe);
+    const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    const keys=Object.keys(map).filter(k=>k && k.trim() && !exactOnly(k)).sort((a,b)=>b.length-a.length).map(esc);
     return keys.length ? new RegExp('(?<!['+cls+'])(?:'+keys.join('|')+')(?!['+cls+'])','g') : null;
   }
   const RE_AR2EN = compileDict(DICT_AR2EN, L_AR, k=>k.length<=2);
@@ -3424,7 +3366,7 @@ function matchSizes(list,games,minScore){
       if(row){
         state.expandedId=Number(target.id);
         row.classList.add('open');
-
+        window.SoundFX?.playOpen();
         row.scrollIntoView({behavior:'smooth',block:'center'});
         row.classList.add('game-link-target');
         setTimeout(()=>row.classList.remove('game-link-target'),1400);
@@ -4193,210 +4135,454 @@ if(type==='overview'){
   startDynamicBackground();
 
 
-  /* ================= EXPORT / PRINT / PDF / EXCEL =================
-     بيانات فقط في جدول (بدون صور ولا كروت أفقية) — ويشمل كل النتائج وليس الصفحة الحالية فقط.
-     لتعديل الأعمدة: كل عمود = col(مفتاح, عربي, English, دالة القيمة, {def:true/false}).
-     def:false = العمود موجود في قائمة "الأعمدة" لكنه غير محدد افتراضيًا في الطباعة (Excel يشمل كل الأعمدة). */
-  function exportBuildTable(sectionId){
-    const L=(ar,en)=>lang==='en'?en:ar;
-    const dash='—';
-    const val=v=>(v===null||v===undefined||String(v).trim()==='')?dash:String(v);
-    const day=v=>v?String(v).slice(0,10):dash;
-    const cache=(window.__gvExport=window.__gvExport||{});
-    const col=(k,ar,en,get,o)=>Object.assign({k,ar,en,get,def:true,cls:''},o||{});
-    const out={title:'',cols:[],rows:[],foot:null,summary:[]};
-
-    if(sectionId==='library-section'){
-      let list=getFiltered();
-      if(!list.length && (state.searchName||'').trim()) list=getFiltered('contains');
-      list=sortList(list);
-      const tagsOf=g=>{
-        const t=[];
-        if(g.gameplay)t.push(L('طور لعب مميز','Great gameplay'));
-        if(g.graphic)t.push(L('جرافيك مميز','Great graphics'));
-        if(g.world)t.push(L('عالم مفتوح مميز','Great open world'));
-        if(g.theme)t.push(L('أجواء مميزة','Great atmosphere'));
-        if(g.story)t.push(L('قصة مميزة','Great story'));
-        if(g.bugs)t.push(L('بها أعطال','Has bugs'));
-        const c=gameTags&&gameTags[g.id]; if(Array.isArray(c)) c.forEach(x=>t.push(x));
-        return t.join(' ، ')||dash;
-      };
-      out.title=L('المكتبة','Library');
-      out.rows=list;
-      out.cols=[
-        col('idx','#','#',(g,i)=>fmt(i+1),{cls:'n'}),
-        col('name','اللعبة','Game',g=>val(g.name),{cls:'nm'}),
-        col('series','السلسلة','Series',g=>g.series?tr(SERIES_LABEL[g.series]||g.series):dash),
-        col('genre','النوع','Genre',g=>val(g.genre)),
-        col('hdd','الهارد','Drive',g=>val(g.hdd)),
-        col('year','السنة','Year',g=>val(g.year),{cls:'n'}),
-        col('size','الحجم (GB)','Size (GB)',g=>{const v=sizeValueGB(g);return v>0?fmt(v,2):dash;},{cls:'n'}),
-        col('plays','مرات اللعب','Plays',g=>fmt(getGamePlayCount(g.id,g.name)),{cls:'n'}),
-        col('state','حالة اللعب','Playing State',g=>{const s=derivedLibraryPlayingState(g);return s?tr(STATE_LABEL[s]||s):dash;}),
-        col('verdict','التقييم','Rating',g=>g.verdict?(VERDICT_LABEL[g.verdict]||g.verdict):dash),
-        col('release','تاريخ الإصدار','Release Date',g=>val(g.releaseDate),{cls:'n'}),
-        col('dev','الشركة المطوّرة','Developer',g=>val(g.developer)),
-        col('system','System','System',g=>val(g.system)),
-        col('persp','المنظور','Perspective',g=>g.perspective?tr(PERSP_LABEL[g.perspective]||g.perspective):dash),
-        col('res','الدقة','Resolution',g=>val(g.resolution)),
-        col('arabic','الدعم العربي','Arabic',g=>g.arabic?tr(ARABIC_LABEL[g.arabic]||g.arabic):dash),
-        col('last','آخر لعب','Last Played',g=>day(latestPlayDate(g.id,g.name)),{cls:'n'}),
-        col('days','مدة اللعب (أيام)','Play Days',g=>{const d=computeDays(g.startDate,g.endDate);return d!=null?fmt(d):dash;},{cls:'n'}),
-        col('goty','مفضّلة GOTY','GOTY',g=>g.goty==='Y'?L('نعم','Yes'):L('لا','No')),
-        col('fav','المفضلة ★','Favorite ★',g=>favorites.has(Number(g.id))?'★':dash,{def:false}),
-        col('vtype','نوع النسخة','Version Type',g=>val(g.versionType),{def:false}),
-        col('char','الشخصية الرئيسية','Main Character',g=>val(g.mainChar),{def:false}),
-        col('rem','نوع الإصدار','Release Type',g=>val(g.rem),{def:false}),
-        col('gver','إصدار اللعبة','Game Version',g=>val(g.gameVersion),{def:false}),
-        col('gupd','آخر تحديث للعبة','Game Updated',g=>day(gameUpdatedISO(g)),{def:false,cls:'n'}),
-        col('added','تاريخ الإضافة','Added',g=>day(g.createdAt||g.addedAt||g.dateAdded),{def:false,cls:'n'}),
-        col('edited','آخر تعديل','Last Edit',g=>day(g.editedAt),{def:false,cls:'n'}),
-        col('inst','وقت التثبيت','Install Time',g=>val(g.installTime),{def:false}),
-        col('tags','المميزات','Tags',tagsOf,{def:false,cls:'nm'})
-      ];
-      out.summary=[L('عدد الألعاب','Games')+': '+fmt(list.length)+' / '+fmt(GAMES.length)];
-    }
-
-    else if(sectionId==='sizes-section'){
-      if(!cache.sizes && typeof renderSizesTab==='function') renderSizesTab();
-      const d=cache.sizes||{rows:[],scanStatus:{}};
-      const rows=d.rows, ss=d.scanStatus||{};
-      let total=0; rows.forEach(g=>{const v=sizeValueGB(g); if(v>0)total+=v;});
-      out.title=L('أحجام الألعاب','Game Sizes');
-      out.rows=rows;
-      out.cols=[
-        col('idx','#','#',(g,i)=>fmt(i+1),{cls:'n'}),
-        col('name','اللعبة','Game',g=>val(g.name),{cls:'nm'}),
-        col('hdd','الهارد','Drive',g=>val(g.hdd)),
-        col('bytes','الحجم (Byte)','Size (Byte)',g=>fmtBytes(bytesFromGB(sizeValueGB(g))),{cls:'n'}),
-        col('gb','الحجم (GB)','Size (GB)',g=>sizeValueGB(g).toFixed(2)+' GB',{cls:'n'}),
-        col('mark','العلامة','Mark',g=>ss[g.id]==='missing'?L('✕ مالقاهوش','✕ Not found'):ss[g.id]==='found'?L('اتلقى','Found'):dash)
-      ];
-      out.foot={name:L('الإجمالي','Total')+' ('+fmt(rows.length)+')',gb:fmt(total,2)+' GB',bytes:fmtBytes(bytesFromGB(total))};
-      out.summary=[L('عدد الألعاب','Games')+': '+fmt(rows.length),L('إجمالي الحجم','Total size')+': '+fmt(total,2)+' GB'+(total>=1024?' ('+fmt(total/1024,2)+' TB)':'')];
-    }
-
-    else if(sectionId==='dates-section'){
-      if(!cache.dates && typeof renderDatesTab==='function') renderDatesTab();
-      const rows=cache.dates||[];
-      const totalDays=rows.reduce((n,r)=>n+(Number(recordDays(r))||0),0);
-      out.title=L('تواريخ اللعب ومدة اللعب','Game Dates & Play Duration');
-      out.rows=rows;
-      out.cols=[
-        col('idx','#','#',(r,i)=>fmt(i+1),{cls:'n'}),
-        col('name','اللعبة','Game',r=>val(r.name),{cls:'nm'}),
-        col('start','تاريخ البداية','Start Date',r=>val(r.start),{cls:'n'}),
-        col('end','تاريخ النهاية','End Date',r=>{const e=String(r.end||'').trim();return e?(e.toLowerCase()==='postponed'?'Postponed':e):dash;},{cls:'n'}),
-        col('days','الأيام','Days',r=>{const d=recordDays(r);return d!=null?fmt(d):dash;},{cls:'n'}),
-        col('ord','رقم مرة اللعب','Play #',r=>fmt(getPlayOrdinal(r.gameId,r.name,r)),{cls:'n'}),
-        col('hist','السجل','History',r=>getPlayCountBefore(r.gameId,r.name,r)===0?'New':'Old'),
-        col('state','حالة اللعب','Playing State',r=>val(r.playingState||r.status)),
-        col('screen','الشاشة','Screen',r=>val(r.screenType)),
-        col('gpu','كرت الشاشة','GPU',r=>val(r.gpu)),
-        col('res','الدقة','Resolution',r=>val(r.resolution))
-      ];
-      out.foot={name:L('الإجمالي','Total')+' ('+fmt(rows.length)+')',days:fmt(totalDays)};
-      out.summary=[L('عدد السجلات','Records')+': '+fmt(rows.length),L('إجمالي الأيام','Total days')+': '+fmt(totalDays)];
-    }
-
-    else if(sectionId==='drives-section'){
-      const stats={};
-      GAMES.forEach(g=>{const h=g.hdd||'غير محدد';const st=stats[h]||(stats[h]={count:0,size:0});st.count++;if(!sizeDeleted.has(Number(g.id)))st.size+=sizeValueGB(g);});
-      Object.keys(capacities).forEach(k=>{if(!stats[k])stats[k]={count:0,size:0};});
-      const normName=s=>String(s).toLowerCase().replace(/[\s_\-]+/g,'');
-      const visible=Object.keys(stats).filter(n=>!hiddenDrives.has(n));
-      const pick=list=>list.map(k=>visible.find(n=>normName(n)===k)).filter(Boolean);
-      const r1=pick(['a2','ac','the7th','mester']), r2=pick(['pcksa','laptop','company']);
-      const placed=new Set([...r1,...r2]);
-      const rest=visible.filter(n=>!placed.has(n)).sort((a,b)=>(a==='Deleted')-(b==='Deleted')||String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:'base'}));
-      const names=[...r1,...r2,...rest];
-      let sumCap=0,sumCapUsed=0,sumFree=0,sumGames=0,sumUsedG=0,sumOther=0,sumUsedAll=0;
-      const rows=names.map(n=>{
-        const st=stats[n],isDel=n==='Deleted';
-        const cap=Number(capacities[n])>0?Number(capacities[n]):0;
-        const other=isDel?0:Math.max(0,Number(otherSpace[n])||0);
-        const usedAll=st.size+other;
-        const free=cap?Math.max(0,cap-usedAll):0;
-        sumGames+=st.count;
-        if(!isDel){sumUsedG+=st.size;sumOther+=other;sumUsedAll+=usedAll;}
-        if(cap>0&&!isDel){sumCap+=cap;sumCapUsed+=usedAll;sumFree+=free;}
-        return {name:n,isDel,count:st.count,cap,used:st.size,other,usedAll,free,pct:cap?Math.min(100,usedAll/cap*100):null};
-      });
-      const g2=v=>(Number(v)||0).toFixed(2)+' GB';
-      out.title=L('توزيع المساحة على الهاردات','Storage Distribution');
-      out.rows=rows;
-      out.cols=[
-        col('name','الهارد','Drive',r=>r.name,{cls:'nm'}),
-        col('count','عدد الألعاب','Games',r=>fmt(r.count),{cls:'n'}),
-        col('cap','المساحة الكلية','Total Space',r=>r.isDel?dash:(r.cap?g2(r.cap):dash),{cls:'n'}),
-        col('used','المساحة المستخدمة','Used (Games)',r=>g2(r.used),{cls:'n'}),
-        col('other','مساحات أخرى','Other Space',r=>r.isDel?dash:g2(r.other),{cls:'n'}),
-        col('usedAll','إجمالي المستخدم','Total Used',r=>r.isDel?dash:g2(r.usedAll),{cls:'n'}),
-        col('free','المساحة الفارغة','Free Space',r=>r.isDel?dash:(r.cap?g2(r.free):dash),{cls:'n'}),
-        col('pct','نسبة الاستخدام','Used %',r=>r.pct==null?dash:r.pct.toFixed(1)+'%',{cls:'n'})
-      ];
-      out.foot={name:L('الإجمالي','Total'),count:fmt(sumGames),cap:sumCap?g2(sumCap):dash,used:g2(sumUsedG),other:g2(sumOther),usedAll:g2(sumUsedAll),free:sumCap?g2(sumFree):dash,pct:sumCap?(Math.min(100,sumCapUsed/sumCap*100)).toFixed(1)+'%':dash};
-      out.summary=[L('عدد الهاردات','Drives')+': '+fmt(rows.length),L('ملاحظة: الإجمالي لا يشمل Deleted، والسعة/الفارغ/النسبة تخص الهاردات التي لها سعة محفوظة فقط.','Note: totals exclude Deleted; capacity/free/% cover only drives with a saved capacity.')];
-    }
-    else return null;
-    return out;
-  }
-
+  /* ================= EXPORT / PRINT ================= */
   function exportSectionHTML(sectionId, mode){
-    const t=exportBuildTable(sectionId); if(!t)return;
-    const isEn=lang==='en', excel=mode==='excel', pdf=mode==='pdf';
-    const L=(ar,en)=>isEn?en:ar;
-    const stamp=new Date().toLocaleString(isEn?'en-GB':'ar-EG');
-    const fileTitle=(t.title+' - '+new Date().toISOString().slice(0,10)).replace(/[\\/:*?"<>|]/g,'_');
-    const head=t.cols.map((c,i)=>`<th class="c-${i}">${esc(isEn?c.en:c.ar)}</th>`).join('');
-    const body=t.rows.length
-      ? t.rows.map((r,ri)=>`<tr>${t.cols.map((c,i)=>`<td class="c-${i}${c.cls?' '+c.cls:''}">${esc(c.get(r,ri))}</td>`).join('')}</tr>`).join('')
-      : `<tr><td colspan="${t.cols.length}" class="empty">${esc(L('لا توجد بيانات للتصدير.','No data to export.'))}</td></tr>`;
-    const foot=t.foot?`<tfoot><tr class="tot">${t.cols.map((c,i)=>`<td class="c-${i}${c.cls?' '+c.cls:''}">${esc(t.foot[c.k]!=null?t.foot[c.k]:'')}</td>`).join('')}</tr></tfoot>`:'';
-    const table=`<table class="data" ${excel?'border="1"':''}><thead><tr>${head}</tr></thead><tbody>${body}</tbody>${foot}</table>`;
-    const titleBlock=`<h1>${esc(t.title)}</h1><div class="meta">${esc([...t.summary,stamp].join('   |   '))}</div>`;
-    const baseCss=`body{font-family:Tahoma,"Segoe UI",Arial,sans-serif;color:#111;background:#fff;margin:0;padding:14px}
-h1{font-size:18px;margin:0 0 4px}.meta{font-size:11px;color:#444;margin-bottom:10px}
-table.data{width:100%;border-collapse:collapse;table-layout:auto}
-table.data th,table.data td{border:1px solid #777;padding:3px 5px;vertical-align:middle;text-align:center;overflow-wrap:break-word;unicode-bidi:plaintext}
-table.data th{background:#dfe8f2;font-weight:700}
-table.data td.nm{text-align:start}
-table.data td.n{white-space:nowrap}
-table.data tbody tr:nth-child(even) td{background:#f5f7fa}
-table.data tfoot td{background:#eaf0f7;font-weight:700}
-table.data td.empty{padding:20px;color:#666}
-thead{display:table-header-group}tfoot{display:table-row-group}tr{page-break-inside:avoid;break-inside:avoid}
-*{-webkit-print-color-adjust:exact;print-color-adjust:exact}`;
+    const section=document.getElementById(sectionId); if(!section)return;
+    const clone=section.cloneNode(true);
+    clone.querySelectorAll('.section-tools,.cover-tools,.icon-action,.action-btn,.plus-btn,.dt-actions,.size-actions,.pager,.search-sugg').forEach(el=>el.remove());
+    clone.querySelectorAll('input,select,button').forEach(el=>{ if(el.tagName==='INPUT'||el.tagName==='SELECT'){ const span=document.createElement('span'); span.textContent=el.value||el.getAttribute('placeholder')||''; el.replaceWith(span); } else el.remove(); });
+    const title=clone.querySelector('.section-head h2')?.textContent?.trim() || clone.querySelector('.section-head .tab')?.textContent?.trim() || 'Game Archive';
+    const styles=[...document.querySelectorAll('style')].map(x=>x.textContent).join('\n');
+    const html=`<!doctype html><html dir="${lang==='en'?'ltr':'rtl'}"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${styles} body{background:#fff!important;color:#111!important;padding:24px;font-family:Arial,sans-serif}.section{display:block!important;background:#fff!important;color:#111!important}.panel,.dt-table-wrap,.results-list{background:#fff!important;color:#111!important}table{width:100%;border-collapse:collapse}th,td{border:1px solid #aaa;padding:7px;text-align:start}h1,h2,h3{color:#111!important}
+/* ===== Reference-matched FILTER + TAB NAV design (games untouched) ===== */
+.tabnav{
+  display:grid!important;
+  grid-template-columns:repeat(5,minmax(118px,1fr));
+  gap:0!important;
+  margin:18px 0 14px!important;
+  padding:0!important;
+  border:1px solid rgba(0,184,255,.52)!important;
+  border-radius:13px!important;
+  overflow:hidden!important;
+  background:linear-gradient(180deg,rgba(3,18,34,.97),rgba(2,10,21,.97))!important;
+  box-shadow:0 0 18px rgba(0,153,255,.16),inset 0 1px rgba(255,255,255,.05)!important;
+  position:relative;z-index:50;
+}
+.tabnav-btn{
+  position:relative!important;
+  min-height:72px!important;
+  padding:10px 8px 9px!important;
+  border:0!important;
+  border-inline-end:1px solid rgba(83,143,184,.24)!important;
+  border-bottom:0!important;
+  border-radius:0!important;
+  background:linear-gradient(180deg,rgba(9,29,50,.92),rgba(3,14,27,.96))!important;
+  color:#dcecff!important;
+  font-family:var(--font-head)!important;
+  font-size:15px!important;
+  font-weight:800!important;
+  letter-spacing:.1px;
+  text-shadow:0 2px 4px #000;
+  cursor:pointer;
+  transition:.18s ease!important;
+}
+.tabnav-btn:last-child{border-inline-end:0!important;}
+.tabnav-btn::before{
+  display:block;
+  height:27px;
+  margin-bottom:4px;
+  font-family:Arial,sans-serif;
+  font-size:25px;
+  line-height:27px;
+  color:#dcecff;
+  text-shadow:0 0 8px rgba(85,190,255,.42);
+}
+.tabnav-btn[data-tab="dashboard-section"]::before{content:'⚙';}
+.tabnav-btn[data-tab="drives-section"]::before{content:'▰';}
+.tabnav-btn[data-tab="library-section"]::before{content:'🎮';font-size:23px;}
+.tabnav-btn[data-tab="sizes-section"]::before{content:'▣';}
+.tabnav-btn[data-tab="dates-section"]::before{content:'▦';}
+.tabnav-btn:hover{color:#fff!important;background:linear-gradient(180deg,#103557,#071d34)!important;transform:none!important;}
+.tabnav-btn:hover::before{color:#8bdcff;}
+.tabnav-btn.active{
+  color:#ffe36b!important;
+  background:linear-gradient(180deg,#2a260f,#17170c 62%,#0c1118)!important;
+  border-inline-end-color:rgba(230,180,40,.35)!important;
+  box-shadow:inset 0 0 22px rgba(255,193,34,.12),0 0 15px rgba(255,193,34,.2)!important;
+}
+.tabnav-btn.active::before{color:#ffd95a;text-shadow:0 0 9px rgba(255,197,49,.65);}
 
-    if(excel){
-      const html=`<!doctype html><html dir="${isEn?'ltr':'rtl'}"><head><meta charset="utf-8"><title>${esc(fileTitle)}</title><style>${baseCss} td{mso-number-format:"\\@"}</style></head><body>${titleBlock}${table}</body></html>`;
+aside.filters{
+  position:sticky!important;top:14px;
+  padding:17px 13px 14px!important;
+  background:linear-gradient(180deg,rgba(2,17,32,.98),rgba(2,10,21,.98))!important;
+  border:1px solid rgba(0,181,255,.72)!important;
+  border-radius:13px!important;
+  box-shadow:0 0 18px rgba(0,154,255,.17),inset 0 0 22px rgba(0,120,190,.06)!important;
+}
+aside.filters::before{
+  content:'';display:block;height:3px;width:48%;margin:0 0 12px 0;border-radius:5px;
+  background:linear-gradient(90deg,#00bfff,rgba(0,191,255,.08));
+  box-shadow:0 0 9px rgba(0,191,255,.7);
+}
+.f-group{margin-bottom:15px!important;}
+.f-group summary{
+  position:relative!important;
+  padding:0 2px 7px!important;
+  margin-bottom:9px!important;
+  border-bottom:0!important;
+  color:#dcecff!important;
+  font-size:14px!important;
+  font-weight:850!important;
+  text-shadow:0 2px 4px #000;
+}
+.f-group summary::after{color:#69d8ff!important;font-size:16px!important;}
+.f-group summary::before{
+  content:'';position:absolute;bottom:0;inset-inline-start:0;width:42px;height:2px;border-radius:4px;
+  background:#00bfff;box-shadow:0 0 8px rgba(0,191,255,.65);
+}
+.chip-list{gap:6px!important;max-height:180px!important;}
+.chip{
+  background:rgba(4,25,43,.78)!important;
+  border:1px solid rgba(0,155,224,.42)!important;
+  color:#dcecff!important;
+  border-radius:7px!important;
+  padding:6px 9px!important;
+  font-size:11.5px!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.03);
+}
+.chip:hover{background:rgba(7,45,72,.9)!important;border-color:#00bfff!important;}
+.chip.active{background:linear-gradient(180deg,#12618a,#073c5e)!important;border-color:#16c8ff!important;color:#fff!important;box-shadow:0 0 9px rgba(0,190,255,.2)!important;}
+.range-row input[type=number]{
+  background:#061a2c!important;border-color:rgba(0,155,224,.55)!important;color:#e8f5ff!important;border-radius:7px!important;
+}
+.toggle-row{color:#dcecff!important;}
+.toggle-row input{accent-color:#00bfff!important;}
+.clear-btn{
+  background:rgba(0,48,75,.25)!important;
+  border:0!important;border-top:1px solid rgba(0,170,240,.18)!important;
+  color:#00c8ff!important;border-radius:0!important;margin-top:5px!important;padding:12px 6px!important;
+  font-size:13px!important;font-weight:800!important;
+}
+.clear-btn:hover{background:rgba(0,133,190,.12)!important;color:#70e1ff!important;}
+
+@media(max-width:900px){
+  .tabnav{grid-template-columns:repeat(5,minmax(105px,1fr))!important;overflow-x:auto!important;}
+  .tabnav-btn{min-width:105px!important;min-height:68px!important;font-size:13px!important;}
+}
+@media(max-width:560px){
+  .tabnav{grid-template-columns:repeat(5,94px)!important;}
+  .tabnav-btn{min-width:94px!important;min-height:62px!important;padding:7px 4px!important;font-size:11.5px!important;}
+  .tabnav-btn::before{font-size:21px;height:23px;line-height:23px;}
+  aside.filters{position:relative!important;top:auto!important;}
+}
+</style>
+<style id="reference-ui-final">
+/* ===== FINAL REFERENCE DESIGN: NAV TABS + LIBRARY FILTER ONLY ===== */
+nav#tabnav.tabnav{
+  width:min(1160px,calc(100% - 36px)) !important;
+  margin:18px auto 14px !important;
+  padding:0 !important;
+  display:grid !important;
+  grid-template-columns:repeat(5,1fr) !important;
+  gap:0 !important;
+  background:linear-gradient(180deg,rgba(4,22,40,.98),rgba(2,11,22,.99)) !important;
+  border:1px solid rgba(0,185,255,.75) !important;
+  border-radius:13px !important;
+  overflow:hidden !important;
+  box-shadow:0 0 20px rgba(0,170,255,.18),inset 0 0 18px rgba(0,110,190,.07) !important;
+  position:relative !important;
+  z-index:80 !important;
+}
+nav#tabnav .tabnav-btn{
+  height:76px !important;
+  min-height:76px !important;
+  padding:8px 6px 7px !important;
+  margin:0 !important;
+  border:0 !important;
+  border-inline-end:1px solid rgba(102,153,190,.22) !important;
+  border-radius:0 !important;
+  background:linear-gradient(180deg,#0a2742 0%,#06192d 100%) !important;
+  color:#dcecff !important;
+  font-family:var(--font-head,Arial,sans-serif) !important;
+  font-size:15px !important;
+  font-weight:900 !important;
+  text-shadow:0 2px 4px #000 !important;
+  box-shadow:inset 0 1px rgba(255,255,255,.045) !important;
+  transition:background .16s ease,box-shadow .16s ease,color .16s ease !important;
+}
+nav#tabnav .tabnav-btn:last-child{border-inline-end:0 !important;}
+nav#tabnav .tabnav-btn::before{
+  display:block !important;
+  height:31px !important;
+  margin:0 0 3px !important;
+  font-family:Arial,sans-serif !important;
+  font-size:28px !important;
+  line-height:31px !important;
+  color:#e4f4ff !important;
+  text-shadow:0 0 9px rgba(72,195,255,.58) !important;
+}
+nav#tabnav .tabnav-btn[data-tab="dashboard-section"]::before{content:'⚙' !important;}
+nav#tabnav .tabnav-btn[data-tab="drives-section"]::before{content:'▰' !important;}
+nav#tabnav .tabnav-btn[data-tab="library-section"]::before{content:'🎮' !important;font-size:27px !important;}
+nav#tabnav .tabnav-btn[data-tab="sizes-section"]::before{content:'▣' !important;}
+nav#tabnav .tabnav-btn[data-tab="dates-section"]::before{content:'▦' !important;}
+nav#tabnav .tabnav-btn:hover{
+  color:#fff !important;
+  background:linear-gradient(180deg,#123c62,#08233d) !important;
+  box-shadow:inset 0 0 18px rgba(0,178,255,.13) !important;
+  transform:none !important;
+}
+nav#tabnav .tabnav-btn.active{
+  color:#ffe477 !important;
+  background:linear-gradient(180deg,#3b330e 0%,#211d0a 55%,#0c1720 100%) !important;
+  box-shadow:inset 0 0 26px rgba(255,196,45,.18),0 0 16px rgba(255,190,35,.2) !important;
+  border-inline-end-color:rgba(255,205,72,.28) !important;
+}
+nav#tabnav .tabnav-btn.active::before{
+  color:#ffd75a !important;
+  text-shadow:0 0 11px rgba(255,202,47,.82) !important;
+}
+
+/* Filter: match supplied reference, while keeping all existing controls functional */
+#library-section aside#filters.filters{
+  width:290px !important;
+  min-width:290px !important;
+  box-sizing:border-box !important;
+  padding:18px 13px 14px !important;
+  background:linear-gradient(180deg,rgba(2,18,34,.985),rgba(1,9,19,.99)) !important;
+  border:1px solid rgba(0,184,255,.82) !important;
+  border-radius:13px !important;
+  box-shadow:0 0 21px rgba(0,156,255,.2),inset 0 0 25px rgba(0,120,200,.08) !important;
+  position:relative !important;
+  overflow:hidden !important;
+}
+#library-section aside#filters.filters::after{
+  content:'' !important;
+  position:absolute !important;
+  top:0 !important;
+  left:0 !important;
+  right:0 !important;
+  height:2px !important;
+  background:linear-gradient(90deg,transparent,#00c9ff 25%,#00c9ff 75%,transparent) !important;
+  box-shadow:0 0 10px #00c9ff !important;
+}
+#library-section aside#filters.filters::before{
+  content:'⚱' !important;
+  display:block !important;
+  position:absolute !important;
+  inset-inline-end:13px !important;
+  top:12px !important;
+  width:auto !important;
+  height:auto !important;
+  margin:0 !important;
+  background:none !important;
+  box-shadow:none !important;
+  color:#00c8ff !important;
+  font-size:22px !important;
+  line-height:1 !important;
+  opacity:.95 !important;
+}
+#library-section aside#filters.filters .f-group{margin-bottom:14px !important;}
+#library-section aside#filters.filters .f-group summary{
+  padding:0 2px 8px !important;
+  margin-bottom:9px !important;
+  color:#e6f4ff !important;
+  font-size:14px !important;
+  font-weight:900 !important;
+  text-shadow:0 2px 4px #000 !important;
+  border:0 !important;
+}
+#library-section aside#filters.filters .f-group summary::before{
+  content:'' !important;
+  position:absolute !important;
+  bottom:0 !important;
+  inset-inline-start:0 !important;
+  width:42px !important;
+  height:2px !important;
+  border-radius:4px !important;
+  background:#00bfff !important;
+  box-shadow:0 0 8px rgba(0,191,255,.7) !important;
+}
+#library-section aside#filters.filters .f-group summary::after{
+  color:#68d9ff !important;
+  font-size:16px !important;
+}
+#library-section aside#filters.filters .chip{
+  min-height:30px !important;
+  box-sizing:border-box !important;
+  padding:6px 9px !important;
+  border-radius:7px !important;
+  background:rgba(4,25,43,.82) !important;
+  border:1px solid rgba(0,158,225,.42) !important;
+  color:#e1effb !important;
+}
+#library-section aside#filters.filters .chip:hover{
+  background:rgba(7,50,79,.92) !important;
+  border-color:#00c8ff !important;
+}
+#library-section aside#filters.filters .chip.active{
+  background:linear-gradient(180deg,#126a92,#074563) !important;
+  border-color:#15ccff !important;
+  color:#fff !important;
+  box-shadow:0 0 9px rgba(0,194,255,.2) !important;
+}
+#library-section aside#filters.filters .range-row input[type=number]{
+  background:#061b2e !important;
+  border-color:rgba(0,166,235,.55) !important;
+  color:#edf9ff !important;
+}
+#library-section aside#filters.filters .toggle-row{color:#dcecff !important;}
+#library-section aside#filters.filters .toggle-row input{accent-color:#00c8ff !important;}
+#library-section aside#filters.filters .clear-btn{
+  background:transparent !important;
+  border:0 !important;
+  border-top:1px solid rgba(0,175,245,.2) !important;
+  color:#00c8ff !important;
+  margin-top:7px !important;
+  padding:13px 6px !important;
+  font-size:13px !important;
+  font-weight:900 !important;
+}
+#library-section aside#filters.filters .clear-btn:hover{background:rgba(0,153,218,.1) !important;color:#79e4ff !important;}
+
+@media(max-width:900px){
+  nav#tabnav.tabnav{width:calc(100% - 20px) !important;overflow-x:auto !important;grid-template-columns:repeat(5,108px) !important;}
+  nav#tabnav .tabnav-btn{min-width:108px !important;height:70px !important;min-height:70px !important;font-size:13px !important;}
+  #library-section aside#filters.filters{width:270px !important;min-width:270px !important;}
+}
+@media(max-width:560px){
+  nav#tabnav.tabnav{grid-template-columns:repeat(5,92px) !important;}
+  nav#tabnav .tabnav-btn{min-width:92px !important;height:62px !important;min-height:62px !important;padding:6px 3px !important;font-size:11px !important;}
+  nav#tabnav .tabnav-btn::before{font-size:21px !important;height:23px !important;line-height:23px !important;}
+  #library-section aside#filters.filters{width:100% !important;min-width:0 !important;}
+}
+
+/* Gold hover interaction for navigation/filter icons */
+.tabnav-btn,
+.section-head .export-icon-btn,
+.ui-btn,
+.icon-action,
+.library-card-actions .icon-btn,
+.cover-tools .icon-btn,
+.dt-table .dt-edit-btn,
+.dt-table .dt-save,
+.dt-table .dt-delete,
+.dt-table .dt-option-add,
+.pager button,
+.side-select button,
+.clear-btn{
+  transition:background .18s ease,color .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+/* Hovering any navigation icon/button turns the complete control gold */
+.tabnav-btn:hover,
+.tabnav-btn:hover svg,
+.section-head .export-icon-btn:hover,
+.section-head .export-icon-btn:hover svg,
+.ui-btn:hover,
+.ui-btn:hover svg,
+.icon-action:hover,
+.icon-action:hover svg,
+.library-card-actions .icon-btn:hover,
+.library-card-actions .icon-btn:hover svg,
+.cover-tools .icon-btn:hover,
+.cover-tools .icon-btn:hover svg,
+.dt-table .dt-edit-btn:hover,
+.dt-table .dt-edit-btn:hover svg,
+.dt-table .dt-save:hover,
+.dt-table .dt-save:hover svg,
+.dt-table .dt-delete:hover,
+.dt-table .dt-delete:hover svg,
+.dt-table .dt-option-add:hover,
+.dt-table .dt-option-add:hover svg,
+.side-select button:hover,
+.side-select button:hover svg,
+.clear-btn:hover,
+.clear-btn:hover svg{
+  color:#1b1710 !important;
+  background:linear-gradient(145deg,#ffe28a,#dcae3d) !important;
+  border-color:#ffd45b !important;
+  box-shadow:0 0 16px rgba(255,204,72,.42), inset 0 1px rgba(255,255,255,.45) !important;
+  transform:translateY(-1px);
+}
+/* The filter section title and its expand/collapse control also respond in gold */
+aside.filters .f-group summary:hover{
+  color:#ffd45b !important;
+  border-bottom-color:#dcae3d !important;
+}
+aside.filters .f-group summary:hover::after{color:#ffd45b !important;}
+aside.filters .chip:hover{
+  color:#1b1710 !important;
+  background:linear-gradient(145deg,#ffe28a,#dcae3d) !important;
+  border-color:#ffd45b !important;
+  box-shadow:0 0 12px rgba(255,204,72,.30);
+}
+/* Keep the selected navigation tab gold even when the pointer moves over its icon */
+.tabnav-btn.active,
+.tabnav-btn.active:hover{
+  color:#1b1710 !important;
+  background:linear-gradient(145deg,#ffe28a,#dcae3d) !important;
+  border-color:#ffd45b !important;
+  box-shadow:0 0 20px rgba(255,204,72,.42), inset 0 1px rgba(255,255,255,.45) !important;
+}
+
+
+/* v14: inline tab icons + guaranteed visible rating stars */
+nav#tabnav .tabnav-btn::before{display:none !important;content:none !important;}
+nav#tabnav .tabnav-btn{display:flex !important;align-items:center !important;justify-content:center !important;gap:9px !important;flex-direction:row !important;}
+nav#tabnav .tabnav-btn .tab-icon{display:inline-flex !important;align-items:center;justify-content:center;width:30px;height:30px;font-size:23px;line-height:1;color:#dff6ff;text-shadow:0 0 10px rgba(0,195,255,.72);flex:0 0 30px;}
+nav#tabnav .tabnav-btn.active .tab-icon{color:#ffd75a !important;text-shadow:0 0 12px rgba(255,202,47,.9) !important;}
+nav#tabnav .tabnav-btn:hover .tab-icon{color:#1b1710 !important;text-shadow:none !important;}
+.rating-filter-group .rating-chip-list{display:flex !important;flex-direction:column !important;gap:6px !important;max-height:none !important;overflow:visible !important;}
+.rating-filter-group .rating-chip{width:100% !important;display:flex !important;align-items:center !important;justify-content:flex-start !important;gap:12px !important;min-height:34px !important;padding:6px 10px !important;box-sizing:border-box !important;}
+.rating-filter-group .rating-stars{display:inline-flex !important;white-space:nowrap !important;min-width:100px !important;letter-spacing:2px !important;font-size:17px !important;line-height:1 !important;flex:0 0 100px !important;}
+.rating-filter-group .rating-label{font-weight:900 !important;line-height:1.2 !important;}
+@media(max-width:560px){nav#tabnav .tabnav-btn{gap:5px !important;}nav#tabnav .tabnav-btn .tab-icon{width:23px;height:23px;font-size:19px;flex-basis:23px}.rating-filter-group .rating-stars{min-width:82px!important;flex-basis:82px!important;font-size:14px!important;letter-spacing:1px!important;}}
+
+/* ============ v15: MAIN TABS — NEON BLUE & WHITE ============ */
+nav#tabnav.tabnav{
+  background:rgba(4,14,26,.78) !important;
+  border:1px solid rgba(0,209,255,.4) !important;
+  box-shadow:0 0 30px rgba(0,180,255,.18), inset 0 1px rgba(255,255,255,.05) !important;
+}
+nav#tabnav .tabnav-btn{
+  background:linear-gradient(145deg,#081a2c,#040f1c) !important;
+  border:1px solid rgba(0,209,255,.35) !important;
+  color:#eaf8ff !important;
+  box-shadow:inset 0 1px rgba(255,255,255,.05), 0 0 10px rgba(0,190,255,.10) !important;
+}
+nav#tabnav .tabnav-btn .tab-icon{
+  color:#ffffff !important;
+  text-shadow:0 0 10px rgba(0,209,255,.85) !important;
+}
+nav#tabnav .tabnav-btn:hover{
+  color:#ffffff !important;
+  background:linear-gradient(145deg,#0e3a5c,#082238) !important;
+  border-color:#00d1ff !important;
+  box-shadow:0 0 24px rgba(0,209,255,.55), inset 0 1px rgba(255,255,255,.2) !important;
+  transform:translateY(-1px);
+}
+nav#tabnav .tabnav-btn:hover .tab-icon{
+  color:#ffffff !important;
+  text-shadow:0 0 14px rgba(0,209,255,1) !important;
+}
+nav#tabnav .tabnav-btn.active,
+nav#tabnav .tabnav-btn.active:hover,
+.tabnav-btn.active,
+.tabnav-btn.active:hover{
+  color:#ffffff !important;
+  background:linear-gradient(145deg,#00c2ff,#0072b8) !important;
+  border-color:#ffffff !important;
+  box-shadow:0 0 28px rgba(0,209,255,.75), 0 0 12px rgba(255,255,255,.6), inset 0 1px rgba(255,255,255,.55) !important;
+  transform:none !important;
+}
+nav#tabnav .tabnav-btn.active .tab-icon,
+.tabnav-btn.active .tab-icon{
+  color:#ffffff !important;
+  text-shadow:0 0 16px rgba(255,255,255,1), 0 0 24px rgba(0,209,255,.95) !important;
+}
+nav#tabnav .tabnav-btn .tab-label{color:inherit !important;}
+</style>
+</head><body>${clone.outerHTML}</body></html>`;
+    if(mode==='excel'){
       const blob=new Blob(['\ufeff',html],{type:'application/vnd.ms-excel;charset=utf-8'});
-      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fileTitle+'.xls';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-      return;
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(title.replace(/[\\/:*?"<>|]/g,'_')||'game_archive')+'.xls';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    }else{
+      const w=window.open('','_blank','width=1200,height=850');
+      if(!w){alert(tr('يرجى السماح بالنوافذ المنبثقة للتصدير والطباعة.'));return;}
+      w.document.open();w.document.write(html);w.document.close();
+      w.focus();setTimeout(()=>w.print(),500);
     }
-
-    const hiddenCss=t.cols.map((c,i)=>c.def?'':`.c-${i}{display:none}`).join('');
-    const picker=t.cols.map((c,i)=>`<label><input type="checkbox" data-c="${i}" ${c.def?'checked':''}> ${esc(isEn?c.en:c.ar)}</label>`).join('');
-    const hint=pdf?L('لحفظ PDF: في نافذة الطباعة اختر الطابعة «Save as PDF / حفظ كـ PDF».','To save as PDF: choose “Save as PDF” as the printer in the print dialog.'):L('اختر الأعمدة المطلوبة ثم اضغط طباعة.','Pick the columns you need, then press Print.');
-    const toolbar=`<div class="noprint bar"><button type="button" id="btn-print">${pdf?'⬇ PDF':'🖨'} ${esc(pdf?L('حفظ PDF','Save PDF'):L('طباعة','Print'))}</button><span class="hint">${esc(hint)}</span><details><summary>${esc(L('الأعمدة','Columns'))}</summary><div class="colpick">${picker}</div></details></div>`;
-    const popupCss=`${baseCss}
-.bar{position:sticky;top:0;background:#fff;border-bottom:1px solid #ccc;padding:8px 0;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;z-index:5}
-.bar button{padding:6px 14px;font-size:13px;cursor:pointer}.hint{font-size:12px;color:#444;align-self:center}
-.colpick{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 12px;margin-top:6px;font-size:12px}
-@media print{.noprint{display:none!important}body{padding:0}}`;
-    const script=`(function(){
-var boxes=[].slice.call(document.querySelectorAll('.colpick input')),hc=document.getElementById('hc'),pg=document.getElementById('pg'),tb=document.querySelector('table.data');
-function fit(){var css='',n=0;boxes.forEach(function(b){if(b.checked)n++;else css+='.c-'+b.getAttribute('data-c')+'{display:none}';});
-hc.textContent=css;tb.style.fontSize=(n<=6?12:n<=9?10.5:n<=12?9.5:n<=15?8.5:n<=18?7.8:n<=22?7.2:6.6)+'px';
-pg.textContent='@page{size:A4 '+(n<=6?'portrait':'landscape')+';margin:8mm}';}
-boxes.forEach(function(b){b.addEventListener('change',fit);});
-document.getElementById('btn-print').addEventListener('click',function(){window.print();});
-fit();setTimeout(function(){window.focus();window.print();},450);
-})();`;
-    const html=`<!doctype html><html dir="${isEn?'ltr':'rtl'}" lang="${isEn?'en':'ar'}"><head><meta charset="utf-8"><title>${esc(fileTitle)}</title><style>${popupCss}</style><style id="hc">${hiddenCss}</style><style id="pg">@page{size:A4 landscape;margin:8mm}</style></head><body>${toolbar}${titleBlock}${table}<script>${script}<\/script></body></html>`;
-    const w=window.open('','_blank','width=1200,height=850');
-    if(!w){alert(tr('يرجى السماح بالنوافذ المنبثقة للتصدير والطباعة.'));return;}
-    w.document.open();w.document.write(html);w.document.close();
   }
   function initExportButtons(){
     document.querySelectorAll('.tab-page').forEach(section=>{
@@ -4404,7 +4590,7 @@ fit();setTimeout(function(){window.focus();window.print();},450);
       const tools=document.createElement('div');tools.className='section-tools';
       tools.innerHTML=`<button type="button" class="export-icon-btn pdf" data-export="pdf" title="${tr('تصدير PDF')}" aria-label="${tr('تصدير PDF')}"><svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v5h5M8 16h2.2a1.5 1.5 0 0 0 0-3H8v5M13 18v-5h2a2.5 2.5 0 0 1 0 5h-2M19 13h-3v5"/></svg></button><button type="button" class="export-icon-btn excel" data-export="excel" title="${tr('تصدير Excel 365')}" aria-label="${tr('تصدير Excel 365')}"><svg viewBox="0 0 24 24"><path d="M4 4h10v16H4zM14 7h6v10h-6z"/><path d="m7 8 4 8M11 8l-4 8"/></svg></button><button type="button" class="export-icon-btn print" data-export="print" title="${tr('طباعة')}" aria-label="${tr('طباعة')}"><svg viewBox="0 0 24 24"><path d="M7 8V4h10v4M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M7 14h10v7H7zM18 12h.01"/></svg></button>`;
       head.appendChild(tools);
-      tools.addEventListener('click',e=>{const b=e.target.closest('[data-export]');if(!b)return;const mode=b.dataset.export;exportSectionHTML(section.id,mode);});
+      tools.addEventListener('click',e=>{const b=e.target.closest('[data-export]');if(!b)return;const mode=b.dataset.export;exportSectionHTML(section.id,mode==='excel'?'excel':'print');});
     });
   }
 
@@ -4566,7 +4752,6 @@ fit();setTimeout(function(){window.focus();window.print();},450);
   if(!window.__gameVaultRealtimeBound){
     window.__gameVaultRealtimeBound=true;
     window.addEventListener('gamevault:cloud-update', e=>{
-      const __anchor=document.getElementById('library-section')?.classList.contains('active')?gvCaptureAnchor(state.expandedId):null;
       try{
         const keys=new Set(e?.detail?.keys||[]);
         if(keys.has(USERGAMES_KEY)){ userGames=loadJSON(USERGAMES_KEY,[]); }
@@ -4601,7 +4786,6 @@ fit();setTimeout(function(){window.focus();window.print();},450);
         try{ renderDatesTab(); }catch(err){}
         try{ renderSizesTab(); }catch(err){}
         try{ window.__renderActiveTab?.(); }catch(err){}
-        if(__anchor) gvRestoreAnchor(__anchor);
       }catch(err){
         console.error('Realtime UI refresh failed',err);
       }
